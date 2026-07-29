@@ -1,9 +1,10 @@
 # Godot-generated state
-.godot/
+**/.godot/
 
 # Godot exports and local build output
 build/
 exports/
+dist/
 
 # Flutter and Dart-generated state
 app/.dart_tool/
@@ -12,8 +13,16 @@ app/.flutter-plugins
 app/.flutter-plugins-dependencies
 app/build/
 app/coverage/
-app/ohos/.cxx/
-app/ohos/build/
+# OpenHarmony and Node-generated state
+**/.cxx/
+**/.hvigor/
+**/node_modules/
+**/oh_modules/
+**/dependencyMap/
+**/local.properties
+
+app/ohos/entry/src/main/resources/rawfile/game/*
+!app/ohos/entry/src/main/resources/rawfile/game/.gitkeep
 packages/**/.dart_tool/
 packages/**/build/
 
@@ -24,3 +33,5 @@ packages/**/build/
 *.log
 Thumbs.db
 .DS_Store
+*.full.otf
+*.full.otf.import

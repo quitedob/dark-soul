@@ -1,0 +1,21 @@
+name: ashen_hollow_app
+description: Flutter shell for the Ashen Hollow game host.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ashen_hollow_web_host:
+    path: ../packages/ashen_hollow_web_host
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

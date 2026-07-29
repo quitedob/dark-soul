@@ -1,0 +1,10 @@
+{
+  "module": {
+    "name": "ashen_hollow_web_host",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet"
+    ]
+  }
+}

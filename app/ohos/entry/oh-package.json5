@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Ashen Hollow entry module.",
+  "main": "",
+  "author": "Ashen Hollow",
+  "license": "MIT",
+  "dependencies": {}
+}

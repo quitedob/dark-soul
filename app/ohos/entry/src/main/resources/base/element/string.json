@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Ashen Hollow Flutter host"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Ashen Hollow application"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Ashen Hollow"
+    }
+  ]
+}

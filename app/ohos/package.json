@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "flutter-hvigor-plugin": "file:D:\\flutter\\OpenHarmony-flutter\\flutter_flutter\\packages\\flutter_tools\\hvigor"
+  }
+}

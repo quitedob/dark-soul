@@ -1,0 +1,20 @@
+# This file tracks properties of this Flutter project.
+# Used by Flutter tooling to assess capabilities and perform upgrades.
+
+version:
+  revision: "af27e4a7f6"
+  channel: "[user-branch]"
+
+project_type: app
+
+migration:
+  platforms:
+    - platform: root
+      create_revision: af27e4a7f6
+      base_revision: af27e4a7f6
+    - platform: ohos
+      create_revision: af27e4a7f6
+      base_revision: af27e4a7f6
+
+  unmanaged_files:
+    - 'lib/main.dart'

@@ -1,0 +1,9 @@
+{
+  "name": "ashen_hollow_web_host",
+  "version": "0.1.0",
+  "description": "ArkUI Web platform-view host for Ashen Hollow.",
+  "main": "index.ets",
+  "author": "Ashen Hollow",
+  "license": "MIT",
+  "dependencies": {}
+}
