@@ -1,5 +1,10 @@
 # Research — Dark Souls Design Principles
 
+**Last updated:** 2026-07-29 (post-audit fixes applied)
+**Revision:** Initial research 2026-07-29; Updated 2026-07-29 to reflect 9 audit fixes (commit `7f30d4f`)
+**Status:** `ACTIVE` — post-fix accuracy verified against game code
+**See also:** [`research-dark-souls-weapons.md`](research-dark-souls-weapons.md) — per-style weapon tuning, hit-stop, hyper armor, audio profiling
+
 Research conducted 2026-07-29 to evaluate whether Ashen Hollow's game design correctly reflects Dark Souls 1/3 core design, what is missing, and what should not be copied directly.
 
 ## Source Reliability Disclaimer
@@ -13,6 +18,24 @@ This report uses a three-tier evidence classification:
 | **Analysis** | Interpretation built from observable mechanics. Not developer-confirmed; must be labeled as analysis. |
 
 **Important:** Two Perplexity deep_research queries were executed during this investigation. The first returned a framework-level answer without any source URLs. The second follow-up also could not return verifiable URLs with page-specific quotations. Therefore, no conclusion below is attributed to a Perplexity-returned source unless independently verified. Conclusions marked **Analysis** are supported by observable game mechanics and widely documented design patterns but lack developer-attributed confirmation.
+
+---
+
+## Post-Audit Implementation Summary
+
+All nine gaps identified in the initial audit (2026-07-29) were resolved in commit `7f30d4f`. The sections below have been updated to reflect the post-fix state. This table serves as a quick reference for what changed:
+
+| Gap ID | Section | Resolution |
+|--------|---------|------------|
+| M1 | Ember spending | Vitality Forging: 3-tier HP upgrade at shrine (50/120/250 embers, +10 HP/tier) |
+| M2 | Enemy reset on death | Full enemy reset in `_on_player_died()` at `game_world.gd:276-278` |
+| S2 | Boss phase transition | Phase 2 at ≤50% HP: faster attacks, fiery weapon glow, audio cue, 0.6s stagger |
+| S3 | Boss distance attacks | Three-bracket selection: close swipe, mid alternating, long lunge |
+| S4 | Input buffering | 150ms window, last-input-wins, decays in `_update_state()` |
+| S5 | Lock-on target cycling | `_collect_lock_candidates()` + `_cycle_lock_target()` |
+| S6 | Telegraph audio timing | Moved to `State.WINDUP` match arm |
+| — | Stamina regen delay | Gated behind `state == State.LOCOMOTION` |
+| — | Healing design conflict | Resolved: Ember Rite documented as intentional exception in game-design.md |
 
 ---
 
@@ -32,7 +55,7 @@ This report uses a three-tier evidence classification:
 
 DS1's four-directional locked roll and slower stamina recovery create a heavier, more deliberate feel. DS3's omnidirectional locked roll and more generous stamina economy produce faster-paced combat. Neither game allows canceling attacks once past early startup frames. The difference is in animation speed, recovery windows, stamina costs, and lock-on mobility — not a fundamental "DS1 can't cancel, DS3 can."
 
-**Status for Ashen Hollow:** The design correctly identifies wind-up/active/recovery phases and that attacks should not be freely cancellable. Input buffering is mentioned in research (`docs/research.md:15`) but not yet implemented. This is a **should-have** for the slice.
+**Status for Ashen Hollow:** The design correctly identifies wind-up/active/recovery phases and that attacks should not be freely cancellable. Input buffering is now implemented with a 150ms window (`game/scripts/player.gd:357-400`). Combat actions pressed during attack recovery are stored and executed on return to LOCOMOTION. Last-input-wins; the buffer decays in `_update_state()`.
 
 ---
 
@@ -50,7 +73,7 @@ DS1's four-directional locked roll and slower stamina recovery create a heavier,
 
 Stamina functions as a shared budget across offensive, defensive, and movement actions. This creates natural decision tension: attacking reduces ability to evade. Regeneration delay creates a rhythm where players must disengage to recover.
 
-**Status for Ashen Hollow:** The design (`docs/game-design.md:32`) correctly implements shared stamina for sprinting, attacking, and dodging with regeneration delay. The specific costs (20/38/26) are prototype targets, not derived from DS. The current implementation's regeneration delay counts during attack execution (`game/scripts/player.gd:626`), which may make heavy attacks effectively consume no delay. This should be tuned to start delay from actionable recovery.
+**Status for Ashen Hollow:** The design (`docs/game-design.md:32`) correctly implements shared stamina for sprinting, attacking, and dodging with regeneration delay. The specific costs (20/38/26) are prototype targets, not derived from DS. The initial implementation allowed the regeneration delay to count down during attack execution, which would have made heavy attacks effectively consume no delay. This was corrected: stamina regeneration and delay decrement are now gated behind `state == State.LOCOMOTION` (`game/scripts/player.gd:717-730`), ensuring the delay actually punishes committed actions.
 
 ### What NOT to Copy
 
@@ -70,7 +93,7 @@ Exact stamina pool sizes, cost ratios, regen rates, and equipment load threshold
 
 Lock-on provides spatial anchoring for one-on-one combat. The camera tracks the locked target, freeing the player from manual camera control during combat. Known limitations in both games include: target selection through walls/geometry, camera collision with walls in tight spaces, disorientation against very large or very fast enemies, and no distance-based or occlusion-aware target filtering.
 
-**Status for Ashen Hollow:** The implementation (`game/scripts/player.gd:650`) uses distance and camera-facing angle for target selection. It lacks occlusion checks and target cycling — both known limitations also present in DS games, but target cycling is a **should-have** and occlusion checks are a documented planned improvement (`docs/research.md:57`).
+**Status for Ashen Hollow:** The implementation (`game/scripts/player.gd:742-793`) uses distance and camera-facing angle for target selection. Target cycling is now implemented: first press acquires the best camera-facing target, subsequent presses cycle through all valid candidates, and lock releases when only one target remains. Occlusion checks remain a documented planned improvement (`docs/research.md:57`).
 
 ### What NOT to Copy
 
@@ -91,7 +114,7 @@ Four-directional locked movement, inability to cycle targets, and camera behavio
 
 The learning loop relies on: (1) safe observation reveals attack pattern, (2) pattern recognition enables successful response, (3) variation forces adaptation. High damage is a feedback mechanism, not the primary teaching tool. The sequence from isolated enemy → combination → environmental complication is a documented level-design pattern across both titles.
 
-**Status for Ashen Hollow:** The design (`docs/game-design.md:26`) correctly requires readable telegraphs. Current implementation uses a glowing floor disc and weapon pose for telegraphs (`game/scripts/enemy.gd:461`). However, only one enemy archetype exists (Hollow Sentinel × 3, Guardian as a stat-scaled variant). A second archetype with a different attack profile is a **should-have** for demonstrating variety. Telegraph audio should play during wind-up, not at active hit (`game/scripts/enemy.gd:378`).
+**Status for Ashen Hollow:** The design (`docs/game-design.md:26`) correctly requires readable telegraphs. Current implementation uses a glowing floor disc and weapon pose for telegraphs. Telegraph audio now plays during `State.WINDUP` (`game/scripts/enemy.gd:446-447`), not at active hit — the wind-up match arm triggers the swing sound cue simultaneously with the telegraph mesh becoming visible, giving the player an audio warning before the hitbox opens. However, only one enemy archetype exists (Hollow Sentinel × 3, Guardian as a stat-scaled variant). A second archetype with a different attack profile is a **should-have** for demonstrating variety.
 
 ---
 
@@ -118,10 +141,10 @@ The learning loop relies on: (1) safe observation reveals attack pattern, (2) pa
 
 The death-recovery loop creates push-your-luck tension: carrying many souls makes death costly, encouraging retreat to spend them; carrying few reduces the cost of exploration. The bloodstain mechanic forces re-traversal of the area that killed you, which reinforces route learning. Enemy reset links resource restoration (Estus refill at bonfire) with encounter replay, preventing attrition-based progress.
 
-**Status for Ashen Hollow:** The implementation largely matches the described loop — death drops embers, Lost Echo enables recovery, second death replaces the old echo (`docs/game-design.md:40`, `game/scripts/game_world.gd:187`). However:
+**Status for Ashen Hollow:** The implementation largely matches the described loop — death drops embers, Lost Echo enables recovery, second death replaces the old echo (`docs/game-design.md:40`, `game/scripts/game_world.gd:187`). Both defects identified in the initial audit have been resolved:
 
-- **Defect:** Embers currently have no spending purpose, weakening the push-your-luck decision. A minimal shrine-based sink (e.g., "spend embers to reinforce weapon" or "spend embers to increase max health by 5") is a **must-have**.
-- **Defect:** Enemy reset only occurs on manual rest, not on death (`game/scripts/game_world.gd:182`). DS games reset enemies on rest; Ashen Hollow should match this but should also consider whether death should reset enemies (current behavior: death does NOT reset enemies, allowing attrition across lives). This is a design decision, not a pure bug.
+- **Resolved:** Embers now have a spending purpose via Vitality Forging at the Ember Shrine (`game/scripts/player.gd:277-287`, `game/scripts/game_world.gd:204-223`). Three upgrade tiers (50/120/250 embers) each grant +10 max HP. Upgrades persist across deaths and application sessions via `run_state.gd`, giving the death-recovery loop a progressive anchor.
+- **Resolved:** Enemy reset now occurs on both shrine rest AND player death (`game/scripts/game_world.gd:276-278`). Death restores all regular enemies to full HP and spawn positions, matching the Soulslike convention of re-traversing the area on respawn.
 
 ---
 
@@ -153,11 +176,12 @@ DS1 uses spatial interconnection as a substitute for fast travel in the early ga
 
 Core boss design principles observable in both games: (1) readable tells before every attack, (2) punish windows after committed attacks, (3) variation that prevents pattern memorization from trivializing the fight, (4) failure that teaches a specific lesson. Delayed attacks (holding a pose before striking) test observation rather than reflex. Phase changes test adaptation under pressure.
 
-**Status for Ashen Hollow:** The Cinder Guardian alternates quick and delayed attacks deterministically (`game/scripts/enemy.gd:338`). No phase transitions, no distance-dependent attack selection, no arena mechanics. For a 10–15 minute slice:
+**Status for Ashen Hollow:** The Cinder Guardian now has significant behavioral depth:
 
-- A second attack pattern that triggers at ~50% health is a **should-have**.
-- Distance-dependent attack selection (close → swipe, far → lunge) is a **should-have**.
-- A visible transition effect at the phase boundary is a **could-have**.
+- **Implemented:** Phase transition at ≤50% HP with faster windups, shorter recoveries, higher damage, a fiery weapon emission glow (`Color(1.0, 0.35, 0.08)`), a distinct audio cue, and a 0.6s stagger animation (`game/scripts/enemy.gd:165-166, 423-435`).
+- **Implemented:** Distance-dependent attack selection with three brackets: close (<2.0m) fast swipe, mid (2.0–3.5m) alternating quick/delayed strikes, long (>3.5m) heavy lunge with large gap-close (`game/scripts/enemy.gd:345-420`).
+
+For a 10–15 minute slice, the current boss implementation meets the should-have criteria. Additional depth (arena hazards, environmental interaction) remains in the could-have category.
 
 ### What NOT to Copy
 
@@ -175,16 +199,7 @@ Any specific boss name, visual design, attack animation sequence, arena geometry
 
 Without a spending outlet, collected currency has no instrumental value beyond a score counter. The "risk recovery or cut losses" decision only has weight if the recovered currency can be meaningfully used.
 
-**Status for Ashen Hollow:** Embers can be earned, lost, and recovered, but have no spending purpose (`docs/game-design.md:38`). This is the **highest-priority design gap**. A minimal sink — even a single stat investment or weapon reinforcement at the shrine — would activate the entire death-recovery loop's motivational structure.
-
-### Minimum Viable Growth for the Slice
-
-One of:
-- Spend embers at shrine to increase max health by a small amount (permanent for the run).
-- Spend embers at shrine to boost a single weapon's damage.
-- Accumulate embers toward a visible threshold that unlocks a new combat capability.
-
-This is a **must-have** for the slice to function as designed.
+**Status for Ashen Hollow:** Embers can be earned, lost, and recovered. The initial audit identified the absence of a spending outlet as the highest-priority design gap. **Resolved:** Embers now have a spending purpose via Vitality Forging at the Ember Shrine (`game/scripts/player.gd:277-287`, `game/scripts/game_world.gd:204-223`). The three-tier system (50/120/250 ember costs for +10 HP per tier, up to 3 tiers) activates the death-recovery loop's motivational structure. This is a minimal but sufficient sink for the vertical slice.
 
 ---
 
@@ -200,12 +215,7 @@ This is a **must-have** for the slice to function as designed.
 
 Limited healing creates route endurance: can you reach the next bonfire before running out? The refill-on-rest mechanic ensures each attempt starts with full resources while preventing attrition-based progress through an area — you can't grind through by slowly healing between fights.
 
-**Status for Ashen Hollow:** The design (`docs/game-design.md:36`) originally stated healing is limited to checkpoint restoration only. However, the current codebase added Ember Rite (one of five combat styles) which can heal 24 HP and passively regenerates Focus (`game/scripts/player.gd:537`, `game/scripts/player.gd:634`). The design doc and implementation are now in conflict. This must be resolved:
-
-- **Option A:** Remove/disable in-combat healing for the slice; keep checkpoint-only healing as originally designed.
-- **Option B:** Embrace limited healing and re-document the design with a resource constraint (e.g., Focus depletes and does NOT auto-regenerate, or Ember Rite costs embers).
-
-**Recommendation:** Option A is more consistent with the vertical slice's stated scope boundaries. The five-style expansion should be consolidated before adding healing mechanics.
+**Status for Ashen Hollow:** The design-implementation conflict identified in the initial audit has been resolved. `docs/game-design.md:36` now documents Ember Rite as an intentional limited exception to checkpoint-only healing: a 24 HP heal costing 30 Focus with a 0.92s cast time. This is a high-commitment tactical choice, not a safety net. The resolution follows the pattern seen in Dark Souls 3, which has both Estus (checkpoint-refillable) and healing miracles (FP-cost). Ember Rite serves a support/utility role within the five-style system that does not undermine the encounter economy.
 
 ### What NOT to Copy
 
@@ -234,11 +244,11 @@ Ashen Hollow should avoid:
 
 | # | Item | Current Status | Verification |
 |---|---|---|---|
-| M1 | Ember spending purpose (shrine sink) | ❌ Missing | Player can spend embers at shrine; spending changes gameplay state |
-| M2 | Enemy reset on death (or documented design choice) | ❌ Partial | Death restores all regular enemies to spawn state |
+| M1 | Ember spending purpose (shrine sink) | ✅ Implemented | Player spends embers at shrine for permanent +10 HP (3 tiers: 50/120/250) |
+| M2 | Enemy reset on death | ✅ Implemented | Death restores all regular enemies to spawn state (`game_world.gd:276-278`) |
 | M3 | All GDScript files parse without errors | ✅ Passes | `--check-only` on every .gd file |
 | M4 | Headless import completes | ✅ Passes | Godot editor import without script/resource errors |
-| M5 | Complete death→echo→recovery→rest cycle | ⚠️ One defect | Shrine resting works repeatedly; echo replaced on second death |
+| M5 | Complete death→echo→recovery→rest cycle | ✅ Verified | Shrine resting works repeatedly; echo replaced on second death |
 | M6 | Boss is defeatable with intended tactics | ⚠️ Untested | Full manual Guardian kill from fresh start |
 | M7 | 10–15 minute complete loop playable | ⚠️ Untimed | Manual stopwatch run |
 
@@ -247,11 +257,11 @@ Ashen Hollow should avoid:
 | # | Item | Current Status |
 |---|---|---|
 | S1 | Second enemy archetype | ❌ Only Sentinel variant |
-| S2 | Boss phase transition at ~50% HP | ❌ No phases |
-| S3 | Boss distance-dependent attack selection | ❌ Deterministic alternation only |
-| S4 | Input buffering for attacks/rolls | ❌ Inputs discarded outside locomotion |
-| S5 | Lock-on target cycling | ❌ No cycling |
-| S6 | Telegraph audio during wind-up | ❌ Audio plays at active hit |
+| S2 | Boss phase transition at ~50% HP | ✅ Implemented |
+| S3 | Boss distance-dependent attack selection | ✅ Implemented |
+| S4 | Input buffering for attacks/rolls | ✅ Implemented (150ms window) |
+| S5 | Lock-on target cycling | ✅ Implemented |
+| S6 | Telegraph audio during wind-up | ✅ Implemented |
 | S7 | Shortcut demonstrably reduces route by ≥30% | ⚠️ Untimed |
 | S8 | Controller + keyboard input complete | ⚠️ Controller mapped but untested |
 
@@ -296,14 +306,17 @@ The following claims circulate in player discussions but lack confirmed develope
 5. **Checkpoint + enemy reset on rest:** Matches bonfire conventions.
 6. **Shortcut for spatial progress retention:** Matches DS design intent.
 7. **Readable telegraphs as a stated requirement:** Correct design priority.
+8. **Input buffering:** A 150ms action buffer ensures combat inputs during recovery are not discarded — implemented correctly.
 
-### Highest-Priority Gaps
+### Current Remaining Gaps (Post-Fix)
 
-1. **Embers have no use** → The entire death-recovery loop has no motivational anchor. Fix: add one shrine-based spending action.
-2. **Enemy reset on death is missing** → Attrition across lives breaks the learning loop. Fix: reset all regular enemies on death, or document the design choice.
-3. **Boss lacks behavioral depth** → Two alternating attacks are trivially solvable. Fix: add phase transition at 50% HP with distinct attack profile and distance-dependent selection.
-4. **Design doc / implementation conflict** → Healing exists in code (Ember Rite) but doc says checkpoint-only. Fix: align doc and code.
-5. **No input buffering** → Inputs outside locomotion are discarded, making commitment feel unresponsive. Fix: add short input queue or buffer window near recovery end.
+The five original highest-priority gaps have been resolved. The following items represent the most impactful remaining work:
+
+1. **Only one enemy archetype** (S1) — Hollow Sentinel and Guardian (stat-scaled variant). A second archetype with a different attack profile remains a should-have for demonstrating encounter variety.
+2. **No per-style stamina cost differentiation** — All five combat styles currently use the same flat costs (20/38/26), undermining weapon identity. See [`research-dark-souls-weapons.md`](research-dark-souls-weapons.md) for recommended per-style values.
+3. **No per-style attack timing differentiation** — Wind-up, active, and recovery durations should vary by combat style to create distinct feel. Currently uniform across styles.
+4. **No hit-stop on impact** — Brief frame pauses on successful hits dramatically improve weight perception. See weapons research for frame-count recommendations.
+5. **No hyper armor for heavy weapons** — Twin Colossi should be stagger-immune during active frames to reward surviving the long wind-up.
 
 ### What NOT to Add (for This Slice)
 
@@ -313,6 +326,10 @@ The following claims circulate in player discussions but lack confirmed develope
 - DS-style Estus/Kindling/FP allocation — design a simpler, original system.
 - More than 3–4 enemy archetypes — the slice should prove the loop before expanding.
 
+### Related Research
+
+- **Weapon Design:** [`docs/research-dark-souls-weapons.md`](research-dark-souls-weapons.md) — per-style tuning recommendations, hit-stop on impact, hyper armor, audio profiling, charged attacks, running/rolling variants, and the weapon category design matrix.
+
 ---
 
 ## References and Further Research
@@ -321,13 +338,17 @@ The following claims circulate in player discussions but lack confirmed develope
 
 | File | Status |
 |---|---|
-| `docs/game-design.md` | PARTIALLY RELIABLE — core design sound, conflicts with current code on healing |
-| `docs/architecture.md` | STALE — entry scene description and responsibility table are outdated |
-| `docs/controls.md` | STALE — missing five styles, guard, parry, spells, gamepad, touch |
-| `docs/validation.md` | CONTRADICTED — Godot path, input platforms, persistence claims all outdated |
-| `docs/devlog.md` | STALE — recent entries missing; claims about no fonts/controllers contradicted |
-| `docs/research.md` | PARTIALLY RELIABLE — design advice still sound; no source URLs provided |
+| `docs/game-design.md` | RELIABLE — updated with Vitality Forging, Ember Rite healing exception, boss phases, and enemy reset on death |
+| `docs/architecture.md` | PARTIALLY RELIABLE — scene tree and responsibility table current; missing title screen and pause flow |
+| `docs/controls.md` | STALE — still missing 5 combat styles, guard, parry, spells, gamepad, touch |
+| `docs/validation.md` | PARTIALLY RELIABLE — test commands correct; controller/persistence claims outdated vs current code |
+| `docs/devlog.md` | RELIABLE — includes full audit fix entries with code references and validation results |
+| `docs/research.md` | PARTIALLY RELIABLE — design advice still sound; no source URLs; predates 5-style + controller implementation |
 | `docs/project-structure.md` | RELIABLE — describes current repository layout accurately |
+
+---
+
+## Appendix: Unresolved Questions and Search Coverage
 
 ### Unresolved Research Questions
 

@@ -1,5 +1,48 @@
 # Ashen Hollow Development Log
 
+## 2026-07-29 — Research Documents Updated to Post-Fix State
+
+### Scope
+
+Updated both Dark Souls research documents to accurately reflect the post-fix code state after all 9 audit fixes were applied in commit `7f30d4f`. The documents were originally written before the fixes and described features as missing that are now implemented.
+
+### Changes to `research-dark-souls-design.md`
+
+- Added metadata header (last updated, revision history, status, cross-reference to weapons doc).
+- Added **Post-Audit Implementation Summary** table mapping all 9 resolved gaps to their fixes.
+- Updated 6 per-section "Status for Ashen Hollow" blocks (Sections 1–5, 7–9) from "not implemented" / "defect" to resolved descriptions with code references.
+- Updated **Vertical Slice Checklist**: M1, M2, S2, S3, S4, S5, S6 now `✅ Implemented`; M5 now `✅ Verified`.
+- Replaced the "Highest-Priority Gaps" list (4 of 5 resolved) with **Current Remaining Gaps (Post-Fix)** — 5 items cross-referenced to the weapons research.
+- Updated **documentation reliability table**: `game-design.md` → RELIABLE, `devlog.md` → RELIABLE, others refined.
+- Resolved the **healing design conflict** (Option A/B fork removed; Ember Rite documented as intentional, following DS3 pattern).
+- Added **"Related Research"** cross-reference to weapons doc; moved unresolved questions to an appendix.
+
+### Changes to `research-dark-souls-weapons.md`
+
+- Updated metadata header with status tracking and cross-reference to design doc.
+- Added **"Changes Since Initial Research"** table: 5 audit fixes relevant to weapons, all marked **Done**.
+- Updated **Documentation Reviewed** table — all 8 rows refreshed to reflect post-fix state.
+- Added **`[DONE]` / `[PENDING]` / `[DEFERRED]`** status markers to all 11 recommendations. Result: 1 DONE (input buffering), 5 PENDING (per-style tuning, hit-stop, hyper armor, audio, timing), 5 DEFERRED (charged heavies, running/rolling attacks, boss weapon, poise, spear style).
+- Renamed section to **"Recommendations — Status Tracked"**.
+- Fixed **contradictions**: healing conflict marked RESOLVED; controls.md staleness replaced with cross-reference.
+- Added `(uniform timing currently used)` flags to Ashen Hollow mapping.
+- Added prominent ⚠️ **playtesting warning** above the Tuning Reference table (frame data is MEDIUM confidence — tune, don't copy).
+- **Reordered sections**: Sources & Search Coverage moved after Conclusion.
+- Consolidated overlapping combat pillar descriptions to cross-reference design doc.
+
+### Cross-Document Status
+
+Both documents now:
+- Accurately reflect the post-fix code state (verified against `player.gd`, `enemy.gd`, `game_world.gd`).
+- Cross-reference each other via metadata headers and inline links.
+- Provide clear status tracking: readers can see at a glance which recommendations are done, pending, or deferred.
+- Preserve all original evidence classifications, "What NOT to Copy" guidance, and analytical structure.
+
+### Coordination
+
+- Documentation-only change. No runtime files modified.
+- The three stale documents flagged by both research audits (`architecture.md`, `controls.md`, `validation.md`) remain out of scope for this update.
+
 ## 2026-07-29 — Research Audit Fixes Applied
 
 ### Scope

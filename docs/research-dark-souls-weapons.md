@@ -1,9 +1,11 @@
 # Dark Souls Weapon Design Research
 
 **Date**: 2026-07-29
+**Last updated**: 2026-07-29 (post-audit fixes verified; recommendations status-tracked)
 **Purpose**: Research Dark Souls weapon models, design philosophy, and moveset principles to inform weapon implementation in Ashen Hollow (Godot 4.7 soulslike vertical slice).
 **Method**: Perplexity MCP (pro + deep_research modes) + project documentation scan.
-**Status**: COMPLETE — actionable recommendations ready.
+**Status**: `ACTIVE` — recommendations differentiate implemented vs pending vs deferred
+**See also**: [`research-dark-souls-design.md`](research-dark-souls-design.md) — 12-topic DS design audit, vertical slice checklist, post-fix gap analysis
 
 ---
 
@@ -37,18 +39,36 @@
 
 ---
 
+## Changes Since Initial Research
+
+The following combat-related fixes from the design audit (commit `7f30d4f`) have been applied since this research was conducted. Readers should be aware these features are now implemented, not pending:
+
+| Change | Source (Audit Gap) | Status |
+|--------|-------------------|--------|
+| Input buffering (150ms window) | S4 | **Done** — `player.gd:357-400` |
+| Boss phase transition at ≤50% HP | S2 | **Done** — `enemy.gd:165-166, 423-435` |
+| Boss distance-dependent attack selection | S3 | **Done** — `enemy.gd:345-420` |
+| Telegraph audio during wind-up | S6 | **Done** — `enemy.gd:446-447` |
+| Stamina regen gated to LOCOMOTION | — | **Done** — `player.gd:717-730` |
+
+The weapon-specific recommendations (per-style timing, stamina costs, hit-stop, hyper armor, audio profiling) remain **pending** — the changes above improve the combat foundation but do not address style differentiation.
+
+---
+
 ## Project Documentation Reviewed
 
 | File | Relevant Claims | Reliability |
 |------|----------------|-------------|
-| `game-design.md` | 4 combat pillars (commitment, readability, resource pressure, recovery); 5 combat styles; tuning targets (100 HP, 100 stamina, light=20, heavy=38, dodge=26) | RELIABLE — current as of latest devlog entry |
-| `research-dark-souls-design.md` | 12-topic DS design audit; 9 fixes applied; ember spending gap closed | RELIABLE — validated against code |
-| `architecture.md` | State machines (player + enemy), collision layers, data flow, scene tree | PARTIALLY RELIABLE — research audit notes stale entry scene description |
-| `devlog.md` | 9 research-audit fixes applied; 5 combat styles shipped; input buffering (150ms), target cycling, boss phase transition, Vitality Forging added | RELIABLE — chronological record of changes |
-| `research.md` | 9-step implementation sequence; Godot-specific soulslike recommendations | RELIABLE — initial design research |
+| `game-design.md` | 4 combat pillars (commitment, readability, resource pressure, recovery); 5 combat styles; tuning targets (100 HP, 100 stamina, light=20, heavy=38, dodge=26) | RELIABLE — updated to reflect audit fixes |
+| `research-dark-souls-design.md` | 12-topic DS design audit; all 9 fixes verified against game code; post-fix state documented | RELIABLE — cross-validated with code |
+| `architecture.md` | State machines (player + enemy), collision layers, data flow, scene tree | PARTIALLY RELIABLE — scene tree current; title screen and pause flow still undescribed |
+| `devlog.md` | 9 research-audit fixes applied; 5 combat styles shipped; input buffering (150ms), target cycling, boss phase transition, Vitality Forging added | RELIABLE — chronological record includes full post-fix state |
+| `research.md` | 9-step implementation sequence; Godot-specific soulslike recommendations | RELIABLE — initial design research, predates 5-style + controller |
 | `controls.md` | Input mapping; keyboard alternatives; accessibility notes | STALE — missing 5 combat styles, guard, parry, controller inputs per research audit |
-| `validation.md` | All automated tests pass; 16-item manual checklist; Godot 4.7.1 | CONTRADICTED — Godot path and input platform claims outdated per research audit |
+| `validation.md` | All automated tests pass; 16-item manual checklist; Godot 4.7.1 | CONTRADICTED — controller status claim outdated; script glob misses subdirectories |
 | `project-structure.md` | Multi-project layout; `game/` as Godot root; `snake_case` naming | RELIABLE |
+
+The design research audit ([`research-dark-souls-design.md`](research-dark-souls-design.md), Section 11) contains a Vertical Slice Checklist that tracks implementation status of combat-related features — input buffering, lock-on cycling, boss phases, and telegraph audio — several of which directly affect weapon feel.
 
 ---
 
@@ -62,7 +82,7 @@
 - **Weapons as worldbuilding**: Each weapon tells a story through its visual design, item description, and acquisition context. A weapon found in a decayed castle feels different from one forged from a boss soul.
 - **Fairness through readability**: Enemy weapons telegraph their attacks clearly. Player weapons have visible wind-up, active, and recovery states. Nothing damages the player without an animation cue.
 
-**Relevance to Ashen Hollow**: The three-phase attack model (wind-up → active → recovery) already implements the weight principle. The procedural ruin world provides context for weapon acquisition. Telegraph readability is already a stated combat pillar.
+**Relevance to Ashen Hollow**: The three-phase attack model, stamina economy, and telegraph readability are covered in detail in the design research audit ([`research-dark-souls-design.md`](research-dark-souls-design.md), Sections 1–4). The weapon research below focuses on differentiation *within* that framework — per-style timing, stamina costs, audio profiles, and unique mechanical properties.
 
 ### 2. Weapon Category Design Matrix
 
@@ -81,9 +101,9 @@
 | Halberd | Slow-Medium | Very Long | ~50-60% | High | Sweet-spot mechanics, zone control, versatile moveset |
 
 **Ashen Hollow mapping**:
-- **Reliquary Guard** (shield + 1H): Straight sword or spear-tier speed and stamina costs
-- **Twin Colossi** (paired great-blades): Ultra greatsword-tier commitment with dual-wield cadence
-- **Crescent Pair** (paired curved-blades): Curved sword-tier speed with dual-hit patterns
+- **Reliquary Guard** (shield + 1H): Straight sword or spear-tier speed and stamina costs *(uniform timing currently used across all styles)*
+- **Twin Colossi** (paired great-blades): Ultra greatsword-tier commitment with dual-wield cadence *(uniform timing currently used across all styles)*
+- **Crescent Pair** (paired curved-blades): Curved sword-tier speed with dual-hit patterns *(uniform timing currently used across all styles)*
 - **Veilcraft** (projectile magic): No physical weapon — Focus-based resource, ranged
 - **Ember Rite** (healing/damage prayer): No physical weapon — Focus-based, support/offense hybrid
 
@@ -111,7 +131,7 @@
 - Active: No cancellation. This is the commitment window.
 - Recovery: Can be interrupted by dodge/roll after a minimum recovery threshold.
 
-**Ashen Hollow current state**: Already implements wind-up → active → recovery with no cancellation after wind-up. Input buffering (150ms window) added in latest fixes. Does NOT yet implement running attacks, rolling attacks, charged heavies, or two-handing — all are future-depth items.
+**Ashen Hollow current state**: Already implements wind-up → active → recovery with no cancellation after wind-up. Input buffering (150ms window, last-input-wins) was added in the research audit fixes (commit `7f30d4f`). Does NOT yet implement running attacks, rolling attacks, charged heavies, or two-handing — all are future-depth items. Attack timing is currently uniform across all combat styles; per-style differentiation is a pending recommendation.
 
 ### 4. Weapon Scaling & Stat Requirements
 
@@ -247,34 +267,12 @@
 
 ---
 
-## Sources & Search Coverage
-
-### Perplexity Queries Executed
-1. `mode=pro`: Comprehensive weapon design philosophy checklist (8 items)
-2. `mode=pro` follow-up: Developer quotes, frame data, visual examples, boss weapons, mistakes, minimum roster
-3. `mode=deep_research`: Frame data, interviews, historical references, boss weapon rules, indie postmortems, sound design, accessibility
-4. `mode=pro` follow-up: Concrete stamina costs, frame ratios, real weapon stats, Miyazaki quotes, specific mistakes, sound layers
-
-### Source Types Consulted
-- Community frame data analyses (wikidot, fextralife, YouTube breakdowns) — estimated values, flagged as medium confidence
-- Developer interviews (Design Works, EDGE, Game Informer) — paraphrased, no direct URLs returned
-- Game reviews and postmortems (Lords of the Fallen, Mortal Shell) — synthesized from multiple sources
-- Dark Souls wiki weapon stat databases — specific numbers provided, flagged as patch-dependent
-
-### Search Limitations
-- Perplexity MCP in this session did not return direct source URLs. All specific numbers should be verified against community wikis.
-- Frame data varies by game version (DS1 vs DS3 vs Elden Ring) and patch. Values provided are approximate starting points.
-- No direct Miyazaki quotes with verified publication details were returned. Quotes cited are representative paraphrases.
-- Historical weapon references are inferred from visual analysis and community research, not direct developer statements.
-
----
-
 ## Contradictions & Gaps
 
 ### Contradictions
-1. **Healing design conflict**: `game-design.md` states checkpoint-only healing, but code implements Ember Rite healing (24 HP, 30 Focus, 0.92s cast). Research audit flagged this as unresolved. The weapon research suggests this is actually fine — Dark Souls 3 has both Estus (checkpoint-refillable) AND healing miracles (FP-cost). The design doc should be updated to acknowledge Ember Rite as an intentional exception.
+1. **Healing design conflict — RESOLVED**: `game-design.md` was updated in commit `7f30d4f` to document Ember Rite as an intentional limited in-combat healing exception (24 HP, 30 Focus, 0.92s cast). This follows the Dark Souls 3 pattern of checkpoint-refillable Estus coexisting with FP-cost healing miracles. Ember Rite is a high-commitment tactical choice, not a safety net.
 
-2. **Controls doc vs reality**: `controls.md` lists only basic combat inputs, but the codebase has 5 combat styles with guard, parry, spellcasting, and style switching. The controls doc needs a full refresh.
+2. **Controls doc vs reality**: `controls.md` remains stale. For a full documentation reliability audit, see [`research-dark-souls-design.md`](research-dark-souls-design.md), Documentation Reviewed table.
 
 ### Gaps
 1. **No weapon-switching mechanic**: The 5 combat styles are selectable but there's no mid-combat weapon switching. Dark Souls allows this; most soulslikes benefit from it.
@@ -285,57 +283,61 @@
 
 ---
 
-## Recommendations for Ashen Hollow
+## Recommendations — Status Tracked
+
+Each recommendation is marked with its current implementation status: `[DONE]`, `[PENDING]`, or `[DEFERRED]`.
 
 ### Immediate (Vertical Slice Polish)
 
-1. **Tune stamina costs to weapon weight class** (Priority: HIGH)
+0. **Input buffering (150ms window)** `[DONE]` — Implemented in commit `7f30d4f` (`player.gd:357-400`). Combat actions pressed during attack recovery are stored and executed on return to LOCOMOTION.
+
+1. **Tune stamina costs to weapon weight class** `[PENDING]` (Priority: HIGH)
    - Reliquary Guard (straight sword tier): Light attack ~40 stamina, Heavy ~55
    - Twin Colossi (UGS tier): Light attack ~65 stamina, Heavy ~80
    - Crescent Pair (curved sword tier): Light attack ~35 stamina, Heavy ~50
    - Current flat costs (20/38 for all styles) undermine weapon identity
 
-2. **Differentiate attack timing per style** (Priority: HIGH)
+2. **Differentiate attack timing per style** `[PENDING]` (Priority: HIGH)
    - Each style should have unique wind-up/active/recovery ratios
    - Twin Colossi should feel dramatically slower than Crescent Pair
-   - Current implementation may use the same timing for all styles
+   - Current implementation uses the same timing for all styles
 
-3. **Add hit-stop on impact** (Priority: HIGH)
+3. **Add hit-stop on impact** `[PENDING]` (Priority: HIGH)
    - Brief (2-4 frame) pause on successful hits
    - Longer hit-stop for heavier weapons
    - Dramatically improves "weight" perception without changing any other system
 
-4. **Layer audio per weapon weight class** (Priority: MEDIUM)
+4. **Layer audio per weapon weight class** `[PENDING]` (Priority: MEDIUM)
    - Parameterize the procedural audio system by weapon weight
    - Lower pitch, larger reverb, more layers for heavy weapons
    - Higher pitch, tighter reverb for light weapons
 
-5. **Add hyper armor during heavy weapon active frames** (Priority: MEDIUM)
+5. **Add hyper armor during heavy weapon active frames** `[PENDING]` (Priority: MEDIUM)
    - Twin Colossi should not be staggerable during the active window
    - This is the primary reward for surviving the long wind-up
 
 ### Future Depth (Post Vertical Slice)
 
-6. **Add charged heavy attacks** (Priority: LOW)
+6. **Add charged heavy attacks** `[DEFERRED]` (Priority: LOW)
    - Hold heavy attack button to extend wind-up for more damage
    - Creates a risk/reward sub-decision: "Do I have time for a charged R2?"
 
-7. **Add running and rolling attack variants** (Priority: LOW)
+7. **Add running and rolling attack variants** `[DEFERRED]` (Priority: LOW)
    - Unique attack animations triggered from movement states
    - Running R1: forward momentum, longer reach, moderate damage
    - Rolling R1: quick recovery poke, low damage, fast wind-up
 
-8. **Add boss weapon from Cinder Guardian** (Priority: LOW)
+8. **Add boss weapon from Cinder Guardian** `[DEFERRED]` (Priority: LOW)
    - Defeating the Guardian could unlock a fiery weapon style or ability
    - Preserves the boss's phase 2 elemental motif
    - Creates a tangible trophy for the vertical slice's climax
 
-9. **Add poise/stagger resistance system** (Priority: LOW)
+9. **Add poise/stagger resistance system** `[DEFERRED]` (Priority: LOW)
    - Heavy weapons grant poise during active frames
    - Light weapons rely on speed and dodge cancels
    - Creates meaningful trade-off between weapon classes
 
-10. **Consider a spear/halberd style** (Priority: LOW)
+10. **Consider a spear/halberd style** `[DEFERRED]` (Priority: LOW)
     - Fills the long-reach, spacing-focused archetype
     - Sweet-spot mechanic (more damage at tip, less at haft)
     - Different play pattern from all existing styles
@@ -343,6 +345,8 @@
 ---
 
 ## Ashen Hollow Combat Style Tuning Reference
+
+> **⚠️ CRITICAL:** Frame counts and stamina values below are starting points derived from community Dark Souls frame data analyses. All values are **MEDIUM confidence** per the research confidence framework (see Key Findings). These numbers **MUST be tuned through actual playtesting** — implementing them verbatim without testing will produce incorrect feel. The **ratios and relative differences** between styles are more reliable than the absolute numbers. Use these as a directional guide, not a specification.
 
 Based on Dark Souls weapon class data, here are recommended tuning targets for each style:
 
@@ -372,4 +376,28 @@ The primary recommendation is **deepening differentiation between styles**: Twin
 
 The single highest-impact change: **add hit-stop on successful impacts**. This 2-4 frame pause costs nothing in design complexity but dramatically improves the perception of weapon weight — it's the secret sauce that makes Dark Souls combat feel visceral rather than floaty.
 
+**Post-audit note (2026-07-29):** Since the initial research, the design audit identified and resolved 9 gaps (commit `7f30d4f`). Input buffering, boss phases, distance-dependent attacks, telegraph audio timing, and stamina regen gating are now implemented. The remaining weapon-specific recommendations — per-style tuning, hit-stop, hyper armor — are still pending and represent the highest-impact remaining work for combat feel. See [`research-dark-souls-design.md`](research-dark-souls-design.md) for the complete post-fix gap analysis.
+
 **Research confidence**: HIGH on design principles and directional numbers. MEDIUM on specific frame data (verify through playtesting). LOW on exact developer quotes (verify against primary sources). The Perplexity MCP did not return direct URLs in this session; all specific numbers are community-estimated and should be treated as tuning starting points, not authoritative references.
+
+---
+
+## Sources & Search Coverage
+
+### Perplexity Queries Executed
+1. `mode=pro`: Comprehensive weapon design philosophy checklist (8 items)
+2. `mode=pro` follow-up: Developer quotes, frame data, visual examples, boss weapons, mistakes, minimum roster
+3. `mode=deep_research`: Frame data, interviews, historical references, boss weapon rules, indie postmortems, sound design, accessibility
+4. `mode=pro` follow-up: Concrete stamina costs, frame ratios, real weapon stats, Miyazaki quotes, specific mistakes, sound layers
+
+### Source Types Consulted
+- Community frame data analyses (wikidot, fextralife, YouTube breakdowns) — estimated values, flagged as medium confidence
+- Developer interviews (Design Works, EDGE, Game Informer) — paraphrased, no direct URLs returned
+- Game reviews and postmortems (Lords of the Fallen, Mortal Shell) — synthesized from multiple sources
+- Dark Souls wiki weapon stat databases — specific numbers provided, flagged as patch-dependent
+
+### Search Limitations
+- Perplexity MCP in this session did not return direct source URLs. All specific numbers should be verified against community wikis.
+- Frame data varies by game version (DS1 vs DS3 vs Elden Ring) and patch. Values provided are approximate starting points.
+- No direct Miyazaki quotes with verified publication details were returned. Quotes cited are representative paraphrases.
+- Historical weapon references are inferred from visual analysis and community research, not direct developer statements.
