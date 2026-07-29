@@ -53,6 +53,9 @@ var stamina := 100.0
 var max_focus := 80.0
 var focus := 80.0
 var embers := 0
+var _upgrade_tier := 0
+const UPGRADE_COSTS := [50, 120, 250]
+const UPGRADE_HP_PER_TIER := 10
 
 var move_speed := 5.2
 var sprint_speed := 7.4
@@ -89,6 +92,9 @@ var knockback_velocity := Vector3.ZERO
 var lock_target: Node3D
 var interaction_target: Node
 var configured := false
+var _buffered_action := ""
+var _buffer_timer := 0.0
+const INPUT_BUFFER_WINDOW := 0.15
 
 var visual_root: Node3D
 var body_mesh: MeshInstance3D
@@ -253,6 +259,34 @@ func set_embers(amount: int) -> void:
 	embers_changed.emit(embers)
 
 
+func get_upgrade_tier() -> int:
+	return _upgrade_tier
+
+
+func set_upgrade_tier(tier: int) -> void:
+	_upgrade_tier = clampi(tier, 0, UPGRADE_COSTS.size())
+
+
+func get_upgrade_cost() -> int:
+	var next_tier := _upgrade_tier
+	if next_tier >= UPGRADE_COSTS.size():
+		return -1
+	return UPGRADE_COSTS[next_tier]
+
+
+func try_upgrade_max_health() -> bool:
+	var cost := get_upgrade_cost()
+	if cost < 0 or embers < cost:
+		return false
+	embers -= cost
+	_upgrade_tier += 1
+	max_health += UPGRADE_HP_PER_TIER
+	health = minf(health + UPGRADE_HP_PER_TIER, max_health)
+	embers_changed.emit(embers)
+	_emit_stats()
+	return true
+
+
 func set_focus(amount: float) -> void:
 	focus = clampf(amount, 0.0, max_focus)
 	_emit_focus()
@@ -287,7 +321,15 @@ func _handle_action_input() -> void:
 		if Input.is_action_just_pressed("style_%d" % (style_index + 1)):
 			set_combat_style(style_index)
 	if state != State.LOCOMOTION:
+		if not _can_buffer_in_current_state():
+			return
+		_try_buffer_action()
 		return
+	if _buffered_action != "" and _buffer_timer > 0.0:
+		_execute_buffered_action()
+		return
+	_buffer_timer = 0.0
+	_buffered_action = ""
 	if Input.is_action_just_pressed("dodge"):
 		_try_dodge()
 	elif Input.is_action_just_pressed("parry"):
@@ -311,8 +353,57 @@ func _handle_action_input() -> void:
 		_try_attack(false)
 
 
+
+func _can_buffer_in_current_state() -> bool:
+	return state in [State.ATTACK_RECOVERY, State.ATTACK_WINDUP, State.ATTACK_ACTIVE,
+					 State.GUARD_THRUST, State.LEAP_WINDUP, State.LEAP_ACTIVE,
+					 State.CAST]
+
+
+func _try_buffer_action() -> void:
+	if Input.is_action_just_pressed("dodge"):
+		_buffered_action = "dodge"
+		_buffer_timer = INPUT_BUFFER_WINDOW
+	elif Input.is_action_just_pressed("parry"):
+		_buffered_action = "parry"
+		_buffer_timer = INPUT_BUFFER_WINDOW
+	elif Input.is_action_just_pressed("heavy_attack") or Input.is_action_just_pressed("heavy_attack_alt"):
+		_buffered_action = "heavy_attack"
+		_buffer_timer = INPUT_BUFFER_WINDOW
+	elif Input.is_action_just_pressed("light_attack") or Input.is_action_just_pressed("light_attack_alt"):
+		_buffered_action = "light_attack"
+		_buffer_timer = INPUT_BUFFER_WINDOW
+	elif Input.is_action_just_pressed("special_attack"):
+		_buffered_action = "special_attack"
+		_buffer_timer = INPUT_BUFFER_WINDOW
+	elif Input.is_action_just_pressed("cast_spell"):
+		_buffered_action = "cast_spell"
+		_buffer_timer = INPUT_BUFFER_WINDOW
+
+
+func _execute_buffered_action() -> void:
+	var action := _buffered_action
+	_buffered_action = ""
+	_buffer_timer = 0.0
+	match action:
+		"dodge":
+			_try_dodge()
+		"parry":
+			_try_parry()
+		"heavy_attack":
+			_try_attack(true)
+		"light_attack":
+			_try_attack(false)
+		"special_attack":
+			_try_style_skill()
+		"cast_spell":
+			_try_cast_for_style()
+
+
 func _update_state(delta: float) -> void:
 	state_time = maxf(state_time - delta, 0.0)
+	if _buffer_timer > 0.0:
+		_buffer_timer = maxf(_buffer_timer - delta, 0.0)
 	match state:
 		State.LOCOMOTION:
 			_update_locomotion(delta)
@@ -624,18 +715,19 @@ func _is_guarding_hit(hit_direction: Variant) -> bool:
 
 
 func _update_stamina(delta: float) -> void:
-	if stamina_delay > 0.0:
-		stamina_delay -= delta
-	elif state == State.LOCOMOTION:
-		var previous := stamina
-		stamina = minf(stamina + stamina_regen * delta, max_stamina)
-		if not is_equal_approx(previous, stamina):
-			_queue_stats_update()
-	if state == State.LOCOMOTION and focus < max_focus:
-		var previous_focus_int := floori(focus)
-		focus = minf(focus + 4.0 * delta, max_focus)
-		if floori(focus) != previous_focus_int:
-			_emit_focus()
+	if state == State.LOCOMOTION:
+		if stamina_delay > 0.0:
+			stamina_delay -= delta
+		else:
+			var previous := stamina
+			stamina = minf(stamina + stamina_regen * delta, max_stamina)
+			if not is_equal_approx(previous, stamina):
+				_queue_stats_update()
+		if focus < max_focus:
+			var previous_focus_int := floori(focus)
+			focus = minf(focus + 4.0 * delta, max_focus)
+			if floori(focus) != previous_focus_int:
+				_emit_focus()
 
 
 func _spend_stamina(amount: float, delay: float, emit_immediately := true) -> void:
@@ -648,14 +740,29 @@ func _spend_stamina(amount: float, delay: float, emit_immediately := true) -> vo
 
 
 func _toggle_lock_on() -> void:
+	var candidates := _collect_lock_candidates()
 	if lock_target != null:
-		_set_lock_target(null)
+		if candidates.size() <= 1:
+			_set_lock_target(null)
+			return
+		var next_target := _cycle_lock_target(candidates)
+		if next_target != null:
+			_set_lock_target(next_target)
+		else:
+			_set_lock_target(null)
 		return
+	if candidates.is_empty():
+		return
+	_set_lock_target(candidates[0])
+
+
+func _collect_lock_candidates() -> Array[Node3D]:
 	if world_node == null or not world_node.has_method("get_target_candidates"):
-		return
-	var best: Node3D
-	var best_score := INF
+		return []
 	var camera_forward := -camera.global_transform.basis.z
+	camera_forward.y = 0.0
+	camera_forward = camera_forward.normalized()
+	var scored: Array[Dictionary] = []
 	for candidate in world_node.get_target_candidates():
 		if not candidate is Node3D:
 			continue
@@ -664,12 +771,26 @@ func _toggle_lock_on() -> void:
 		var distance := offset.length()
 		if distance > 18.0 or distance < 0.01:
 			continue
-		var facing_penalty := 1.0 - camera_forward.normalized().dot(offset.normalized())
+		var offset_flat := offset
+		offset_flat.y = 0.0
+		var facing_penalty := 1.0 - camera_forward.dot(offset_flat.normalized())
 		var score := distance + facing_penalty * 12.0
-		if score < best_score:
-			best = target
-			best_score = score
-	_set_lock_target(best)
+		scored.append({"node": target, "score": score})
+	scored.sort_custom(func(a, b): return a["score"] < b["score"])
+	var result: Array[Node3D] = []
+	for entry in scored:
+		result.append(entry["node"])
+	return result
+
+
+func _cycle_lock_target(candidates: Array[Node3D]) -> Node3D:
+	if lock_target == null or not is_instance_valid(lock_target):
+		return null
+	var current_idx := candidates.find(lock_target)
+	if current_idx < 0:
+		return candidates[0] if candidates.size() > 0 else null
+	var next_idx := (current_idx + 1) % candidates.size()
+	return candidates[next_idx]
 
 
 func _set_lock_target(target: Node3D) -> void:

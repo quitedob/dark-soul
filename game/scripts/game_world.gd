@@ -192,12 +192,35 @@ func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> voi
 	respawn_position = shrine.global_position + Vector3(0.0, 1.1, 2.0)
 	run_state.checkpoint_id = "ember_shrine"
 	player.heal_full()
+	_try_shrine_upgrade()
 	for enemy in enemies:
 		if is_instance_valid(enemy):
 			enemy.reset_enemy()
 	audio.play_cue("rest", -4.0)
 	hud.show_message(LocalizationScript.text("EMBER RESTORED\nEnemies return to the hollow."), 2.5)
 	_save_run("checkpoint_rest")
+
+
+func _try_shrine_upgrade() -> void:
+	if not player.has_method("try_upgrade_max_health"):
+		return
+	if player.try_upgrade_max_health():
+		var tier: int = player.get_upgrade_tier()
+		var cost := -1
+		if player.has_method("get_upgrade_cost"):
+			var next_cost: int = player.get_upgrade_cost()
+			if next_cost < 0:
+				cost = 0
+		var msg := LocalizationScript.text("VITALITY FORGED +10 HP  (TIER %d)") % tier
+		hud.show_message(msg, 2.5)
+		audio.play_cue("recover", -5.0, 0.7)
+		_save_run("shrine_upgrade")
+		return
+	var next_cost: int = -1
+	if player.has_method("get_upgrade_cost"):
+		next_cost = player.get_upgrade_cost()
+	if next_cost > 0:
+		hud.show_message(LocalizationScript.text("Need %d embers for next vitality upgrade") % next_cost, 2.0)
 
 
 func _on_checkpoint_activated(_shrine: Node, _interacting_player: Node) -> void:
@@ -250,6 +273,9 @@ func _on_player_died(death_position: Vector3) -> void:
 		run_state.lost_echo_amount = lost_amount
 		run_state.lost_echo_position = lost_echo.global_position
 	_save_run("player_death")
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			enemy.reset_enemy()
 	hud.show_death()
 	await get_tree().create_timer(2.2).timeout
 	player.respawn_at(respawn_position)
@@ -341,6 +367,8 @@ func _apply_run_state(state) -> void:
 		player.embers_changed.emit(player.embers)
 	player.set_focus(run_state.focus)
 	player.set_combat_style(run_state.combat_style)
+	if player.has_method("set_upgrade_tier"):
+		player.set_upgrade_tier(run_state.upgrade_tier)
 	checkpoint.activate()
 	if "ancient_gate" in run_state.activated_shortcuts:
 		shortcut.open_immediately()
@@ -358,6 +386,8 @@ func _snapshot_run_state() -> Dictionary:
 	run_state.embers = int(player.embers)
 	run_state.focus = float(player.focus)
 	run_state.combat_style = int(player.combat_style)
+	if player.has_method("get_upgrade_tier"):
+		run_state.upgrade_tier = player.get_upgrade_tier()
 	run_state.guardian_defeated = victory
 	if shortcut != null and shortcut.is_open:
 		if "ancient_gate" not in run_state.activated_shortcuts:

@@ -12,6 +12,7 @@ var lost_echo_amount := 0
 var lost_echo_position := Vector3.ZERO
 var activated_shortcuts: Array[String] = []
 var guardian_defeated := false
+var upgrade_tier := 0
 var play_time_ms := 0
 
 

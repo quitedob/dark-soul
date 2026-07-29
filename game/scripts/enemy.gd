@@ -44,6 +44,9 @@ var state_time := 0.0
 var state_duration := 0.0
 var engaged := false
 var attack_index := 0
+var _phase := 1
+var _phase_transition_played := false
+const PHASE_TWO_THRESHOLD := 0.5
 var attack_windup := 0.55
 var attack_active := 0.18
 var attack_recovery := 0.70
@@ -130,6 +133,8 @@ func reset_enemy() -> void:
 	poise = 0.0
 	poise_reset_time = 0.0
 	attack_index = 0
+	_phase = 1
+	_phase_transition_played = false
 	navigation_refresh = 0.0
 	_cached_has_target = false
 	_cached_target_position = global_position
@@ -157,6 +162,8 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 	health = maxf(health - incoming_damage, 0.0)
 	health_changed.emit(health, max_health)
 	_play_audio("hurt", -8.0, 0.82 if guardian else 1.0)
+	if guardian and not _phase_transition_played and _current_phase() == 2:
+		_trigger_phase_transition()
 	if health <= 0.0:
 		_die()
 		return
@@ -336,33 +343,96 @@ func _start_attack() -> void:
 
 
 func _select_attack_profile() -> void:
-	attack_heavy = false
-	if guardian:
-		attack_heavy = attack_index % 2 == 1
-		attack_index += 1
-		if attack_heavy:
-			attack_windup = 1.18
-			attack_active = 0.34
-			attack_recovery = 1.08
-			attack_damage = 34.0
-			attack_stagger = 42.0
-			attack_lunge = 2.1
-		else:
-			attack_windup = 0.72
-			attack_active = 0.22
-			attack_recovery = 0.78
-			attack_damage = 24.0
-			attack_stagger = 30.0
-			attack_lunge = 1.65
-	else:
+	var distance_to_target := _cached_distance_to_target
+	if not guardian:
 		attack_windup = 0.55
 		attack_active = 0.18
 		attack_recovery = 0.70
 		attack_damage = 16.0
 		attack_stagger = 22.0
 		attack_lunge = 1.4
+		attack_heavy = false
+	else:
+		attack_index += 1
+		if distance_to_target < 2.0:
+			_apply_close_range_attack()
+		elif distance_to_target > 3.5:
+			_apply_long_range_attack()
+		else:
+			_apply_mid_range_attack()
 	telegraph_material.albedo_color = Color(1.0, 0.22, 0.04, 0.62) if attack_heavy else Color(1.0, 0.08, 0.04, 0.56)
 	telegraph_material.emission = Color(1.0, 0.12, 0.02) if attack_heavy else Color(1.0, 0.02, 0.01)
+
+
+func _current_phase() -> int:
+	if get_health_ratio() <= PHASE_TWO_THRESHOLD:
+		return 2
+	return 1
+
+
+func _apply_close_range_attack() -> void:
+	var phase := _current_phase()
+	attack_heavy = false
+	if phase == 2 and attack_index % 3 == 0:
+		attack_heavy = true
+		attack_windup = 0.55
+		attack_active = 0.20
+		attack_recovery = 0.48
+		attack_damage = 24.0
+		attack_stagger = 28.0
+		attack_lunge = 1.3
+		return
+	attack_windup = 0.48 if phase == 1 else 0.38
+	attack_active = 0.16 if phase == 1 else 0.14
+	attack_recovery = 0.52 if phase == 1 else 0.40
+	attack_damage = 18.0 if phase == 1 else 22.0
+	attack_stagger = 22.0 if phase == 1 else 26.0
+	attack_lunge = 1.1 if phase == 1 else 1.3
+
+
+func _apply_mid_range_attack() -> void:
+	var phase := _current_phase()
+	attack_heavy = attack_index % 2 == 1
+	if attack_heavy:
+		attack_windup = 1.18 if phase == 1 else 0.95
+		attack_active = 0.34 if phase == 1 else 0.30
+		attack_recovery = 1.08 if phase == 1 else 0.82
+		attack_damage = 34.0 if phase == 1 else 38.0
+		attack_stagger = 42.0 if phase == 1 else 46.0
+		attack_lunge = 2.1 if phase == 1 else 2.4
+	else:
+		attack_windup = 0.72 if phase == 1 else 0.58
+		attack_active = 0.22 if phase == 1 else 0.18
+		attack_recovery = 0.78 if phase == 1 else 0.56
+		attack_damage = 24.0 if phase == 1 else 28.0
+		attack_stagger = 30.0 if phase == 1 else 34.0
+		attack_lunge = 1.65 if phase == 1 else 1.9
+
+
+func _apply_long_range_attack() -> void:
+	var phase := _current_phase()
+	attack_heavy = true
+	attack_windup = 1.35 if phase == 1 else 1.08
+	attack_active = 0.38
+	attack_recovery = 1.25 if phase == 1 else 0.95
+	attack_damage = 40.0 if phase == 1 else 46.0
+	attack_stagger = 48.0 if phase == 1 else 52.0
+	attack_lunge = 3.2 if phase == 1 else 3.8
+
+
+func _trigger_phase_transition() -> void:
+	_phase_transition_played = true
+	_phase = 2
+	weapon_material.albedo_color = Color(1.0, 0.35, 0.08)
+	weapon_material.emission_enabled = true
+	weapon_material.emission = Color(1.0, 0.2, 0.04)
+	weapon_material.emission_energy_multiplier = 2.5
+	_play_audio("heavy", -3.0, 0.55)
+	velocity = Vector3.ZERO
+	knockback_velocity = Vector3.ZERO
+	if state in [State.CHASE, State.WINDUP, State.ACTIVE, State.RECOVERY]:
+		combat_area.end_swing()
+		_change_state(State.STAGGER, 0.6)
 
 
 func _change_state(new_state: State, duration: float = 0.0) -> void:
@@ -373,9 +443,10 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 	state_duration = duration
 	telegraph_mesh.visible = state == State.WINDUP
 	match state:
+		State.WINDUP:
+			_play_audio("heavy" if attack_heavy else "swing", -6.0, 0.82 if guardian else 1.0)
 		State.ACTIVE:
 			combat_area.begin_swing(attack_damage, attack_stagger)
-			_play_audio("heavy" if attack_heavy else "swing", -6.0, 0.82 if guardian else 1.0)
 		State.STAGGER:
 			combat_area.end_swing()
 		State.DEAD:

@@ -33,18 +33,20 @@ Movement is free, while sprinting, attacking, and dodging spend stamina. Regener
 
 ### Recovery
 
-A dodge contains a short invulnerability interval inside a longer movement state. It is a timing tool rather than permanent immunity. Healing is deliberately limited to checkpoint restoration in this slice, keeping scope focused.
+A dodge contains a short invulnerability interval inside a longer movement state. It is a timing tool rather than permanent immunity. Healing is primarily available at checkpoints; the Ember Rite combat style provides a limited exception — a 24 HP heal costing 30 Focus with a 0.92s cast time, making it a high-commitment tactical choice rather than a safety net.
 
 ## Progression
 
-Defeated enemies award **embers**. Death drops all carried embers as a **Lost Echo** at the death location. Reaching the echo restores the amount. Dying again replaces the prior echo.
+Defeated enemies award **embers**. Death drops all carried embers as a **Lost Echo** at the death location. Death also resets all regular enemies to their spawn positions. Reaching the echo restores the amount. Dying again replaces the prior echo.
+
+Resting at an activated Ember Shrine offers a **Vitality Forging** option: spend embers to permanently increase max health by 10 HP per tier (up to 3 tiers, costing 50 / 120 / 250 embers). This upgrade persists across deaths and application restarts, giving the death-recovery loop a progressive anchor.
 
 The Ember Shrine updates the respawn point, restores health and stamina, and revives regular enemies. The shortcut remains open for the current application run, rewarding spatial progress even after death.
 
 ## Encounter Design
 
 - **Hollow Sentinel:** A basic melee construct that closes distance, telegraphs one strike, and retreats into recovery.
-- **Cinder Guardian:** A larger construct with more health, longer reach, a dedicated health bar, and alternating quick and delayed attacks to test observation rather than reflex alone.
+- **Cinder Guardian:** A larger construct with more health, longer reach, a dedicated health bar, and distance-dependent attack selection (close-range swipes, mid-range alternating quick/delayed strikes, long-range lunges). At 50% health the Guardian enters a more aggressive second phase with faster attacks, increased damage, and a distinct fiery visual transformation.
 - **Ruins:** Broken walls create sight-line changes and opportunities to separate enemies. The side lever returns toward the shrine through the shortcut gate.
 
 ## Tuning Targets
