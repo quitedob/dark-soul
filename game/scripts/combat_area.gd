@@ -1,5 +1,7 @@
 extends Area3D
 
+signal hit_landed(is_heavy: bool)
+
 var damage := 10.0
 var stagger := 10.0
 var source: Node
@@ -53,3 +55,4 @@ func _on_body_entered(body: Node3D) -> void:
 	if source is Node3D:
 		hit_direction = (body.global_position - source.global_position).normalized()
 	body.receive_hit(damage, stagger, hit_direction, source)
+	hit_landed.emit(damage >= 30.0)

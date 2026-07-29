@@ -6,6 +6,7 @@ signal focus_changed(current, maximum)
 signal lock_target_changed(target)
 signal embers_changed(amount)
 signal combat_style_changed(style_id, display_name)
+signal healing_started()
 
 enum State {
 	LOCOMOTION,
@@ -33,6 +34,7 @@ enum CombatStyle {
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const SpellProjectileScene = preload("res://scenes/components/spell_projectile.tscn")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
+const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 const STATS_EMIT_INTERVAL := 0.1
 const STYLE_NAMES := [
 	"RELIQUARY GUARD",
@@ -41,6 +43,79 @@ const STYLE_NAMES := [
 	"VEILCRAFT",
 	"EMBER RITE",
 ]
+
+const STYLE_TIMING := {
+	CombatStyle.RELIQUARY_GUARD: {
+		"windup_light": 0.28, "windup_heavy": 0.58,
+		"active_light": 0.16, "active_heavy": 0.22,
+		"recovery_light": 0.38, "recovery_heavy": 0.62,
+		"lunge_light": 2.0, "lunge_heavy": 2.8,
+		"damage_light": 22.0, "damage_heavy": 38.0,
+		"stagger_light": 16.0, "stagger_heavy": 34.0,
+		"stamina_light": 18.0, "stamina_heavy": 34.0, "stamina_dodge": 24.0,
+		"parry_start": 0.06, "parry_end": 0.26,
+		"leap_windup": 0.0, "leap_active": 0.0, "leap_recovery": 0.0,
+		"leap_damage": 0.0, "leap_stagger": 0.0, "leap_stamina": 0.0,
+		"leap_lunge": 0.0, "leap_velocity_y": 0.0,
+		"has_hyper_armor": false,
+	},
+	CombatStyle.TWIN_COLOSSI: {
+		"windup_light": 0.48, "windup_heavy": 0.82,
+		"active_light": 0.20, "active_heavy": 0.26,
+		"recovery_light": 0.62, "recovery_heavy": 0.92,
+		"lunge_light": 1.2, "lunge_heavy": 1.8,
+		"damage_light": 32.0, "damage_heavy": 56.0,
+		"stagger_light": 22.0, "stagger_heavy": 48.0,
+		"stamina_light": 28.0, "stamina_heavy": 46.0, "stamina_dodge": 32.0,
+		"parry_start": 0.0, "parry_end": 0.0,
+		"leap_windup": 0.38, "leap_active": 0.28, "leap_recovery": 0.62,
+		"leap_damage": 58.0, "leap_stagger": 48.0, "leap_stamina": 38.0,
+		"leap_lunge": 4.8, "leap_velocity_y": 4.2,
+		"has_hyper_armor": true,
+	},
+	CombatStyle.CRESCENT_PAIR: {
+		"windup_light": 0.20, "windup_heavy": 0.38,
+		"active_light": 0.14, "active_heavy": 0.18,
+		"recovery_light": 0.28, "recovery_heavy": 0.44,
+		"lunge_light": 1.6, "lunge_heavy": 2.2,
+		"damage_light": 16.0, "damage_heavy": 26.0,
+		"stagger_light": 10.0, "stagger_heavy": 20.0,
+		"stamina_light": 14.0, "stamina_heavy": 24.0, "stamina_dodge": 20.0,
+		"parry_start": 0.0, "parry_end": 0.0,
+		"leap_windup": 0.22, "leap_active": 0.34, "leap_recovery": 0.34,
+		"leap_damage": 18.0, "leap_stagger": 12.0, "leap_stamina": 27.0,
+		"leap_lunge": 5.8, "leap_velocity_y": 4.8,
+		"has_hyper_armor": false,
+	},
+	CombatStyle.VEILCRAFT: {
+		"windup_light": 0.30, "windup_heavy": 0.52,
+		"active_light": 0.16, "active_heavy": 0.20,
+		"recovery_light": 0.42, "recovery_heavy": 0.58,
+		"lunge_light": 1.8, "lunge_heavy": 2.4,
+		"damage_light": 20.0, "damage_heavy": 32.0,
+		"stagger_light": 14.0, "stagger_heavy": 26.0,
+		"stamina_light": 20.0, "stamina_heavy": 36.0, "stamina_dodge": 26.0,
+		"parry_start": 0.0, "parry_end": 0.0,
+		"leap_windup": 0.0, "leap_active": 0.0, "leap_recovery": 0.0,
+		"leap_damage": 0.0, "leap_stagger": 0.0, "leap_stamina": 0.0,
+		"leap_lunge": 0.0, "leap_velocity_y": 0.0,
+		"has_hyper_armor": false,
+	},
+	CombatStyle.EMBER_RITE: {
+		"windup_light": 0.34, "windup_heavy": 0.56,
+		"active_light": 0.18, "active_heavy": 0.22,
+		"recovery_light": 0.48, "recovery_heavy": 0.64,
+		"lunge_light": 1.6, "lunge_heavy": 2.0,
+		"damage_light": 22.0, "damage_heavy": 34.0,
+		"stagger_light": 16.0, "stagger_heavy": 28.0,
+		"stamina_light": 22.0, "stamina_heavy": 38.0, "stamina_dodge": 26.0,
+		"parry_start": 0.0, "parry_end": 0.0,
+		"leap_windup": 0.0, "leap_active": 0.0, "leap_recovery": 0.0,
+		"leap_damage": 0.0, "leap_stagger": 0.0, "leap_stamina": 0.0,
+		"leap_lunge": 0.0, "leap_velocity_y": 0.0,
+		"has_hyper_armor": false,
+	},
+}
 
 var world_node: Node
 var audio_node: Node
@@ -59,12 +134,12 @@ const UPGRADE_HP_PER_TIER := 10
 
 var move_speed := 5.2
 var sprint_speed := 7.4
-var acceleration := 24.0
-var gravity := 24.0
+var acceleration := MOVE_ACCELERATION
+var gravity := DEFAULT_GRAVITY
 var mouse_sensitivity := 0.0024
 var camera_sensitivity_scale := 1.0
 var invert_camera_y := false
-var stamina_regen := 30.0
+var stamina_regen := STAMINA_REGEN_RATE
 var stamina_delay := 0.0
 var _stats_dirty := false
 var _stats_emit_cooldown := 0.0
@@ -82,6 +157,7 @@ var attack_damage := 24.0
 var attack_stagger := 16.0
 var attack_cost := 20.0
 var attack_heavy := false
+var hyper_armor := false
 var combat_style: CombatStyle = CombatStyle.RELIQUARY_GUARD
 var _leap_is_curved := false
 var _leap_second_hit := false
@@ -95,6 +171,17 @@ var configured := false
 var _buffered_action := ""
 var _buffer_timer := 0.0
 const INPUT_BUFFER_WINDOW := 0.15
+const MOVE_ACCELERATION := 24.0
+const DEFAULT_GRAVITY := 24.0
+const STAMINA_REGEN_RATE := 30.0
+const FOCUS_REGEN_RATE := 4.0
+const SPRINT_STAMINA_DRAIN := 18.0
+const DODGE_SPEED := 8.4
+const DODGE_DURATION := 0.58
+const DODGE_INVULN_START := 0.08
+const DODGE_INVULN_END := 0.38
+const LOCK_ON_MAX_DISTANCE := 18.0
+const LOCK_ON_BREAK_DISTANCE := 22.0
 
 var visual_root: Node3D
 var body_mesh: MeshInstance3D
@@ -204,6 +291,8 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 	direction.y = 0.0
 	knockback_velocity = direction.normalized() * 3.5 if direction.length_squared() > 0.001 else Vector3.ZERO
 	if incoming_stagger > 0.0:
+		if hyper_armor:
+			incoming_stagger = 0.0
 		_change_state(State.STAGGER, clampf(0.28 + incoming_stagger * 0.006, 0.28, 0.68))
 
 
@@ -411,21 +500,21 @@ func _update_state(delta: float) -> void:
 			_slow_horizontal(delta, acceleration * 1.8)
 			_face_lock_target(delta)
 			if state_time <= 0.0:
-				_change_state(State.ATTACK_ACTIVE, 0.22 if attack_heavy else 0.16)
+				_change_state(State.ATTACK_ACTIVE, _style_value(&"active", attack_heavy))
 		State.ATTACK_ACTIVE:
 			var forward := -global_transform.basis.z
-			var lunge := 2.8 if attack_heavy else 2.0
+			var lunge := _style_value(&"lunge", attack_heavy)
 			velocity.x = forward.x * lunge
 			velocity.z = forward.z * lunge
 			if state_time <= 0.0:
-				_change_state(State.ATTACK_RECOVERY, 0.68 if attack_heavy else 0.42)
+				_change_state(State.ATTACK_RECOVERY, _style_value(&"recovery", attack_heavy))
 		State.ATTACK_RECOVERY:
 			_slow_horizontal(delta, acceleration)
 			if state_time <= 0.0:
 				_change_state(State.LOCOMOTION)
 		State.DODGE:
-			velocity.x = dodge_direction.x * 8.4
-			velocity.z = dodge_direction.z * 8.4
+			velocity.x = dodge_direction.x * DODGE_SPEED
+			velocity.z = dodge_direction.z * DODGE_SPEED
 			if state_time <= 0.0:
 				_change_state(State.LOCOMOTION)
 		State.PARRY:
@@ -442,21 +531,24 @@ func _update_state(delta: float) -> void:
 		State.LEAP_WINDUP:
 			_face_lock_target(delta)
 			var leap_forward := -global_transform.basis.z
-			velocity.x = leap_forward.x * (3.8 if _leap_is_curved else 3.1)
-			velocity.z = leap_forward.z * (3.8 if _leap_is_curved else 3.1)
+			var profile: Dictionary = STYLE_TIMING[combat_style]
+			var leap_entry_speed: float = profile["leap_lunge"] * 0.65
+			velocity.x = leap_forward.x * leap_entry_speed
+			velocity.z = leap_forward.z * leap_entry_speed
 			if state_time <= 0.0:
-				_change_state(State.LEAP_ACTIVE, 0.34 if _leap_is_curved else 0.28)
+				_change_state(State.LEAP_ACTIVE, profile["leap_active"])
 		State.LEAP_ACTIVE:
 			var attack_forward := -global_transform.basis.z
-			var leap_speed := 5.8 if _leap_is_curved else 4.8
+			var profile: Dictionary = STYLE_TIMING[combat_style]
+			var leap_speed: float = profile["leap_lunge"]
 			velocity.x = attack_forward.x * leap_speed
 			velocity.z = attack_forward.z * leap_speed
-			if _leap_is_curved and not _leap_second_hit and state_time <= 0.16:
+			if _leap_is_curved and not _leap_second_hit and state_time <= profile["leap_active"] * 0.47:
 				_leap_second_hit = true
 				combat_area.end_swing()
-				combat_area.begin_swing(18.0, 12.0)
+				combat_area.begin_swing(profile["leap_damage"], profile["leap_stagger"])
 			if state_time <= 0.0:
-				_change_state(State.ATTACK_RECOVERY, 0.34 if _leap_is_curved else 0.62)
+				_change_state(State.ATTACK_RECOVERY, profile["leap_recovery"])
 		State.CAST:
 			_slow_horizontal(delta, acceleration * 2.0)
 			_face_lock_target(delta)
@@ -495,15 +587,15 @@ func _update_locomotion(delta: float) -> void:
 
 
 func _try_attack(heavy: bool) -> void:
-	attack_cost = 38.0 if heavy else 20.0
+	attack_cost = _style_value(&"stamina", heavy)
 	if stamina < attack_cost:
 		_show_message("NOT ENOUGH STAMINA", 0.8)
 		return
 	attack_heavy = heavy
-	attack_damage = 42.0 if heavy else 24.0
-	attack_stagger = 34.0 if heavy else 16.0
+	attack_damage = _style_value(&"damage", heavy)
+	attack_stagger = _style_value(&"stagger", heavy)
 	_spend_stamina(attack_cost, 0.85)
-	_change_state(State.ATTACK_WINDUP, 0.62 if heavy else 0.30)
+	_change_state(State.ATTACK_WINDUP, _style_value(&"windup", heavy))
 
 
 func set_combat_style(style_id: int) -> void:
@@ -519,6 +611,12 @@ func set_combat_style(style_id: int) -> void:
 
 func _style_display_name() -> String:
 	return LocalizationScript.text(STYLE_NAMES[int(combat_style)])
+
+
+func _style_value(key: StringName, heavy: bool) -> float:
+	var profile: Dictionary = STYLE_TIMING[combat_style]
+	var suffix := "_heavy" if heavy else "_light"
+	return profile.get(key + suffix, profile.get(key, 0.0))
 
 
 func _try_style_skill() -> void:
@@ -559,23 +657,24 @@ func _try_guarded_thrust() -> void:
 
 
 func _try_leap_attack(curved_pair: bool) -> void:
-	var cost := 27.0 if curved_pair else 38.0
+	var profile: Dictionary = STYLE_TIMING[combat_style]
+	var cost: float = profile["leap_stamina"]
 	if stamina < cost:
 		_show_message(LocalizationScript.text("NOT ENOUGH STAMINA"), 0.8)
 		return
 	_leap_is_curved = curved_pair
 	_leap_second_hit = false
-	attack_damage = 18.0 if curved_pair else 58.0
-	attack_stagger = 12.0 if curved_pair else 48.0
+	attack_damage = profile["leap_damage"]
+	attack_stagger = profile["leap_stagger"]
 	attack_heavy = not curved_pair
 	_spend_stamina(cost, 0.9)
 	if is_on_floor():
-		velocity.y = 4.8 if curved_pair else 4.2
+		velocity.y = profile["leap_velocity_y"]
 	_show_message(
 		LocalizationScript.text("CRESCENT LEAP" if curved_pair else "COLOSSAL LEAP"),
 		0.65
 	)
-	_change_state(State.LEAP_WINDUP, 0.22 if curved_pair else 0.38)
+	_change_state(State.LEAP_WINDUP, profile["leap_windup"])
 
 
 func _try_cast_for_style() -> void:
@@ -594,6 +693,8 @@ func _begin_cast(cast_id: StringName, focus_cost: float, duration: float) -> voi
 		return
 	focus = maxf(focus - focus_cost, 0.0)
 	_emit_focus()
+	if cast_id == &"ember_rite":
+		healing_started.emit()
 	_pending_cast = cast_id
 	_cast_resolved = false
 	_change_state(State.CAST, duration)
@@ -640,7 +741,7 @@ func _resolve_cast() -> void:
 
 
 func _try_dodge() -> void:
-	var cost := 26.0
+	var cost: float = STYLE_TIMING[combat_style]["stamina_dodge"]
 	if stamina < cost:
 		_show_message("NOT ENOUGH STAMINA", 0.8)
 		return
@@ -658,43 +759,54 @@ func _try_dodge() -> void:
 	dodge_direction = dodge_direction.normalized()
 	_spend_stamina(cost, 0.7)
 	_play_audio("dodge", -7.0, 1.0)
-	_change_state(State.DODGE, 0.58)
+	_change_state(State.DODGE, DODGE_DURATION)
 
 
 func _change_state(new_state: State, duration: float = 0.0) -> void:
 	if state in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE] \
 			and new_state not in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE]:
 		combat_area.end_swing()
+		hyper_armor = false
 	state = new_state
 	state_time = duration
 	state_duration = duration
 	if state == State.ATTACK_ACTIVE:
 		combat_area.begin_swing(attack_damage, attack_stagger)
 		_play_audio("heavy" if attack_heavy else "swing", -5.0, 1.0)
+		hyper_armor = STYLE_TIMING[combat_style].get("has_hyper_armor", false) and attack_heavy
 	elif state == State.GUARD_THRUST:
 		combat_area.begin_swing(attack_damage, attack_stagger)
 		_play_audio("swing", -7.0, 1.2)
+		hyper_armor = false
 	elif state == State.LEAP_ACTIVE:
 		combat_area.begin_swing(attack_damage, attack_stagger)
 		_play_audio("heavy" if not _leap_is_curved else "swing", -4.5, 0.9 if not _leap_is_curved else 1.2)
+		hyper_armor = STYLE_TIMING[combat_style].get("has_hyper_armor", false)
 	elif state == State.PARRY:
 		_play_audio("swing", -9.0, 1.45)
+		hyper_armor = false
 	elif state == State.STAGGER or state == State.DEAD:
 		combat_area.end_swing()
+		hyper_armor = false
+	elif new_state not in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE]:
+		hyper_armor = false
 
 
 func _is_invulnerable() -> bool:
 	if state != State.DODGE or state_duration <= 0.0:
 		return false
 	var elapsed := state_duration - state_time
-	return elapsed >= 0.08 and elapsed <= 0.38
+	return elapsed >= DODGE_INVULN_START and elapsed <= DODGE_INVULN_END
 
 
 func _is_parry_active() -> bool:
 	if state != State.PARRY or state_duration <= 0.0:
 		return false
+	var profile: Dictionary = STYLE_TIMING[combat_style]
+	if profile["parry_end"] <= 0.0:
+		return false
 	var elapsed := state_duration - state_time
-	return elapsed >= 0.08 and elapsed <= 0.24
+	return elapsed >= profile["parry_start"] and elapsed <= profile["parry_end"]
 
 
 func _is_guarding_hit(hit_direction: Variant) -> bool:
@@ -725,7 +837,7 @@ func _update_stamina(delta: float) -> void:
 				_queue_stats_update()
 		if focus < max_focus:
 			var previous_focus_int := floori(focus)
-			focus = minf(focus + 4.0 * delta, max_focus)
+			focus = minf(focus + FOCUS_REGEN_RATE * delta, max_focus)
 			if floori(focus) != previous_focus_int:
 				_emit_focus()
 
@@ -1133,8 +1245,4 @@ func _update_combat_style_visuals() -> void:
 
 
 func _make_material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = roughness
-	material.metallic = metallic
-	return material
+	return ProceduralUtils.make_material(color, roughness, metallic)

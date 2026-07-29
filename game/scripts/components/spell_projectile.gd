@@ -22,7 +22,7 @@ func setup(
 
 func _ready() -> void:
 	collision_layer = 0
-	collision_mask = 5
+	collision_mask = 4
 	monitoring = true
 	monitorable = false
 	body_entered.connect(_on_body_entered)

@@ -1,6 +1,7 @@
 extends Area3D
 
 const LocalizationScript = preload("res://scripts/core/localization.gd")
+const _ProcUtils = preload("res://scripts/core/procedural_utils.gd")
 
 signal recovered(amount: int, player: Node)
 
@@ -16,7 +17,7 @@ var glow: OmniLight3D
 
 func _ready() -> void:
 	add_to_group("interactable")
-	collision_layer = 1 << 2
+	collision_layer = 1 << 3
 	collision_mask = 2
 	monitoring = true
 	monitorable = true
@@ -132,19 +133,11 @@ func _build_visuals() -> void:
 
 
 func _material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = roughness
-	material.metallic = metallic
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	return material
+	return _ProcUtils.make_material(color, roughness, metallic, Color.BLACK, 0.0, true)
 
 
 func _has_collision_shape() -> bool:
-	for child in get_children():
-		if child is CollisionShape3D:
-			return true
-	return false
+	return _ProcUtils.has_collision_shape(self)
 
 
 func _can_receive_echo(body: Object) -> bool:

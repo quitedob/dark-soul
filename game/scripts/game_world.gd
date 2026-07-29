@@ -1,7 +1,9 @@
 extends Node3D
 
 const PlayerScene = preload("res://scenes/actors/player.tscn")
+const _ProcUtils = preload("res://scripts/core/procedural_utils.gd")
 const EnemyScene = preload("res://scenes/actors/enemy.tscn")
+const EnemyScript = preload("res://scripts/enemy.gd")
 const HudScene = preload("res://scenes/ui/hud.tscn")
 const CheckpointScene = preload("res://scenes/interactables/ember_shrine.tscn")
 const ShortcutScene = preload("res://scenes/interactables/shortcut_lever.tscn")
@@ -14,7 +16,7 @@ const LocalizationScript = preload("res://scripts/core/localization.gd")
 
 const SAVE_PATH := "user://ashen_hollow_run_v1.json"
 const SETTINGS_PATH := "user://ashen_hollow_settings_v1.json"
-const INTERACTABLE_LAYER := 1 << 2
+const INTERACTABLE_LAYER := 1 << 3
 
 var player
 var hud
@@ -45,6 +47,7 @@ func _ready() -> void:
 	_create_level()
 	_create_systems()
 	_load_initial_state()
+	call_deferred("_generate_navigation")
 	if "--smoke-test" in OS.get_cmdline_user_args():
 		get_tree().create_timer(2.0).timeout.connect(_run_smoke_test)
 
@@ -114,7 +117,9 @@ func _create_systems() -> void:
 	player.embers_changed.connect(hud.update_embers)
 	player.lock_target_changed.connect(hud.set_lock_target)
 	player.combat_style_changed.connect(hud.set_combat_style)
+	player.healing_started.connect(_on_player_healing)
 	add_child(player)
+	player.combat_area.hit_landed.connect(_on_player_hit_landed)
 	hud.setup(player)
 	_create_interaction_sensor()
 
@@ -134,6 +139,8 @@ func _create_systems() -> void:
 
 	_spawn_enemy(Vector3(-4.0, 0.95, -3.0), false)
 	_spawn_enemy(Vector3(4.0, 0.95, -8.0), false)
+	_spawn_enemy(Vector3(-3.0, 0.95, -10.0), false, EnemyScript.EnemyType.ASH_STALKER)
+	_spawn_enemy(Vector3(4.0, 0.95, -14.0), false, EnemyScript.EnemyType.ASH_STALKER)
 	_spawn_enemy(Vector3(-7.0, 0.95, -12.0), false)
 	guardian = _spawn_enemy(Vector3(0.0, 1.15, -24.0), true)
 
@@ -175,11 +182,15 @@ func _on_play_started() -> void:
 	_show_intro()
 
 
-func _spawn_enemy(spawn_position: Vector3, is_guardian: bool):
+func _spawn_enemy(spawn_position: Vector3, is_guardian: bool, enemy_type = -1):
 	var enemy = EnemyScene.instantiate()
 	enemy.name = "HollowSentinel" if not is_guardian else "CinderGuardian"
 	enemy.position = spawn_position
-	enemy.setup(self, player, audio, spawn_position, is_guardian)
+	var type_arg := enemy_type as int
+	if type_arg >= 0:
+		enemy.setup(self, player, audio, spawn_position, is_guardian, type_arg)
+	else:
+		enemy.setup(self, player, audio, spawn_position, is_guardian)
 	enemy.defeated.connect(_on_enemy_defeated)
 	enemy.engagement_changed.connect(_on_enemy_engagement_changed)
 	enemy.health_changed.connect(_on_guardian_health_changed.bind(enemy))
@@ -451,6 +462,33 @@ func _on_hud_locale_requested(locale: String) -> void:
 	_apply_settings()
 
 
+func _on_player_hit_landed(is_heavy: bool) -> void:
+	var pause_duration := 0.08 if is_heavy else 0.04
+	var pause_scale := 0.02 if is_heavy else 0.05
+	Engine.time_scale = pause_scale
+	var timer := get_tree().create_timer(pause_duration, true, true)
+	timer.timeout.connect(func():
+		Engine.time_scale = 1.0
+	)
+	if is_heavy and player != null and is_instance_valid(player) and player.camera != null:
+		player.camera.h_offset = randf_range(-0.08, 0.08)
+		player.camera.v_offset = randf_range(-0.04, 0.04)
+		var reset_timer := get_tree().create_timer(0.06, true, true)
+		reset_timer.timeout.connect(func():
+			if player != null and is_instance_valid(player) and player.camera != null:
+				player.camera.h_offset = 0.0
+				player.camera.v_offset = 0.0
+		)
+
+
+func _on_player_healing() -> void:
+	if enemies == null:
+		return
+	for enemy in enemies:
+		if enemy != null and is_instance_valid(enemy) and enemy.has_method("on_player_healing"):
+			enemy.on_player_healing()
+
+
 func _apply_settings() -> void:
 	Engine.max_fps = game_settings.target_fps
 	TranslationServer.set_locale(game_settings.locale)
@@ -719,18 +757,7 @@ func _create_block(at: Vector3, size: Vector3, material_name: String) -> StaticB
 
 
 func _material(color: Color, roughness: float, metallic: float, emission := Color.BLACK, emission_energy := 0.0, transparent := false) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = roughness
-	material.metallic = metallic
-	if emission_energy > 0.0:
-		material.emission_enabled = true
-		material.emission = emission
-		material.emission_energy_multiplier = emission_energy
-	if transparent:
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	return material
+	return _ProcUtils.make_material(color, roughness, metallic, emission, emission_energy, transparent)
 
 
 func _configure_inputs() -> void:
@@ -817,6 +844,33 @@ func _add_joy_axis_action(action: StringName, axis: JoyAxis, axis_value: float) 
 func _add_input_event_once(action: StringName, event: InputEvent) -> void:
 	if not InputMap.action_has_event(action, event):
 		InputMap.action_add_event(action, event)
+
+
+func _generate_navigation() -> void:
+	var nav_region := NavigationRegion3D.new()
+	nav_region.name = "NavRegion"
+	add_child(nav_region)
+
+	var nav_mesh := NavigationMesh.new()
+	nav_mesh.agent_radius = 0.5
+	nav_mesh.agent_height = 2.0
+	nav_mesh.agent_max_climb = 0.5
+	nav_mesh.agent_max_slope = 45.0
+	nav_mesh.cell_size = 0.25
+	nav_mesh.cell_height = 0.25
+	nav_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	nav_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	nav_region.navigation_mesh = nav_mesh
+
+	var walkable_mesh := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(30.0, 50.0)
+	walkable_mesh.mesh = plane
+	walkable_mesh.position = Vector3(0.0, 0.01, -12.0)
+	nav_region.add_child(walkable_mesh)
+
+	await get_tree().process_frame
+	nav_region.bake_navigation_mesh(false)
 
 
 func _run_smoke_test() -> void:

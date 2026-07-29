@@ -15,6 +15,12 @@ enum State {
 	DEAD,
 }
 
+enum EnemyType {
+	HOLLOW_SENTINEL,
+	ASH_STALKER,
+	CINDER_GUARDIAN,
+}
+
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const AI_DECISION_INTERVAL := 0.1
 
@@ -23,6 +29,7 @@ var target_node: Node3D
 var audio_node: Node
 var spawn_origin := Vector3.ZERO
 var guardian := false
+var enemy_type: EnemyType = EnemyType.HOLLOW_SENTINEL
 var configured := false
 
 var max_health := 80.0
@@ -77,12 +84,16 @@ var telegraph_material: StandardMaterial3D
 var eye_material: StandardMaterial3D
 
 
-func setup(world, target, audio, spawn_position, is_guardian = false) -> void:
+func setup(world, target, audio, spawn_position, is_guardian = false, new_type: EnemyType = EnemyType.HOLLOW_SENTINEL) -> void:
 	world_node = world
 	target_node = target if target is Node3D else null
 	audio_node = audio
 	spawn_origin = spawn_position
 	guardian = bool(is_guardian)
+	if guardian:
+		enemy_type = EnemyType.CINDER_GUARDIAN
+	else:
+		enemy_type = new_type
 	configured = true
 	if is_inside_tree():
 		_ensure_nodes()
@@ -195,6 +206,27 @@ func receive_parry(source: Node = null) -> void:
 	poise = 0.0
 	_play_audio("hurt", -5.0, 0.68 if guardian else 0.82)
 	_change_state(State.STAGGER, 1.05 if guardian else 1.35)
+
+
+func on_player_healing() -> void:
+	if state == State.DEAD or not is_instance_valid(target_node):
+		return
+	if not engaged:
+		_set_engaged(true)
+		_change_state(State.CHASE)
+		_refresh_decision_cache()
+	if guardian and _cached_distance_to_target > 3.0:
+		attack_index += 1
+		_apply_long_range_attack()
+		_change_state(State.WINDUP, attack_windup * 0.7)
+	elif not guardian:
+		var original_speed := move_speed
+		move_speed *= 1.5
+		var restore_timer := get_tree().create_timer(1.8)
+		restore_timer.timeout.connect(func():
+			if is_instance_valid(self):
+				move_speed = original_speed
+		)
 
 
 func get_target_point() -> Vector3:
@@ -344,7 +376,16 @@ func _start_attack() -> void:
 
 func _select_attack_profile() -> void:
 	var distance_to_target := _cached_distance_to_target
-	if not guardian:
+	if enemy_type == EnemyType.ASH_STALKER:
+		attack_index += 1
+		attack_windup = 0.22
+		attack_active = 0.10
+		attack_recovery = 0.18
+		attack_damage = 8.0
+		attack_stagger = 8.0
+		attack_lunge = 0.8
+		attack_heavy = false
+	elif not guardian:
 		attack_windup = 0.55
 		attack_active = 0.18
 		attack_recovery = 0.70
@@ -559,6 +600,10 @@ func _set_visual_palette() -> void:
 		body_material.albedo_color = Color(0.17, 0.11, 0.25)
 		weapon_material.albedo_color = Color(0.34, 0.3, 0.42)
 		eye_material.emission = Color(1.0, 0.3, 0.04)
+	elif enemy_type == EnemyType.ASH_STALKER:
+		body_material.albedo_color = Color(0.18, 0.17, 0.19)
+		weapon_material.albedo_color = Color(0.38, 0.28, 0.22)
+		eye_material.emission = Color(1.0, 0.45, 0.08)
 	else:
 		body_material.albedo_color = Color(0.22, 0.075, 0.065)
 		weapon_material.albedo_color = Color(0.28, 0.27, 0.29)
@@ -583,6 +628,22 @@ func _apply_tuning() -> void:
 		body_collision.position.y = 1.12
 		navigation_agent.radius = 0.62
 		navigation_agent.height = 2.3
+	elif enemy_type == EnemyType.ASH_STALKER:
+		max_health = 45.0
+		move_speed = 6.0
+		acceleration = 18.0
+		aggro_range = 10.0
+		disengage_range = 17.0
+		leash_range = 14.0
+		attack_range = 1.6
+		reward = 25
+		poise_limit = 12.0
+		stagger_duration = 0.55
+		body_shape.radius = 0.36
+		body_shape.height = 1.6
+		body_collision.position.y = 0.8
+		navigation_agent.radius = 0.40
+		navigation_agent.height = 1.65
 	else:
 		max_health = 80.0
 		move_speed = 3.6

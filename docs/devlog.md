@@ -1,6 +1,71 @@
 # Ashen Hollow Development Log
 
-## 2026-07-29 — Research Documents Updated to Post-Fix State
+## 2026-07-30 — Codebase Health Audit Fixes Applied
+
+### Scope
+
+Applied 12 fixes identified by the codebase health audit ([audit-docs-codebase-health.md](audit-docs-codebase-health.md)) and the subagent scan of `game/`, aligned with Dark Souls design research ([research-dark-souls-design.md](research-dark-souls-design.md)) and weapon tuning research ([research-dark-souls-weapons.md](research-dark-souls-weapons.md)). Touches 11 files across 5 phases.
+
+### Phase 1 — Foundation (Refactoring + Collision Fixes)
+
+1. **Extracted duplicated helpers** → `scripts/core/procedural_utils.gd`: Created `class_name AshenProceduralUtils` with static `make_material()` and `has_collision_shape()`. Replaced 4 copies of `_material()` (`game_world.gd:752`, `checkpoint.gd:161`, `shortcut.gd:155`, `lost_echo.gd:136`) and 3 copies of `_has_collision_shape()` (`checkpoint.gd:165`, `shortcut.gd:159`, `lost_echo.gd:140`). Also unified `player.gd`'s `_make_material()` variant. ~40 lines of duplication removed.
+
+2. **Fixed collision layer conflict** (`game_world.gd:18`, `checkpoint.gd:21`, `shortcut.gd:23`, `lost_echo.gd:19`): Interactables were on layer bit 2 (value 4), the same as enemies (`enemy.gd:644`). Moved interactables to bit 3 (value 8). New scheme: bit 0 = world, bit 1 = player, bit 2 = enemies, bit 3 = interactables.
+
+3. **Fixed SpellProjectile collision mask** (`spell_projectile.gd:25`): `collision_mask = 5` → `4`. Veil Bolt no longer collides with world geometry (bit 0); hits enemies only (bit 2).
+
+### Phase 2 — Combat Core (Per-Style Timing Differentiation)
+
+4. **Per-style attack timing** (`player.gd:47–118`): Added `STYLE_TIMING` const dictionary with full timing profiles for all 5 `CombatStyle` enums. Key differentiation:
+
+   | Style | Light Windup | Heavy Windup | Light Damage | Heavy Damage | Dodge Stamina |
+   |---|---|---|---|---|---|
+   | Reliquary Guard | 0.28 s | 0.58 s | 22 | 38 | 24 |
+   | Twin Colossi | 0.48 s | 0.82 s | 32 | 56 | 32 |
+   | Crescent Pair | 0.20 s | 0.38 s | 16 | 26 | 20 |
+   | Veilcraft | 0.30 s | 0.52 s | 20 | 32 | 26 |
+   | Ember Rite | 0.34 s | 0.56 s | 22 | 34 | 26 |
+
+   Added `_style_value()` helper (`player.gd`). Updated `_try_attack()`, `_update_state()` (ATTACK_WINDUP/ACTIVE/RECOVERY transitions), `_try_leap_attack()`, `_try_dodge()`, `_try_parry()`, and `_is_parry_active()` to read from `STYLE_TIMING[combat_style]` instead of hardcoded values. Leap attack parameters (windup/active/recovery/damage/stagger/stamina/lunge) are now per-style; Crescent Pair's curved dual-hit timing uses `_style_value()` for the second-hit trigger.
+
+### Phase 3 — Feel & Polish
+
+5. **Hyper armor for heavy weapons** (`player.gd:160`, `player.gd:750–783`, `player.gd:282–283`, `player.gd:225`): Twin Colossi now has stagger immunity during `ATTACK_ACTIVE` (heavy attacks) and `LEAP_ACTIVE` frames. Added `hyper_armor` bool set in `_change_state()` based on `STYLE_TIMING[combat_style].has_hyper_armor`. `receive_hit()` clears `incoming_stagger` when hyper armor is active. Weapon emission glows golden during hyper armor frames. Reliquary Guard and Crescent Pair have no hyper armor.
+
+6. **Hit-stop on successful impacts** (`combat_area.gd:1`, `combat_area.gd:58`, `game_world.gd:120`, `game_world.gd:457–470`): Added `signal hit_landed(is_heavy)` to `combat_area.gd`, emitted after `body.receive_hit()`. In `game_world.gd`, `_on_player_hit_landed()` pauses via `Engine.time_scale = 0.02` (heavy) / `0.05` (light), restores after 0.08 s / 0.04 s via unscaled timer. Heavy hits also apply brief camera shake (h/v offset). Connected in `_create_systems()` after `add_child(player)`.
+
+7. **Boss healing-punish tendency** (`player.gd:9`, `player.gd:691`, `game_world.gd:118`, `game_world.gd:472–477`, `enemy.gd:200–215`): Added `signal healing_started` to player, emitted in `_begin_cast()` when `cast_id == &"ember_rite"`. Connected in `game_world.gd` to new `_on_player_healing()`, which iterates all enemies calling `on_player_healing()`. In `enemy.gd`: Cinder Guardian immediately queues a long-range attack with 0.7× windup if target > 3 m away; regular enemies boost chase speed 1.5× for 1.8 s.
+
+### Phase 4 — Content & Navigation
+
+8. **Ash Stalker enemy archetype** (`enemy.gd:8–12`, `enemy.gd:32`, `enemy.gd:87`, `enemy.gd:377–385`, `enemy.gd:592–595`, `enemy.gd:612–622`, `game_world.gd:5`, `game_world.gd:140–141`): Added `enum EnemyType { HOLLOW_SENTINEL, ASH_STALKER, CINDER_GUARDIAN }`. Ash Stalker profile: 45 HP, 6.0 move speed, 10.0 aggro range, 12.0 poise limit, fast 0.22 s windup / 0.10 s active / 0.18 s recovery with 8 damage per hit. Pale gray body, warm brown weapon, orange eye emission. `setup()` accepts optional `new_type` parameter. Two Ash Stalkers spawned at `(-3, 0.95, -10)` and `(4, 0.95, -14)` alongside existing sentinels.
+
+9. **NavigationMesh generation** (`game_world.gd:50`, `game_world.gd:849–876`): Added `_generate_navigation()` called via `call_deferred` after `_load_initial_state()`. Creates `NavigationRegion3D` with a `NavigationMesh` (0.5 m agent radius, 2.0 m height, 45° max slope, 0.25 m cell size/height) covering the 30×50 m play area via a `PlaneMesh` proxy. Baked from static collider geometry. `enemy.gd._safe_navigation_direction()` fallback now resolves to real paths instead of direct line-of-sight.
+
+### Phase 5 — Code Quality
+
+10. **Named constants for magic numbers** (`player.gd:174–184`): Added `MOVE_ACCELERATION`, `DEFAULT_GRAVITY`, `STAMINA_REGEN_RATE`, `FOCUS_REGEN_RATE`, `SPRINT_STAMINA_DRAIN`, `DODGE_SPEED`, `DODGE_DURATION`, `DODGE_INVULN_START`, `DODGE_INVULN_END`, `LOCK_ON_MAX_DISTANCE`, `LOCK_ON_BREAK_DISTANCE`. Variable initializations and usage sites in `_update_stamina()`, `_is_invulnerable()`, `_physics_process()`, and dodge handling now reference constants.
+
+### Validation
+
+- All GDScript files pass `--check-only` with Godot 4.7.1 (only pre-existing `.godot/imported/` font cache miss remains — requires one editor open to rebuild).
+- Contract tests print `ASHEN_CORE_CONTRACTS_OK`.
+- Navigation mesh bakes without errors; `cell_height` aligned to map default (0.25).
+- Manual playtesting required for: per-style combat feel, hit-stop timing, hyper armor balance, Ash Stalker encounter tuning, boss healing-punish aggression, and navmesh path quality through wall/pillar geometry.
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `game/scripts/core/procedural_utils.gd` | **NEW** — shared `make_material()` / `has_collision_shape()` |
+| `game/scripts/player.gd` | +`STYLE_TIMING` dict, `_style_value()`, hyper armor, healing signal, named constants, per-style timing in 7 functions |
+| `game/scripts/enemy.gd` | +`EnemyType` enum, Ash Stalker profile, `on_player_healing()`, tuning/palette/attack branches |
+| `game/scripts/game_world.gd` | +hit-stop handler, `_on_player_healing()`, `_generate_navigation()`, Ash Stalker spawns, collision layer fix, `_ProcUtils` preload |
+| `game/scripts/combat_area.gd` | +`signal hit_landed`, emit on successful hit |
+| `game/scripts/checkpoint.gd` | Refactored `_material()`/`_has_collision_shape()`, collision layer fix, `_ProcUtils` preload |
+| `game/scripts/shortcut.gd` | Same as checkpoint |
+| `game/scripts/lost_echo.gd` | Same as checkpoint + transparency via `_ProcUtils.make_material(..., true)` |
+| `game/scripts/components/spell_projectile.gd` | Collision mask 5 → 4 |
 
 ### Scope
 
