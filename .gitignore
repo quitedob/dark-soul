@@ -1,0 +1,26 @@
+# Godot-generated state
+.godot/
+
+# Godot exports and local build output
+build/
+exports/
+
+# Flutter and Dart-generated state
+app/.dart_tool/
+app/.packages
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/coverage/
+app/ohos/.cxx/
+app/ohos/build/
+packages/**/.dart_tool/
+packages/**/build/
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+*.iml
+*.log
+Thumbs.db
+.DS_Store
