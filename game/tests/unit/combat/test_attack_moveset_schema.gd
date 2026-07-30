@@ -2,6 +2,51 @@ extends "res://addons/gut/test.gd"
 
 const PlayerScript = preload("res://scripts/player/player.gd")
 const Factory = preload("res://scripts/combat/data/compatibility_moveset_factory.gd")
+const Verifier = preload("res://scripts/tools/verify_combat_resource_schema.gd")
+
+## A-05 要求注册的核心 class_name
+const REQUIRED_CLASSES := [
+	"AttackData",
+	"ChargeProfile",
+	"MovesetData",
+	"WeaponData",
+	"WeaponArtData",
+	"GuardProfile",
+	"ExecutionProfile",
+	"GrabProfile",
+]
+
+
+func test_combat_resource_class_names_are_registered() -> void:
+	# 全局类表必须含 AttackData / MovesetData 等
+	var registered := {}
+	for info in ProjectSettings.get_global_class_list():
+		registered[String(info.get("class", ""))] = String(info.get("path", ""))
+	for class_id in REQUIRED_CLASSES:
+		assert_true(registered.has(class_id), "Missing class_name registration: %s" % class_id)
+		assert_eq(
+			registered[class_id],
+			Verifier.REQUIRED_CLASS_PATHS[class_id],
+			"Unexpected script path for %s" % class_id
+		)
+
+
+func test_combat_resource_schema_verifier_pipeline() -> void:
+	# 复用 A-05 校验工具：注册 + 实例化 + 兼容武器 + 作者化 tres
+	var failures: Array[String] = Verifier.run()
+	assert_true(failures.is_empty(), "Schema pipeline failures: %s" % str(failures))
+
+
+func test_authored_reliquary_weapon_roundtrip() -> void:
+	# .tres 必须以 WeaponData / MovesetData 反序列化
+	var weapon = load(Verifier.AUTHORED_WEAPON_PATH)
+	assert_true(weapon is WeaponData, "Authored weapon must be WeaponData.")
+	assert_true(weapon.validate().is_empty(), "Authored weapon validate failed.")
+	for path in Verifier.AUTHORED_MOVESET_PATHS:
+		var moveset = load(path)
+		assert_true(moveset is MovesetData, "%s must be MovesetData." % path)
+		assert_true(moveset.validate().is_empty(), "%s validate failed." % path)
+		assert_ne(moveset.charged_heavy, null, "%s missing ChargeProfile." % path)
 
 
 func test_all_compatibility_movesets_validate() -> void:

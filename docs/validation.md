@@ -81,6 +81,44 @@ Result: `ASHEN_HOLLOW_SMOKE_OK` when the smoke path is enabled.
 
 Expected prints include `ASHEN_CORE_CONTRACTS_OK`, `ASHEN_POISE_CONTRACTS_OK`, `ASHEN_CHAPTER1_SLICE_CONTRACTS_OK`, `ASHEN_DEATH_LOOP_CONTRACTS_OK`.
 
+### Boss weak-point / polish contracts (E-10 / D-07 / fate UI)
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/boss_weakpoint_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/boss_polish_contract_test.gd
+```
+
+Expected prints: `ASHEN_BOSS_WEAKPOINT_CONTRACTS_OK`, `ASHEN_BOSS_POLISH_CONTRACTS_OK`.
+
+Also covered by `tools/build.ps1` combat contract section (guard / polish / weak-point / boss polish / lock-on).
+
+### Combat Resource schema (A-05)
+
+Verifies `class_name` registration for `AttackData` / `ChargeProfile` / `MovesetData` / `WeaponData` / `WeaponArtData` / `GuardProfile` / `ExecutionProfile` / `GrabProfile`, runs `validate()` on factory weapons and authored Reliquary `.tres`.
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/combat_resource_schema_contract_test.gd
+```
+
+Expected print: `ASHEN_COMBAT_RESOURCE_SCHEMA_OK`.
+
+Optional direct tool entry (same checks):
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script scripts/tools/verify_combat_resource_schema_cli.gd
+```
+
+GUT coverage lives in `tests/unit/combat/test_attack_moveset_schema.gd` (class registration + schema pipeline + authored round-trip).
+
 ### GUT unit tests
 
 ```bash
@@ -90,6 +128,40 @@ Expected prints include `ASHEN_CORE_CONTRACTS_OK`, `ASHEN_POISE_CONTRACTS_OK`, `
 ```
 
 Uses `.gutconfig.json` (`tests/unit/`, `tests/integration/`).
+
+Targeted combat schema GUT:
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  -s addons/gut/gut_cmdln.gd \
+  -gdir=res://tests/unit/combat \
+  -gprefix=test_attack_moveset_schema
+```
+
+### Local CI (I-11) — full GUT + JUnit XML
+
+Preferred entrypoint for headless CI (import + full suite + collect JUnit):
+
+```powershell
+# Windows（推荐）
+.\tools\ci.ps1
+# 或显式指定 Godot
+.\tools\ci.ps1 -Godot "E:\godot\Godot_v4.7.1-stable_win64_console.exe"
+
+# Linux / macOS
+./tools/ci.sh --godot /path/to/Godot_v4.7.1-stable_linux.x86_64
+```
+
+- Success marker: `ASHEN_HOLLOW_CI_OK`
+- JUnit XML: `build/ci/gut-results.xml` (under gitignored `build/`; retained even when GUT fails)
+- Override output: `-JUnitOut` / `--junit`
+- Override Godot: `-Godot` / `--godot` or env `GODOT_BIN`
+- `-SkipImport` / `--skip-import` skips editor import warmup
+- `-StrictImport` / `--strict-import` fails CI on import SCRIPT/Parse errors
+- GitHub Actions: `.github/workflows/gut-ci.yml` (downloads Godot 4.7.1, uploads JUnit artifact)
+
+`tools/build.ps1` delegates its GUT step to `tools/ci.ps1`.
 
 ## Manual Test Checklist
 
@@ -109,12 +181,14 @@ Automated headless tests cannot judge game feel. In the graphical build, verify:
 - Chapter 1: `level_01_01` → `01_05` encounters, arena seal, boss `守炉灵·巨阙`, victory exit to `level_02_01`.
 - Death drops embers and respawns at the shrine after the overlay.
 - Touching the Lost Echo restores the dropped amount.
-- `Esc` pauses; `F1` shows controls.
+- Boss weak-point expose → light attack execution → story HP floor → fate modal writes `choice_flags`.
+- Boss grab telegraph is dodgeable; miss recovery is punishable; capture uses GrabCapture Area3D (not CombatArea).
+- Combat camera shots fire on weak-point / grab / fate without locking daily orbit permanently; reduced motion softens trauma.
 
 ## Known Limitations
 
 - Visuals and sounds are generated primitives intended to validate systems, not final production assets.
 - Campaign levels beyond Chapter 1 still use placeholder encounters.
 - The `music_volume` setting in game settings is not yet wired to any audio bus.
-- Independent `GUARD_BROKEN` FSM state remains a target (E-08), not fully shipped.
+- Independent `GUARD_BROKEN` / `PARRY_VULNERABLE` / Boss weak-point / grab / fate UI are now in prototype; phase-transition VFX and authored grab `.glb` pairs remain open (G-04 remainder).
 - Human playtesting is still required for combat balance, telegraph clarity, camera comfort, and accessibility.

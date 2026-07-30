@@ -6,9 +6,9 @@
 script = ExtResource("1")
 style_id = &"veilcraft"
 display_name = "VEILCRAFT"
-windup_light = 0.30
-active_light = 0.16
-recovery_light = 0.42
+windup_light = 0.25
+active_light = 0.0
+recovery_light = 0.20
 lunge_light = 1.8
 damage_light = 20.0
 stagger_light = 14.0

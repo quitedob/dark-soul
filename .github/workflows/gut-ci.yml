@@ -1,0 +1,68 @@
+# GUT 无头 CI：完整 suite + JUnit XML 产物
+name: GUT CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "game/**"
+      - "tools/ci.ps1"
+      - "tools/ci.sh"
+      - ".github/workflows/gut-ci.yml"
+  pull_request:
+    paths:
+      - "game/**"
+      - "tools/ci.ps1"
+      - "tools/ci.sh"
+      - ".github/workflows/gut-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  gut:
+    name: Headless GUT (JUnit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Godot binary
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/godot
+          key: godot-4.7.1-linux-x86_64
+
+      - name: Download Godot 4.7.1
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p godot
+          curl -L --fail -o godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          unzip -o godot.zip -d godot
+          chmod +x godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Run GUT CI script
+        env:
+          GODOT_BIN: ${{ runner.temp }}/godot/Godot_v4.7.1-stable_linux.x86_64
+        run: |
+          chmod +x tools/ci.sh
+          ./tools/ci.sh
+
+      - name: Upload JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gut-junit
+          path: build/ci/gut-results.xml
+          if-no-files-found: warn
+
+      - name: Publish test report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: build/ci/gut-results.xml
+          check_name: GUT Results
+          require_tests: true

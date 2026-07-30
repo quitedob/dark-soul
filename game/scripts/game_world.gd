@@ -21,6 +21,9 @@ const Chapter1ContentScript = preload("res://scripts/data/chapter_1_content.gd")
 const SafePlacement = preload("res://scripts/core/safe_placement.gd")
 const HitStopManagerScript = preload("res://scripts/combat/hit_stop_manager.gd")
 const TraumaShakeScript = preload("res://scripts/components/trauma_shake.gd")
+const CombatCameraDirectorScript = preload("res://scripts/combat/combat_camera_director.gd")
+const FateChoiceOverlayScript = preload("res://scripts/ui/fate_choice_overlay.gd")
+const FateCatalog = preload("res://scripts/combat/data/boss_fate_catalog.gd")
 
 const SAVE_PATH := "user://ashen_hollow_run_v1.json"
 const SETTINGS_PATH := "user://ashen_hollow_settings_v1.json"
@@ -53,6 +56,9 @@ var campaign_runtime: CampaignLevelRuntime
 var _module_runtime: CampaignModuleRuntime
 var _hit_stop_manager: HitStopManager
 var _trauma_shake: TraumaShake
+var _camera_director = null
+var _fate_overlay = null
+var _pending_fate_boss = null
 var _level_transition_locked := false
 
 
@@ -210,6 +216,16 @@ func _create_systems() -> void:
 	_trauma_shake.name = "TraumaShake"
 	_trauma_shake.setup(player.camera)
 	add_child(_trauma_shake)
+	_camera_director = CombatCameraDirectorScript.new()
+	_camera_director.name = "CombatCameraDirector"
+	_camera_director.setup(player, _trauma_shake)
+	add_child(_camera_director)
+	_fate_overlay = FateChoiceOverlayScript.new()
+	_fate_overlay.name = "FateChoiceOverlay"
+	add_child(_fate_overlay)
+	_fate_overlay.choice_made.connect(_on_fate_choice_made)
+	if player.has_signal("execution_started"):
+		player.execution_started.connect(_on_player_execution_started)
 	_create_interaction_sensor()
 
 	checkpoint = CheckpointScene.instantiate()
@@ -395,7 +411,11 @@ func _wire_enemy_signals(enemy) -> void:
 	if enemy.has_signal("execution_break_changed"):
 		enemy.execution_break_changed.connect(_on_execution_break_changed.bind(enemy))
 	if enemy.has_signal("story_threshold_reached"):
-		enemy.story_threshold_reached.connect(_on_boss_story_threshold)
+		enemy.story_threshold_reached.connect(_on_boss_story_threshold.bind(enemy))
+	if enemy.has_signal("weak_point_exposed"):
+		enemy.weak_point_exposed.connect(_on_boss_weak_point_exposed)
+	if enemy.has_signal("grab_started"):
+		enemy.grab_started.connect(_on_boss_grab_started.bind(enemy))
 
 
 func _on_campaign_exit_requested(from_level_id: StringName) -> void:
@@ -616,11 +636,55 @@ func _on_execution_break_changed(current: float, maximum: float, enemy) -> void:
 		hud.update_execution_break(current, maximum)
 
 
-func _on_boss_story_threshold(story_flag: StringName, health_ratio: float) -> void:
+func _on_boss_story_threshold(story_flag: StringName, health_ratio: float, enemy = null) -> void:
 	hud.show_message(
 		LocalizationScript.text("STORY THRESHOLD\n%s  %.0f%%") % [String(story_flag), health_ratio * 100.0],
-		2.4
+		1.6
 	)
+	if enemy != null and is_instance_valid(enemy) and enemy.has_method("enter_story_resolution"):
+		enemy.enter_story_resolution()
+		_pending_fate_boss = enemy
+	if _camera_director != null:
+		_camera_director.play_shot_id(&"fate_halfbody", enemy if enemy != null else guardian)
+	if _fate_overlay != null and FateCatalog.entry_for_flag(story_flag).size() > 0:
+		_fate_overlay.open_for_flag(story_flag)
+	else:
+		hud.show_message(LocalizationScript.text("FATE UNRESOLVED\n%s") % String(story_flag), 2.0)
+
+
+func _on_fate_choice_made(story_flag: StringName, value: String) -> void:
+	if run_state != null and run_state.has_method("set_choice_flag"):
+		run_state.set_choice_flag(story_flag, value)
+	elif run_state != null:
+		run_state.choice_flags[String(story_flag)] = value
+	_save_run("fate_choice")
+	if _camera_director != null:
+		_camera_director.release()
+	if _pending_fate_boss != null and is_instance_valid(_pending_fate_boss):
+		if String(story_flag) == "ending_state":
+			# 烛阴：选择后标记击败但不播放死亡处决
+			if guardian == _pending_fate_boss:
+				run_state.guardian_defeated = true
+		if hud != null:
+			hud.hide_boss()
+	_pending_fate_boss = null
+	hud.show_message(LocalizationScript.text("FATE SEALED\n%s → %s") % [String(story_flag), value], 2.4)
+	audio.play_cue("rest", -5.0, 0.9)
+
+
+func _on_boss_weak_point_exposed(enemy) -> void:
+	if _camera_director != null:
+		_camera_director.play_shot_id(&"weak_point_expose", enemy)
+
+
+func _on_boss_grab_started(_target, enemy) -> void:
+	if _camera_director != null:
+		_camera_director.play_shot_id(&"grab_hold", enemy)
+
+
+func _on_player_execution_started(kind: StringName, target: Node) -> void:
+	if kind == &"weak_point" and _camera_director != null:
+		_camera_director.play_shot_id(&"weak_point_exec", target as Node3D)
 
 
 func get_target_candidates() -> Array[Node]:
@@ -780,9 +844,31 @@ func _on_hud_combat_tip_mode_requested(enabled: bool) -> void:
 
 
 func _on_player_hit_landed(target: Node3D, is_heavy: bool) -> void:
+	# 本地 hit-stop：重击更长；创伤按武器重量档注入
 	var duration := 0.08 if is_heavy else 0.04
 	_hit_stop_manager.trigger(player, target, duration, float(Engine.physics_ticks_per_second))
-	_trauma_shake.inject(0.8 if is_heavy else 0.3)
+	var weight := _resolve_hit_trauma_weight(is_heavy)
+	_trauma_shake.inject_weight(weight)
+	# 重击命中：短时 Master 低通 duck（headless 内为 no-op）
+	if is_heavy and audio != null and is_instance_valid(audio) and audio.has_method("duck_heavy_impact"):
+		audio.duck_heavy_impact()
+
+
+## 从命中载荷 / 玩家状态解析 light(0.3) / heavy(0.8) / explosion(1.0)
+func _resolve_hit_trauma_weight(is_heavy: bool) -> StringName:
+	var tags: Array = []
+	var action_id := ""
+	if player != null and player.combat_area != null:
+		var payload: Dictionary = player.combat_area.hit_payload
+		tags = payload.get("tags", [])
+		action_id = String(payload.get("action_id", ""))
+	# 跳劈进行中视为爆炸档最大创伤
+	if player != null:
+		if player.state == player.State.LEAP_ACTIVE:
+			return &"explosion"
+		if String(player.attack_action_id).to_lower().contains("leap"):
+			return &"explosion"
+	return TraumaShakeScript.resolve_weight(is_heavy, tags, action_id)
 
 
 func _on_player_healing() -> void:
@@ -800,6 +886,8 @@ func _apply_settings() -> void:
 			game_settings.screen_shake_enabled and not game_settings.reduced_motion,
 			game_settings.screen_shake_intensity
 		)
+	if _camera_director != null:
+		_camera_director.set_reduced_motion(game_settings.reduced_motion)
 	TranslationServer.set_locale(game_settings.locale)
 	if player != null and player.has_method("apply_game_settings"):
 		player.apply_game_settings(game_settings.to_dictionary())

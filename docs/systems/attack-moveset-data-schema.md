@@ -385,10 +385,15 @@ Checked against `game/scripts/combat/data/` and player commit path:
 | `WeaponArtData` | `weapon_art_data.gd` | Present — class exists; not all arts fully migrated off `match` |
 | `ExecutionProfile` | `execution_profile.gd` | Present |
 | `GuardProfile` | `guard_profile.gd` | Present — still dual-owned with HandEquipment dicts |
-| `GrabProfile` | `grab_profile.gd` | Present — grab runtime incomplete |
+| `GrabProfile` | `grab_profile.gd` | Present — runtime via `GrabPairedDirector` + independent capture Area3D |
 | `MovementActionProfile` | — | **Not a separate class yet**; dodge/backstep live on player + `CombatStyleData` |
 
 Ownership rules 1–3 and 8 are active via `CompatibilityMovesetFactory` → `_commit_attack` → `CombatArea`.
+
+Related runtime (not Resource schemas, but combat polish):
+
+- `CombatCameraDirector` + `CameraShotProfile` — Boss exclusive shots
+- `BossFateCatalog` + `FateChoiceOverlay` — story floor → string `choice_flags`
 
 Remaining gaps (tracked elsewhere):
 

@@ -1,6 +1,21 @@
 class_name TraumaShake
 extends Node
 
+## 武器重量档位创伤注入量（C-03）
+const TRAUMA_LIGHT := 0.3
+const TRAUMA_HEAVY := 0.8
+const TRAUMA_EXPLOSION := 1.0
+
+## light / heavy / explosion → 注入量查表
+const TRAUMA_BY_WEIGHT := {
+	&"light": TRAUMA_LIGHT,
+	&"heavy": TRAUMA_HEAVY,
+	&"explosion": TRAUMA_EXPLOSION,
+}
+
+## 判定为爆炸档的标签（跳劈 / AoE / 地砸等）
+const EXPLOSION_TAGS := [&"leap", &"explosion", &"aoe", &"ground_slam", "leap", "explosion", "aoe", "ground_slam"]
+
 var trauma := 0.0
 var intensity := 1.0
 var enabled := true
@@ -22,6 +37,40 @@ func setup(camera: Camera3D) -> void:
 	_noise.noise_type = FastNoiseLite.TYPE_PERLIN
 	_noise.frequency = 0.45
 	_applied_transform = Transform3D.IDENTITY
+
+
+## 查表取得档位对应创伤量，缺省回退 light
+static func trauma_for_weight(weight: StringName) -> float:
+	return float(TRAUMA_BY_WEIGHT.get(weight, TRAUMA_LIGHT))
+
+
+## 从 is_heavy / 标签 / action_id 解析重量档位
+static func resolve_weight(is_heavy: bool, tags: Array = [], action_id: String = "") -> StringName:
+	var action_lower := action_id.to_lower()
+	# 爆炸档：标签或招式名含 leap / explosion / aoe / slam
+	if _has_explosion_marker(tags, action_lower):
+		return &"explosion"
+	if is_heavy:
+		return &"heavy"
+	return &"light"
+
+
+## 检测爆炸档标记（标签集合或 action 子串）
+static func _has_explosion_marker(tags: Array, action_lower: String) -> bool:
+	for marker in EXPLOSION_TAGS:
+		if marker in tags:
+			return true
+	if action_lower.contains("leap") \
+			or action_lower.contains("explosion") \
+			or action_lower.contains("aoe") \
+			or action_lower.contains("slam"):
+		return true
+	return false
+
+
+## 按重量档位注入创伤（light 0.3 / heavy 0.8 / explosion 1.0）
+func inject_weight(weight: StringName) -> void:
+	inject(trauma_for_weight(weight))
 
 
 func inject(amount: float) -> void:

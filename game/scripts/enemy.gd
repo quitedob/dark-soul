@@ -216,6 +216,13 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	if _story_resolution:
+		velocity = Vector3.ZERO
+		knockback_velocity = Vector3.ZERO
+		if not is_on_floor():
+			velocity.y -= gravity * delta
+		move_and_slide()
+		return
 	# HitStop：冻本实体 AI/状态推进，重力与滑动保留
 	if _visual_frozen:
 		if not is_on_floor():
@@ -267,6 +274,7 @@ func reset_enemy() -> void:
 	_phase_transition_played = false
 	_phase_two_played = false
 	_heal_speed_id += 1  # invalidate any pending heal-speed timer
+	_story_resolution = false
 	navigation_refresh = 0.0
 	_cached_has_target = false
 	_cached_target_position = global_position
@@ -374,6 +382,7 @@ func _apply_execution_break_from_payload(payload: Dictionary) -> void:
 		execution_break = 0.0
 		execution_break_changed.emit(execution_break, max_execution_break)
 		_change_state(State.WEAK_POINT_EXPOSED, float(boss_break_profile.expose_seconds))
+		weak_point_exposed.emit(self)
 
 
 func receive_parry(source: Node = null) -> void:
@@ -436,7 +445,7 @@ func release_execution_claim(claimer: Node = null) -> void:
 
 
 func apply_execution_damage(amount: float, allow_lethal: bool = true) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or _story_resolution:
 		return
 	var dmg := maxf(amount, 0.0)
 	var floor_ratio := 0.05
@@ -602,7 +611,8 @@ func _update_state(delta: float) -> void:
 		State.GRAB_ACTIVE:
 			_slow_horizontal(delta, acceleration * 3.0)
 			_update_grab_hold(delta)
-			if state_time <= 0.0:
+			var director_done: bool = _grab_director != null and not bool(_grab_director.active)
+			if director_done or state_time <= 0.0:
 				_end_grab()
 				_change_state(State.RECOVERY, 0.55)
 		State.GRAB_RECOVERY:
@@ -729,46 +739,71 @@ func _try_resolve_grab_capture() -> bool:
 	if _grab_area == null or target_node == null or not is_instance_valid(target_node):
 		return false
 	_update_grab_area_pose()
+	var candidate: Node3D = null
 	for body in _grab_area.get_overlapping_bodies():
 		if body == target_node or (body is Node3D and body.is_in_group("player")):
-			_grab_target = body
-			grab_started.emit(_grab_target)
-			if _grab_target.has_method("begin_grabbed"):
-				_grab_target.begin_grabbed(self, float(_grab_profile.hold_seconds) if _grab_profile else 1.4)
-			return true
-	# 距离兜底：前摇结束仍贴近则抓取
-	if _horizontal_distance(global_position, target_node.global_position) <= float(_grab_profile.capture_radius) + 0.35:
-		_grab_target = target_node
-		grab_started.emit(_grab_target)
-		if _grab_target.has_method("begin_grabbed"):
-			_grab_target.begin_grabbed(self, float(_grab_profile.hold_seconds) if _grab_profile else 1.4)
-		return true
-	return false
+			candidate = body
+			break
+	if candidate == null and _horizontal_distance(global_position, target_node.global_position) <= float(_grab_profile.capture_radius) + 0.35:
+		candidate = target_node
+	if candidate == null:
+		return false
+	_grab_target = candidate
+	if _grab_director == null:
+		_grab_director = GrabPairedDirectorScript.new()
+	if not _grab_director.begin(self, _grab_target, _grab_profile):
+		_grab_target = null
+		return false
+	grab_started.emit(_grab_target)
+	return true
 
 
-func _update_grab_hold(_delta: float) -> void:
+func _update_grab_hold(delta: float) -> void:
+	if _grab_director != null and _grab_director.active:
+		_grab_director.update(delta)
+		_grab_damage_applied = _grab_director.damage_done
+		if not _grab_director.active:
+			# Director 已自然结束
+			_grab_target = null
+		return
+	# 兼容：无 Director 时退回旧吸附逻辑
 	if _grab_target == null or not is_instance_valid(_grab_target):
 		return
 	var hold_point := global_position + (-global_transform.basis.z) * 1.05 + Vector3.UP * 1.15
 	_grab_target.global_position = _grab_target.global_position.lerp(hold_point, 0.35)
-	if not _grab_damage_applied and _grab_profile != null:
-		var elapsed := state_duration - state_time if state_duration > 0.0 else 0.0
-		if elapsed >= float(_grab_profile.damage_event_seconds):
-			_grab_damage_applied = true
-			var dir := (_grab_target.global_position - global_position).normalized()
-			if _grab_target.has_method("receive_hit"):
-				_grab_target.receive_hit(float(_grab_profile.grab_damage), 28.0, dir, self)
 
 
 func _end_grab() -> void:
 	if _grab_area != null:
 		_grab_area.monitoring = false
-	if _grab_target != null and is_instance_valid(_grab_target):
-		if _grab_target.has_method("end_grabbed"):
-			_grab_target.end_grabbed(self)
-		grab_ended.emit(_grab_target)
+	var ended_target := _grab_target
+	if _grab_director != null and _grab_director.active:
+		_grab_director.force_cancel(&"state_exit")
+		ended_target = ended_target if ended_target != null else null
+	elif ended_target != null and is_instance_valid(ended_target):
+		if ended_target.has_method("end_grabbed"):
+			ended_target.end_grabbed(self)
+	if ended_target != null:
+		grab_ended.emit(ended_target)
 	_grab_target = null
 	_grab_damage_applied = false
+
+
+func enter_story_resolution() -> void:
+	# 命运选择：冻结 AI，保持存活
+	_story_resolution = true
+	_release_execution_claim()
+	if _grab_director != null and _grab_director.active:
+		_grab_director.force_cancel(&"story")
+	velocity = Vector3.ZERO
+	knockback_velocity = Vector3.ZERO
+	_set_engaged(false)
+	_change_state(State.IDLE, 0.0)
+	story_resolution_entered.emit(self)
+
+
+func is_in_story_resolution() -> bool:
+	return _story_resolution
 
 
 func _select_attack_profile() -> void:

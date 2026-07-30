@@ -27,9 +27,9 @@ The world runs on **烬 (Embers)** — remnants of divine fire that once maintai
 ### 🚧 Current Implementation Boundary
 
 - **Designed:** complete five-chapter causality, 28-level content catalog, boss narratives, chapter choices, NPC routes, side quests, and four ending specifications.
-- **Present in code:** chapter/level IDs, topology links, a basic procedural campaign shell, and 7 unique boss registry entries.
-- **Not yet playable:** quest state, NPC runtime, dialogue runner, story-event triggers, chapter-choice persistence, boss story branches, and ending resolution.
-- Treat story documents as implementation specifications, not claims that these features currently run in the prototype.
+- **Present in code:** chapter/level IDs, topology links, a basic procedural campaign shell, 7 unique boss registry entries, **Boss Execution Break / weak-point executions**, **GrabPairedDirector**, **CombatCameraDirector**, and **FateChoiceOverlay** writing string `choice_flags` on story HP floors.
+- **Not yet playable:** quest state, NPC runtime, dialogue runner, full ending resolution matrix (hidden ending still task-gated), and chapter-wide quest/NPC migration.
+- Treat story documents as implementation specifications for remaining narrative systems; boss fate flags are now writable at runtime.
 
 ### 📕 Chapters (5 Fractured Regions)
 | Chapter | Name | Theme | File |

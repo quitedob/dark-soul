@@ -13,6 +13,7 @@ signal grip_changed(grip_mode: int, grip_name: String)
 signal guard_meter_changed(current, maximum)
 signal hit_landed(target, is_heavy)
 signal charge_progress_changed(ratio: float, tier: int)
+signal execution_started(kind: StringName, target: Node)
 
 enum State {
 	LOCOMOTION,
@@ -179,6 +180,12 @@ const VOID_RECOVER_Y := -36.0
 const VOID_DROP_FROM_SAFE := 28.0
 const LOCK_ON_MAX_DISTANCE := 18.0
 const LOCK_ON_BREAK_DISTANCE := 22.0
+# F-03：锁敌镜头四元数 slerp 速度（越大越贴目标）
+const LOCK_ON_CAMERA_SLERP := 4.5
+# F-05：断锁后镜头回正时长与插值速度
+const LOCK_CAMERA_RECOVER_TIME := 0.5
+const LOCK_CAMERA_RECOVER_SPEED := 5.0
+const LOCK_CAMERA_DEFAULT_PITCH := -0.18
 
 var visual_root: Node3D
 var body_mesh: MeshInstance3D
@@ -199,6 +206,10 @@ var camera_rig: Node3D
 var camera_pitch: Node3D
 var spring_arm: SpringArm3D
 var camera: Camera3D
+# F-01：SpringArm 只探测静态世界层（architecture Collision Layers）
+# Layer1=静态世界(1) | Layer2=玩家(2) | Layer3=敌人(4) | Layer4=交互物(8)
+const SPRING_ARM_WORLD_LAYER := 1
+const SPRING_ARM_COLLISION_MASK := SPRING_ARM_WORLD_LAYER  # 值=1；不含玩家/敌人/交互物
 var body_collision: CollisionShape3D
 var body_material: StandardMaterial3D
 var weapon_material: StandardMaterial3D
@@ -212,6 +223,8 @@ var _charge_time := 0.0
 var _charge_hand := "right"
 var _charge_action_id := ""
 var _combat_tip_mode := false  # 设置：战斗提示模式（默认关）
+var _grab_pose_lock := false
+var _camera_director_override := false
 var _visual_frozen := false
 var _was_on_floor := true
 var _previous_vertical_velocity := 0.0
@@ -220,6 +233,8 @@ var last_landing_speed := 0.0
 var _airborne_from_jump := false
 var _dodge_is_backstep := false
 var _roll_attack_window := 0.0
+# F-05：断锁后剩余回正时间（秒）
+var _camera_recover_timer := 0.0
 var _backstep_attack_window := 0.0
 const CHARGE_MAX_HOLD := 2.2
 const CHARGE_STAMINA_DRAIN := 6.0
@@ -252,6 +267,7 @@ func _ready() -> void:
 	_visuals = PlayerVisualsScript.new()
 	_visuals.setup(self)
 	_visuals.build_nodes()
+	_configure_spring_arm_collision()  # F-01：关卡几何层 mask 校验与固化
 	_anim_bridge = PlayerAnimationBridgeScript.new()
 	_anim_bridge.setup(self)
 	if DisplayServer.get_name() != "headless":
@@ -292,6 +308,8 @@ func _physics_process(delta: float) -> void:
 		_check_void_recovery()
 	_flush_stats(delta)
 	_update_visual_pose()
+	# B-03：debug / combat tip 下刷新输入缓冲可视化
+	_update_input_buffer_debug()
 
 
 func _update_landing_and_safe_transform() -> void:
@@ -374,16 +392,19 @@ func respawn_at(at: Vector3) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# 锁敌期间禁用自由环绕；玩家动手取消断锁回正
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and state != State.DEAD:
-		var motion := event as InputEventMouseMotion
-		camera_rig.rotation.y -= motion.relative.x * mouse_sensitivity * camera_sensitivity_scale
-		var pitch_direction := 1.0 if invert_camera_y else -1.0
-		camera_pitch.rotation.x = clampf(
-			camera_pitch.rotation.x
-			+ motion.relative.y * mouse_sensitivity * camera_sensitivity_scale * pitch_direction,
-			-1.05,
-			0.45
-		)
+		if lock_target == null or not is_instance_valid(lock_target):
+			_camera_recover_timer = 0.0
+			var motion := event as InputEventMouseMotion
+			camera_rig.rotation.y -= motion.relative.x * mouse_sensitivity * camera_sensitivity_scale
+			var pitch_direction := 1.0 if invert_camera_y else -1.0
+			camera_pitch.rotation.x = clampf(
+				camera_pitch.rotation.x
+				+ motion.relative.y * mouse_sensitivity * camera_sensitivity_scale * pitch_direction,
+				-1.05,
+				0.45
+			)
 	# F3：切换命中体积调试可视化
 	if event.is_action_pressed("debug_hitbox") and combat_area != null:
 		combat_area.debug_draw = not combat_area.debug_draw
@@ -586,7 +607,12 @@ func _handle_action_input() -> void:
 	_update_guard_active()
 	if state == State.GRABBED:
 		return
-	if Input.is_action_just_pressed("lock_on"):
+	# F-04：左右循环锁敌（[ / ]）；Q/中键仍为获取或单向循环
+	if Input.is_action_just_pressed("cycle_lock_left"):
+		_cycle_lock_by_direction(-1)
+	elif Input.is_action_just_pressed("cycle_lock_right"):
+		_cycle_lock_by_direction(1)
+	elif Input.is_action_just_pressed("lock_on"):
 		_toggle_lock_on()
 	if Input.is_action_just_pressed("interact") and interaction_target != null and is_instance_valid(interaction_target) and interaction_target.has_method("interact"):
 		interaction_target.interact(self)
@@ -656,6 +682,7 @@ func _can_buffer_in_current_state() -> bool:
 
 
 func _try_buffer_action() -> void:
+	# B-03：单槽 150ms 输入缓冲；后按覆盖先按
 	if Input.is_action_just_pressed("dodge"):
 		_buffered_action = "dodge"
 		_buffer_timer = INPUT_BUFFER_WINDOW
@@ -677,6 +704,31 @@ func _try_buffer_action() -> void:
 	elif Input.is_action_just_pressed("cast_spell"):
 		_buffered_action = "cast_spell"
 		_buffer_timer = INPUT_BUFFER_WINDOW
+
+
+## B-03：供 HUD / 测试读取当前缓冲槽
+func get_input_buffer_debug() -> Dictionary:
+	return {
+		"action": _buffered_action,
+		"timer": _buffer_timer,
+		"window_ms": int(INPUT_BUFFER_WINDOW * 1000.0),
+	}
+
+
+func _update_input_buffer_debug() -> void:
+	# combat tip 或 debug 构建下显示「动作 + 剩余 ms」
+	if hud_node == null or not is_instance_valid(hud_node) or not hud_node.has_method("set_input_buffer_debug"):
+		return
+	var show_debug := _combat_tip_mode or OS.is_debug_build()
+	if not show_debug or _buffered_action == "" or _buffer_timer <= 0.0:
+		hud_node.set_input_buffer_debug("")
+		return
+	var remain_ms := int(ceil(_buffer_timer * 1000.0))
+	hud_node.set_input_buffer_debug("BUF %s %dms / %dms" % [
+		_buffered_action.to_upper(),
+		remain_ms,
+		int(INPUT_BUFFER_WINDOW * 1000.0),
+	])
 
 
 func _execute_buffered_action() -> void:
@@ -816,7 +868,10 @@ func _update_state(delta: float) -> void:
 				_change_state(State.LOCOMOTION)
 		State.GRABBED:
 			velocity = Vector3.ZERO
+			if _grab_pose_lock:
+				pass
 			if state_time <= 0.0:
+				_grab_pose_lock = false
 				_change_state(State.STAGGER, 0.35)
 
 
@@ -881,6 +936,7 @@ func _try_execution() -> bool:
 	var tip := "BACKSTAB" if kind == &"back" else ("WEAK POINT" if kind == &"weak_point" else "RIPOSTE")
 	_show_combat_tip(tip, 0.55)
 	_play_audio("heavy", -5.0, 0.85)
+	execution_started.emit(kind, target)
 	_change_state(State.EXECUTE_WINDUP, profile.windup_seconds)
 	return true
 
@@ -891,12 +947,24 @@ func begin_grabbed(grabber: Node, duration: float = 1.4) -> void:
 		return
 	guard_active = false
 	_finish_execution()
+	_grab_pose_lock = true
 	_change_state(State.GRABBED, maxf(duration, 0.4))
 
 
 func end_grabbed(_grabber: Node = null) -> void:
+	_grab_pose_lock = false
 	if state == State.GRABBED:
 		_change_state(State.STAGGER, 0.4)
+
+
+func set_grab_pose_lock(locked: bool) -> void:
+	_grab_pose_lock = locked
+	if locked:
+		velocity = Vector3.ZERO
+
+
+func set_camera_director_override(active: bool) -> void:
+	_camera_director_override = active
 
 
 func _align_execution_pose(delta: float) -> void:
@@ -1770,7 +1838,8 @@ func _toggle_lock_on() -> void:
 		if candidates.size() <= 1:
 			_set_lock_target(null)
 			return
-		var next_target := _cycle_lock_target(candidates)
+		# Q / 中键：顺时针（屏幕角递增）循环
+		var next_target := _cycle_lock_target(candidates, 1)
 		if next_target != null:
 			_set_lock_target(next_target)
 		else:
@@ -1779,6 +1848,19 @@ func _toggle_lock_on() -> void:
 	if candidates.is_empty():
 		return
 	_set_lock_target(candidates[0])
+
+
+## F-04：按屏幕角方向循环；未锁时先获取最高分目标
+func _cycle_lock_by_direction(direction: int) -> void:
+	var candidates := _collect_lock_candidates()
+	if candidates.is_empty():
+		return
+	if lock_target == null or not is_instance_valid(lock_target):
+		_set_lock_target(candidates[0])
+		return
+	var next_target := _cycle_lock_target(candidates, direction)
+	if next_target != null:
+		_set_lock_target(next_target)
 
 
 func _collect_lock_candidates() -> Array[Node3D]:
@@ -1811,7 +1893,7 @@ func _collect_lock_candidates() -> Array[Node3D]:
 	return result
 
 
-func _cycle_lock_target(candidates: Array[Node3D]) -> Node3D:
+func _cycle_lock_target(candidates: Array[Node3D], direction: int = 1) -> Node3D:
 	if lock_target == null or not is_instance_valid(lock_target):
 		return null
 	var ordered: Array[Dictionary] = []
@@ -1829,11 +1911,19 @@ func _cycle_lock_target(candidates: Array[Node3D]) -> Node3D:
 			break
 	if current_idx < 0:
 		return ordered[0]["node"] if not ordered.is_empty() else null
-	return ordered[(current_idx + 1) % ordered.size()]["node"]
+	var step := 1 if direction >= 0 else -1
+	var next_idx := (current_idx + step + ordered.size()) % ordered.size()
+	return ordered[next_idx]["node"]
 
 
 func _set_lock_target(target: Node3D) -> void:
+	var clearing := lock_target != null and target == null
 	lock_target = target
+	# F-05：断锁时启动镜头回正
+	if clearing:
+		_begin_lock_camera_recover()
+	else:
+		_camera_recover_timer = 0.0
 	lock_target_changed.emit(lock_target)
 
 
@@ -1846,7 +1936,8 @@ func _update_lock_target() -> void:
 	if lock_target.has_method("is_targetable") and not lock_target.is_targetable():
 		_set_lock_target(null)
 		return
-	if global_position.distance_to(lock_target.global_position) > 22.0:
+	# F-05：断锁距离用常量（> LOCK_ON_MAX_DISTANCE，留滞回缓冲）
+	if global_position.distance_to(lock_target.global_position) > LOCK_ON_BREAK_DISTANCE:
 		_set_lock_target(null)
 
 
@@ -1865,9 +1956,22 @@ func _face_direction(direction: Vector3, weight: float) -> void:
 	rotation.y = lerp_angle(rotation.y, desired_yaw, clampf(weight, 0.0, 1.0))
 
 
+## F-05：把当前全局朝向写回本地欧拉，再进入回正插值
+func _begin_lock_camera_recover() -> void:
+	if camera_rig == null:
+		return
+	var euler := camera_rig.global_basis.get_euler()
+	camera_rig.rotation = Vector3(0.0, euler.y, 0.0)
+	_camera_recover_timer = LOCK_CAMERA_RECOVER_TIME
+
+
 func _update_camera_rig(delta: float) -> void:
 	camera_rig.global_position = global_position + Vector3.UP * 1.45
+	if _camera_director_override:
+		return
+	# F-03：锁敌用 Quaternion slerp，禁止 look_at 瞬转
 	if lock_target != null and is_instance_valid(lock_target):
+		_camera_recover_timer = 0.0
 		var point: Vector3 = lock_target.get_target_point() if lock_target.has_method("get_target_point") else lock_target.global_position
 		var direction: Vector3 = point - camera_rig.global_position
 		var horizontal_direction := Vector3(direction.x, 0.0, direction.z)
@@ -1875,19 +1979,30 @@ func _update_camera_rig(delta: float) -> void:
 			var target_basis := Basis.looking_at(horizontal_direction.normalized(), Vector3.UP)
 			var current_quaternion := camera_rig.global_basis.get_rotation_quaternion()
 			var target_quaternion := target_basis.get_rotation_quaternion()
-			var blended := current_quaternion.slerp(target_quaternion, clampf(delta * 4.5, 0.0, 1.0))
+			var blended := current_quaternion.slerp(target_quaternion, clampf(delta * LOCK_ON_CAMERA_SLERP, 0.0, 1.0))
 			camera_rig.global_basis = Basis(blended)
 		var horizontal := Vector2(direction.x, direction.z).length()
 		var desired_pitch := -atan2(direction.y, maxf(horizontal, 0.01)) - 0.08
 		camera_pitch.rotation.x = lerp_angle(camera_pitch.rotation.x, clampf(desired_pitch, -0.65, 0.25), clampf(delta * 3.5, 0.0, 1.0))
+		return
+	# F-05：断锁后偏航对齐角色，俯仰回默认轻度俯视
+	if _camera_recover_timer > 0.0:
+		_camera_recover_timer = maxf(_camera_recover_timer - delta, 0.0)
+		var weight := clampf(delta * LOCK_CAMERA_RECOVER_SPEED, 0.0, 1.0)
+		camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, rotation.y, weight)
+		camera_pitch.rotation.x = lerp_angle(camera_pitch.rotation.x, LOCK_CAMERA_DEFAULT_PITCH, weight)
 
 
 func _update_gamepad_camera(delta: float) -> void:
-	if state == State.DEAD or camera_rig == null or camera_pitch == null:
+	if state == State.DEAD or camera_rig == null or camera_pitch == null or _camera_director_override:
+		return
+	# 锁敌时右摇杆不抢镜头
+	if lock_target != null and is_instance_valid(lock_target):
 		return
 	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down", 0.18)
 	if look.length_squared() <= 0.0001:
 		return
+	_camera_recover_timer = 0.0
 	var angular_speed := 2.4 * camera_sensitivity_scale
 	camera_rig.rotation.y -= look.x * angular_speed * delta
 	var pitch_direction := 1.0 if invert_camera_y else -1.0
@@ -1979,6 +2094,15 @@ func _build_trail_ribbon(points: Array[Vector3]) -> void:
 
 func _build_nodes() -> void:
 	_visuals.build_nodes()
+	_configure_spring_arm_collision()
+
+
+## F-01：SpringArm3D 碰撞 mask —— 仅静态世界层，避开角色与交互物
+func _configure_spring_arm_collision() -> void:
+	if spring_arm == null:
+		return
+	# 直接写 mask 位图；勿用 set_collision_mask_value（部分环境无此 API）
+	spring_arm.collision_mask = SPRING_ARM_COLLISION_MASK  # = 1，仅 Layer1 静态世界
 
 
 func _update_weapon_visuals() -> void:

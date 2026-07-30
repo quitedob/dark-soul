@@ -32,8 +32,9 @@ Assert-LastExitCode "Godot editor import"
 & $Godot --headless --path $GameRoot --import
 Assert-LastExitCode "Godot project import"
 
-& $Godot --headless --path $GameRoot -s "addons/gut/gut_cmdln.gd" -gdir=res://tests/unit/ -ginclude_subdirs -gexit -gjunit_xml_file=user://gut-results.xml
-Assert-LastExitCode "Godot GUT unit suite"
+# 委托本地 CI：完整 GUT + 可收集 JUnit（build/ci/gut-results.xml）
+& (Join-Path $PSScriptRoot "ci.ps1") -Godot $Godot -SkipImport
+Assert-LastExitCode "Godot GUT CI suite"
 
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/core_contract_test.gd"
 Assert-LastExitCode "Godot core contracts"
@@ -82,6 +83,9 @@ Assert-LastExitCode "Godot combat polish contracts"
 
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/boss_weakpoint_contract_test.gd"
 Assert-LastExitCode "Godot boss weak-point contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/boss_polish_contract_test.gd"
+Assert-LastExitCode "Godot boss polish contracts"
 
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/lock_on_contract_test.gd"
 Assert-LastExitCode "Godot lock-on contracts"

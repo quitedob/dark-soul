@@ -13,6 +13,9 @@ static func configure_inputs() -> void:
 	_add_key_action("dodge", KEY_SPACE)
 	_add_key_action("jump", KEY_V)
 	_add_key_action("lock_on", KEY_Q)
+	# F-04：左右循环锁敌（屏幕角顺/逆时针）
+	_add_key_action("cycle_lock_left", KEY_BRACKETLEFT)
+	_add_key_action("cycle_lock_right", KEY_BRACKETRIGHT)
 	_add_key_action("interact", KEY_E)
 	_add_key_action("right_primary", KEY_J)
 	_add_key_action("right_secondary", KEY_K)

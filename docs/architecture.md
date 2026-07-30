@@ -73,7 +73,7 @@ ANY_DAMAGEABLE -> DEAD -> external respawn -> LOCOMOTION
 
 ### Player — Target Combat Expansion
 
-The execution/guard/poise expansion adds explicit `GUARD_BROKEN`, `PARRY_VULNERABLE`, `WEAK_POINT_EXPOSED`, paired execution, airborne, and grab states only after their Resources and transition contracts exist. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md#目标状态模型) and [Combat Expansion Roadmap](tasks/combat-expansion-roadmap.md).
+The execution/guard/poise expansion ships `GUARD_BROKEN`, `PARRY_VULNERABLE`, `WEAK_POINT_EXPOSED`, humanoid executions, Boss Execution Break, **GrabPairedDirector** pairing, and **CombatCameraDirector** shots. Story floors open **FateChoiceOverlay** and write string `choice_flags`. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md#目标状态模型) and [Combat Expansion Roadmap](tasks/combat-expansion-roadmap.md).
 
 ### Enemy
 
@@ -85,7 +85,7 @@ ANY_DAMAGEABLE -> DEAD -> RESET -> IDLE
 Boss (`boss_giant_gate`): content-driven phases from `Chapter1Content.boss().phases` (phase 2 at ≤60% HP when authored); HUD shows localized boss display name.
 ```
 
-Gameplay timers determine current damage windows and invulnerability. Procedural poses visualize those states but do not decide whether a hit is valid. The player scene currently has no `AnimationTree`; root motion, paired executions, and grabs remain target architecture.
+Gameplay timers determine current damage windows and invulnerability. Procedural poses visualize those states but do not decide whether a hit is valid. Light attacks may use `PlayerAnimationBridge` root-motion POC; grabs use `GrabPairedDirector` procedural sockets until authored `.glb` pairs replace event names.
 
 ## Combat Data Ownership
 

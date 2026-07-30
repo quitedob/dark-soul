@@ -6,9 +6,9 @@
 script = ExtResource("1")
 style_id = &"ember_rite"
 display_name = "EMBER RITE"
-windup_light = 0.34
-active_light = 0.18
-recovery_light = 0.48
+windup_light = 0.50
+active_light = 0.0
+recovery_light = 0.30
 lunge_light = 1.6
 damage_light = 22.0
 stagger_light = 16.0

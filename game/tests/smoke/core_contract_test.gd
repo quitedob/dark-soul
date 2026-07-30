@@ -4,12 +4,19 @@ const RunStateScript = preload("res://scripts/core/run_state.gd")
 const SettingsScript = preload("res://scripts/core/game_settings.gd")
 const BridgeScript = preload("res://scripts/app/game_host_bridge.gd")
 
+# I-09：磁盘往返使用独立 user:// 临时目录，避免污染正式存档路径
+const DISK_FIXTURE_ROOT := "user://i09_save_persistence_contract"
+const DISK_RUN_PATH := "user://i09_save_persistence_contract/run_v2_round_trip.json"
+const DISK_SETTINGS_PATH := "user://i09_save_persistence_contract/settings_v1_round_trip.json"
+
 var _failures: Array[String] = []
 
 
 func _init() -> void:
 	_test_run_state_v1_migration()
 	_test_run_state_v2_round_trip()
+	_test_run_state_disk_persistence_round_trip()
+	_test_settings_disk_persistence_round_trip()
 	_test_run_state_rejects_invalid_data()
 	_test_settings_sanitize_values()
 	_test_bridge_contract()
@@ -121,6 +128,125 @@ func _test_run_state_v2_round_trip() -> void:
 		_expect(bridge_restored.level_id == "level_02_03", "Nested bridge level changed.")
 		_expect(bridge_restored.right_hand == "custom_staff", "Nested bridge right hand changed.")
 		_expect(int(bridge_restored.progression_values.get("legacyCombatStyle", -1)) == 3, "Nested bridge values changed.")
+
+
+# I-09：user:// 磁盘写读往返，断言字段后清理临时文件
+func _test_run_state_disk_persistence_round_trip() -> void:
+	_cleanup_disk_fixture()
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DISK_FIXTURE_ROOT))
+	var state = RunStateScript.new()
+	state.checkpoint_id = "ash_courtyard"
+	state.embers = 654
+	state.focus = 41.5
+	state.combat_style = 2
+	state.lost_echo_amount = 88
+	state.lost_echo_position = Vector3(4.0, 5.0, 6.0)
+	state.activated_shortcuts.append("ancient_gate")
+	state.guardian_defeated = true
+	state.upgrade_tier = 2
+	state.play_time_ms = 445566
+	state.chapter_id = "chapter_03"
+	state.level_id = "level_03_01"
+	state.location = "jade_gate:south"
+	state.right_hand = "disk_bow"
+	state.left_hand = "disk_dagger"
+	state.inventory = {"ember_flask": 3, "soul_shard": 1}
+	state.completed_levels.append("level_02_03")
+	state.defeated_bosses.append("boss_giant_gate")
+	state.activated_checkpoints.append("ash_courtyard")
+	state.completed_puzzles.append("mirror_seal")
+	state.collected_loot.append("jade_key")
+	state.choice_flags = {"spared_warden": true}
+	state.progression_values = {"legacyCombatStyle": 2}
+	_expect(state.save_to_path(DISK_RUN_PATH), "Run state failed to write user:// path.")
+	_expect(FileAccess.file_exists(DISK_RUN_PATH), "Run state file missing after save_to_path.")
+	var restored = RunStateScript.load_from_path(DISK_RUN_PATH)
+	_expect(restored != null, "Disk load_from_path returned null.")
+	if restored == null:
+		_cleanup_disk_fixture()
+		return
+	_expect(restored.checkpoint_id == "ash_courtyard", "Disk round-trip lost checkpoint_id.")
+	_expect(restored.embers == 654, "Disk round-trip lost embers.")
+	_expect(is_equal_approx(restored.focus, 41.5), "Disk round-trip lost focus.")
+	_expect(restored.combat_style == 2, "Disk round-trip lost combat_style.")
+	_expect(restored.lost_echo_amount == 88, "Disk round-trip lost lost_echo_amount.")
+	_expect(restored.lost_echo_position == Vector3(4.0, 5.0, 6.0), "Disk round-trip lost lost_echo_position.")
+	_expect("ancient_gate" in restored.activated_shortcuts, "Disk round-trip lost legacy shortcut.")
+	_expect("ember_shrine:ancient_gate" in restored.activated_shortcuts, "Disk round-trip lost scoped shortcut.")
+	_expect(restored.guardian_defeated, "Disk round-trip lost guardian_defeated.")
+	_expect(restored.upgrade_tier == 2, "Disk round-trip lost upgrade_tier.")
+	_expect(restored.play_time_ms == 445566, "Disk round-trip lost play_time_ms.")
+	_expect(restored.chapter_id == "chapter_03", "Disk round-trip lost chapter_id.")
+	_expect(restored.level_id == "level_03_01", "Disk round-trip lost level_id.")
+	_expect(restored.location == "jade_gate:south", "Disk round-trip lost location.")
+	_expect(restored.right_hand == "disk_bow", "Disk round-trip lost right_hand.")
+	_expect(restored.left_hand == "disk_dagger", "Disk round-trip lost left_hand.")
+	_expect(int(restored.inventory.get("ember_flask", 0)) == 3, "Disk round-trip lost inventory.")
+	_expect("level_02_03" in restored.completed_levels, "Disk round-trip lost completed_levels.")
+	_expect("boss_giant_gate" in restored.defeated_bosses, "Disk round-trip lost defeated_bosses.")
+	_expect("ash_courtyard" in restored.activated_checkpoints, "Disk round-trip lost activated_checkpoints.")
+	_expect("mirror_seal" in restored.completed_puzzles, "Disk round-trip lost completed_puzzles.")
+	_expect("jade_key" in restored.collected_loot, "Disk round-trip lost collected_loot.")
+	_expect(bool(restored.choice_flags.get("spared_warden", false)), "Disk round-trip lost choice_flags.")
+	_expect(int(restored.progression_values.get("legacyCombatStyle", -1)) == 2, "Disk round-trip lost progression_values.")
+	_expect(restored.to_dictionary()["schema_version"] == 2, "Disk round-trip did not persist schema v2.")
+	_cleanup_disk_fixture()
+	_expect(not FileAccess.file_exists(DISK_RUN_PATH), "Disk fixture run file was not cleaned up.")
+
+
+# I-09：settings 同步覆盖 user:// 写读清理路径
+func _test_settings_disk_persistence_round_trip() -> void:
+	_cleanup_disk_fixture()
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DISK_FIXTURE_ROOT))
+	var settings = SettingsScript.new()
+	settings.locale = "zh_CN"
+	settings.master_volume = 0.42
+	settings.music_volume = 0.33
+	settings.effects_volume = 0.55
+	settings.target_fps = 30
+	settings.combat_tip_mode = true
+	settings.quality_preset = &"low"
+	settings.ui_scale = 1.25
+	_expect(settings.save_to_path(DISK_SETTINGS_PATH), "Settings failed to write user:// path.")
+	_expect(FileAccess.file_exists(DISK_SETTINGS_PATH), "Settings file missing after save_to_path.")
+	var restored = SettingsScript.load_from_path(DISK_SETTINGS_PATH)
+	_expect(restored != null, "Settings disk load_from_path returned null.")
+	if restored == null:
+		_cleanup_disk_fixture()
+		return
+	_expect(restored.locale == "zh_CN", "Settings disk round-trip lost locale.")
+	_expect(is_equal_approx(restored.master_volume, 0.42), "Settings disk round-trip lost master_volume.")
+	_expect(is_equal_approx(restored.music_volume, 0.33), "Settings disk round-trip lost music_volume.")
+	_expect(is_equal_approx(restored.effects_volume, 0.55), "Settings disk round-trip lost effects_volume.")
+	_expect(restored.target_fps == 30, "Settings disk round-trip lost target_fps.")
+	_expect(restored.combat_tip_mode, "Settings disk round-trip lost combat_tip_mode.")
+	_expect(restored.quality_preset == &"low", "Settings disk round-trip lost quality_preset.")
+	_expect(is_equal_approx(restored.ui_scale, 1.25), "Settings disk round-trip lost ui_scale.")
+	_cleanup_disk_fixture()
+	_expect(not FileAccess.file_exists(DISK_SETTINGS_PATH), "Disk fixture settings file was not cleaned up.")
+
+
+func _cleanup_disk_fixture() -> void:
+	_remove_tree(DISK_FIXTURE_ROOT)
+
+
+func _remove_tree(path: String) -> void:
+	var directory := DirAccess.open(path)
+	if directory == null:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+		return
+	directory.list_dir_begin()
+	var entry := directory.get_next()
+	while not entry.is_empty():
+		var child := path.path_join(entry)
+		if directory.current_is_dir():
+			_remove_tree(child)
+		else:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(child))
+		entry = directory.get_next()
+	directory.list_dir_end()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 func _test_run_state_rejects_invalid_data() -> void:

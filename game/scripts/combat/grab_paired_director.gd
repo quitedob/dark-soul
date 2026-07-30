@@ -72,8 +72,10 @@ func is_holding(node: Node) -> bool:
 
 
 func get_hold_point() -> Vector3:
-	if initiator == null or profile == null:
+	if initiator == null or profile == null or not is_instance_valid(initiator):
 		return Vector3.ZERO
+	if not initiator.is_inside_tree():
+		return initiator.position + Vector3(profile.hold_socket_offset)
 	var local: Vector3 = profile.hold_socket_offset
 	return initiator.global_position + initiator.global_transform.basis * local
 
@@ -110,6 +112,8 @@ func _apply_damage_once() -> void:
 
 func _apply_pose(weight: float) -> void:
 	if initiator == null or victim == null or profile == null:
+		return
+	if not initiator.is_inside_tree() or not victim.is_inside_tree():
 		return
 	var hold := get_hold_point()
 	victim.global_position = victim.global_position.lerp(hold, weight)

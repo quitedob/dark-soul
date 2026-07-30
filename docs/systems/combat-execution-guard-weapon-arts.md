@@ -2,7 +2,7 @@
 
 > **文档职责：** 本文件定义《焰渊》的原创近战战斗目标。它抽象借鉴类魂游戏对距离、朝向、精力和硬直窗口的重视，但不复刻任何既有作品的动作资产、逐帧数据、招式命名或数值。
 >
-> **实现状态：** 当前原型已具备轻/重击、**蓄力重击（三档）**、闪避、跑/翻滚/后撤/跳/下落攻、**单持/双持/成对持握切换**、**Guard Meter / 玩家破防**、**人型弹反易处决与背刺**、**五主 Boss Execution Break + 弱点处决（叙事血量地板）**、**Boss 独立抓投竖切**、装备化格挡与弹反、敌人简化韧性、霸体和五种 **WeaponArtData** 兵器诀；**直剑 AnimationTree root-motion POC** 已接入；完整抓投动画配对与 Boss 专属镜头仍可继续打磨。
+> **实现状态：** 当前原型已具备轻/重击、**蓄力重击（三档）**、闪避、跑/翻滚/后撤/跳/下落攻、**单持/双持/成对持握切换**、**Guard Meter / 玩家破防**、**人型弹反易处决与背刺**、**五主 Boss Execution Break + 弱点处决（叙事血量地板）**、**GrabPairedDirector 程序化抓投配对**、**CombatCameraDirector 专属镜头**、**命运选择 UI（字符串 choice_flags）**、装备化格挡与弹反、敌人简化韧性、霸体和五种 **WeaponArtData** 兵器诀；**直剑 AnimationTree root-motion POC** 已接入；真实 `.glb` 配对动画与阶段转场 VFX 仍可继续打磨。
 
 ## 核心原则
 
@@ -363,8 +363,10 @@ LOCOMOTION
 | 韧性 | 敌人累计值；玩家二值霸体 | 玩家/敌人连续 Poise，Boss 独立 Execution Break |
 | 持握 | 五套固定左右手组合 | 单持、双持、成对持握和通用切换 |
 | 空中动作 | 两个风格专用 leap 战技 | 通用 jump、jump attack、falling attack |
-| 处决 | 未实现 | 人型正面处决、背刺、Boss 弱点处决 |
-| 抓投 | 未实现 | 独立抓取体积与配对状态 |
+| 处决 | 人型 riposte/backstab + Boss 弱点处决 | 事件点伤害与镜头已接；glb 动画可替换 |
+| 抓投 | 程序化配对（GrabPairedDirector） | 独立抓取体积与配对状态；真实 glb 可替换事件名 |
+| Boss 专属镜头 | CombatCameraDirector | 弱点暴露/处决/抓投/命运半身 |
+| 命运选择 | FateChoiceOverlay | 字符串 `choice_flags`；对齐 chapter-bridge-map |
 | 动画 | 程序化姿态和代码计时 | 数据契约驱动 AnimationTree / root motion |
 
 ## 实施顺序

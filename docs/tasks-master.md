@@ -51,7 +51,7 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | A-02 | Finish migration from legacy `STYLE_TIMING`: leap, dodge, and action armor must stop reading compatibility dictionaries | P0 | ✅ DONE | M | A-01 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-1--single-combat-data-owner) |
 | A-03 | Implement `AttackData`, `ChargeProfile`, `MovesetData`, `WeaponData`, and schema validation | P1 | ✅ DONE | L | A-02 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md) |
 | A-04 | Data-driven spell configuration: remove duplicate `SPELL_CONFIG` ownership and retain one authoritative resource path | P2 | ✅ DONE | M | A-02 | — |
-| A-05 | Add `class_name` registration and combat Resource schema verification to validation pipeline | P1 | ⬜ PENDING | S | A-03 | — |
+| A-05 | Add `class_name` registration and combat Resource schema verification to validation pipeline | P1 | ✅ DONE | S | A-03 | — |
 | A-06 | Implement `WeaponArtData`, migrate all five compatibility skills, and remove style `match` dispatch | P2 | ✅ DONE | L | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-7--weapon-arts) |
 | A-07 | Migrate `HandEquipment` dictionaries to `WeaponData` / `GuardProfile` Resource references | P2 | ⬜ PENDING | L | A-03, E-07 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#weapondata) |
 
@@ -64,7 +64,7 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
 | B-01 | **Per-style stamina cost differentiation** — Twin Colossi heavy costs 65 stamina and all loadouts use the target economy | P0 | ✅ DONE | S | — | [tasks/b-01-stamina-differentiation.md](tasks/b-01-stamina-differentiation.md) |
-| B-02 | Verify and tune differentiated frame data matrix (Windup/Active/Recovery) for all 5 styles against the compatibility baseline | P1 | 🟡 PARTIAL | M | B-01 | — |
+| B-02 | Verify and tune differentiated frame data matrix (Windup/Active/Recovery) for all 5 styles against the compatibility baseline | P1 | ✅ DONE | M | B-01 | — |
 | B-03 | Input buffering: verify 150ms window works correctly; add buffer queue visualization for debug mode | P2 | ⬜ PENDING | S | — | — |
 | B-04 | Implement attack cancel windows — Crescent Pair post-recovery dodge cancel; Twin Colossi zero cancel | P2 | ✅ DONE | M | B-02 | — |
 | B-05 | Heavy attack charge mechanic using discrete authored charge tiers | P2 | ✅ DONE | L | A-03, B-02 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
@@ -82,18 +82,30 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | 五行术 (Veilcraft) | 0.25s cast | Instant | 0.20s | — | — | — | 14/22 Focus |
 | 天祝术 (Ember Rite) | 0.50s chant | Instant | 0.30s | — | — | — | 20/35 Focus |
 
+**B-02 verification (2026-07-30):** All five `game/resources/combat_styles/*.tres` checked against this table.
+
+| Style | Before → After (W/A/R light · W/A/R heavy · stam L/H) | Result |
+|---|---|---|
+| Reliquary Guard | `0.28/0.16/0.38 · 0.58/0.22/0.62 · 22/40` → `0.28/0.15/0.32 · 0.58/0.22/0.65 · 22/40` | Aligned |
+| Twin Colossi | `0.48/0.20/0.62 · 0.82/0.26/0.92 · 38/65` → `0.48/0.22/0.52 · 0.82/0.28/0.90 · 38/65` | Aligned |
+| Crescent Pair | `0.20/0.14/0.28 · 0.38/0.18/0.44 · 16/28` → `0.20/0.12/0.20 · 0.38/0.16/0.38 · 16/28` | Aligned |
+| Veilcraft | light `0.30/0.16/0.42` → `0.25/0.0 Instant/0.20`; stam `0/0` (Focus 14/22 via `SPELL_CONFIG`); heavy `—` retained offhand compat `0.52/0.20/0.58` | Light aligned; heavy N/A by design |
+| Ember Rite | light `0.34/0.18/0.48` → `0.50/0.0 Instant/0.30`; stam `0/0` (Focus economy via cast path); heavy `—` retained offhand compat `0.56/0.22/0.64` | Light aligned; heavy N/A by design |
+
+Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Rite baseline Focus 20/35 vs live `ember_rite` cast cost 25 is owned by `SPELL_CONFIG` (outside B-02 `.tres` scope).
+
 ---
 
 ## Dimension C: Hit-Stop & Audio-Visual Feedback
 
-> **Goal:** Replace global `Engine.time_scale` hit-stop with actor-local freezes; implement trauma-based screen shake; add audio low-pass filtering on heavy impacts. **Current state:** Local HitStop freezes entity state/input/horizontal motion while world/UI continue; trauma shake shipped (C-02).
+> **Goal:** Replace global `Engine.time_scale` hit-stop with actor-local freezes; implement trauma-based screen shake; add audio low-pass filtering on heavy impacts. **Current state:** Local HitStop freezes entity state/input/horizontal motion while world/UI continue; trauma shake shipped (C-02/C-03); heavy-hit Master low-pass duck shipped (C-04).
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
 | C-01 | Replace global time-scale hit-stop with actor-local freezes (entity state/input paused; world physics/UI continue) | P0 | ✅ DONE | M | — | [tasks/c-01-local-hitstop.md](tasks/c-01-local-hitstop.md) |
 | C-02 | FastNoiseLite trauma shake with exponential decay, intensity scaling, and reduced-motion disablement | P1 | ✅ DONE | M | C-01 | [tasks/c-02-trauma-shake.md](tasks/c-02-trauma-shake.md) |
-| C-03 | Weapon-weight-based trauma injection: light 0.3, heavy 0.8, explosion 1.0 | P1 | ⬜ PENDING | S | C-02 | — |
-| C-04 | Add audio low-pass filter ducking on heavy hit impacts via `procedural_audio.gd` | P3 | ⬜ PENDING | S | — | — |
+| C-03 | Weapon-weight-based trauma injection: light 0.3, heavy 0.8, explosion 1.0 | P1 | ✅ DONE | S | C-02 | — |
+| C-04 | Add audio low-pass filter ducking on heavy hit impacts via `procedural_audio.gd` | P3 | ✅ DONE | S | — | Master bus `AudioEffectLowPassFilter` duck via `duck_heavy_impact()`; headless no-op |
 | C-05 | Weapon trail VFX enhancement: color/intensity tied to attack weight class | P4 | ⬜ PENDING | M | — | — |
 
 ---
@@ -110,7 +122,7 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | D-04 | Force `Process Callback = Physics` on AnimationTree to prevent frame-rate-dependent root motion drift (Godot issues #53752, #65199) | P1 | ✅ DONE | S | D-01 | — |
 | D-05 | Heavy weapon (Twin Colossi) leap attack animation with root motion — forward lunge driven by animation data | P2 | ⬜ PENDING | L | D-02 | — |
 | D-06 | Paired execution animation framework: anchor alignment, exclusive claim, event-point damage, cancellation recovery | P1 | ⬜ PENDING | L | A-03, D-01, E-09 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
-| D-07 | Grab paired-animation framework using independent capture shapes and `GRAB_INITIATOR` / `GRABBED` states | P3 | 🟡 PARTIAL | L | D-06 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#grabprofile) |
+| D-07 | Grab paired-animation framework using independent capture shapes and `GRAB_INITIATOR` / `GRABBED` states | P3 | ✅ DONE | L | D-06 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#grabprofile) |
 
 ---
 
@@ -135,11 +147,11 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 
 ## Dimension F: Camera Control & Target Lock-On
 
-> **Goal:** SpringArm3D collision avoidance; screen-space dot-product target scoring; quaternion slerp smooth tracking; target cycling. **Current state:** Basic SpringArm3D exists; lock-on with distance-based selection and cycling implemented. Dot-product scoring and slerp tracking need verification.
+> **Goal:** SpringArm3D collision avoidance; screen-space dot-product target scoring; quaternion slerp smooth tracking; target cycling. **Current state:** SpringArm mask verified (F-01 DONE); lock-on with distance-based selection and cycling implemented. Dot-product scoring and slerp tracking need verification.
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
-| F-01 | Verify SpringArm3D collision mask is correctly configured for all level geometry layers | P2 | 🟡 PARTIAL | S | — | — |
+| F-01 | Verify SpringArm3D collision mask is correctly configured for all level geometry layers | P2 | ✅ DONE | S | — | `collision_mask=1`（仅静态世界 Layer1）；排除玩家(2)/敌人(4)/交互物(8)。关卡几何均 layer=1。权威：`player.gd` `_configure_spring_arm_collision()` |
 | F-02 | Screen-space/FOV lock-on scoring with deterministic angle cycling and pure solver contracts | P2 | ✅ DONE | M | — | [tasks/f-02-lockon-scoring.md](tasks/f-02-lockon-scoring.md) |
 | F-03 | Quaternion slerp smooth tracking: replace any `look_at()` calls with `slerp` interpolation for lock-on rotation | P2 | ⬜ PENDING | S | F-02 | — |
 | F-04 | Target cycling: verify clockwise/anticlockwise cycling by screen angle; add input for cycle direction | P3 | 🟡 PARTIAL | S | F-02 | — |
@@ -156,7 +168,7 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | G-01 | Integrate LimboAI behavior tree plugin for boss macro decision layer (patrol, disengage, phase switch, healing-punish override) | P2 | ⬜ PENDING | XL | — | [tasks/g-01-limboai-bt.md](tasks/g-01-limboai-bt.md) |
 | G-02 | Healing-punish tendency: verify current implementation; add per-boss punish behavior variants (gap-close, ranged snipe, AoE burst) | P1 | 🟡 PARTIAL | M | — | — |
 | G-03 | Add third enemy archetype: ranged/ambush enemy with projectile attack and retreat behavior | P2 | ⬜ PENDING | L | — | — |
-| G-04 | Boss phase transition polish: transition animation blending, camera focus shift, arena VFX | P2 | ⬜ PENDING | M | — | — |
+| G-04 | Boss phase transition polish: transition animation blending, camera focus shift, arena VFX | P2 | 🟡 PARTIAL | M | — | Combat camera shots for weak-point / grab / fate; phase VFX still open |
 | G-05 | Per-chapter enemy AI parameter tuning: detection radii, leash limits, navigation behavior for all 32 enemy types | P3 | ⬜ PENDING | XL | — | — |
 | G-06 | Implement chapter-specific boss behaviors (teleport chains for 九尾, gravity manipulation for 玄霄, time manipulation for 烛阴) | P3 | ⬜ PENDING | XL | G-01 | — |
 
@@ -192,9 +204,9 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | I-06 | Enemy FSM transition validity tests — no illegal transitions; RETURN→IDLE on reaching spawn | P1 | ⬜ PENDING | M | I-01 | — |
 | I-07 | Death/recovery loop integration tests — ember drop, LostEcho spawn, enemy reset, checkpoint respawn | P1 | ⬜ PENDING | L | I-01 | — |
 | I-08 | Guard/parry resolution matrix tests — frontal guard, rear bypass, guard break, parry window edge cases | P1 | ⬜ PENDING | M | I-01 | — |
-| I-09 | Save/load disk persistence round-trip test — extend existing in-memory test to `user://` path | P2 | ⬜ PENDING | S | — | — |
+| I-09 | Save/load disk persistence round-trip test — extend existing in-memory test to `user://` path | P2 | ✅ DONE | S | — | `tests/smoke/core_contract_test.gd` (`user://i09_save_persistence_contract`) |
 | I-10 | External smoke runner with production code reduced to a three-line delegation hook | P1 | ✅ DONE | M | — | [tasks/i-10-extract-smoke.md](tasks/i-10-extract-smoke.md) |
-| I-11 | CI integration: GitHub Actions / local CI script running full GUT suite headless with JUnit XML output | P2 | ⬜ PENDING | M | I-02 | — |
+| I-11 | CI integration: GitHub Actions / local CI script running full GUT suite headless with JUnit XML output | P2 | ✅ DONE | M | I-02 | `tools/ci.ps1`, `tools/ci.sh`, `.github/workflows/gut-ci.yml` |
 
 ---
 
@@ -334,9 +346,9 @@ Campaign H-02–H-07 and test I-01–I-11 continue in parallel where their depen
 | F — Camera/Lock-On | 5 | 1 | 2 | 2 | 0 | 0 |
 | G — Enemy/Boss AI | 6 | 0 | 1 | 5 | 0 | 0 |
 | H — Campaign Integration | 7 | 1 | 2 | 4 | 0 | 0 |
-| I — GUT Testing | 11 | 1 | 0 | 10 | 0 | 0 |
+| I — GUT Testing | 11 | 6 | 0 | 5 | 0 | 0 |
 | J — Documentation | 12 | 3 | 1 | 8 | 0 | 0 |
-| **Total** | **78** | **9** | **9** | **60** | **0** | **0** |
+| **Total** | **78** | **14** | **9** | **55** | **0** | **0** |
 
 ---
 

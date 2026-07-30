@@ -1,10 +1,21 @@
 extends Node
 
+# 重击低通 duck：闷住高频后短时恢复
+const DUCK_CUTOFF_OPEN_HZ := 20500.0
+const DUCK_CUTOFF_CLOSED_HZ := 650.0
+const DUCK_DURATION_DEFAULT := 0.18
+
 var library: Dictionary = {}
 var players: Array[AudioStreamPlayer] = []
 var _shutting_down := false
 var _audio_enabled := true
 var _next_voice := 0
+# Master 总线低通效果引用（headless 下保持 null）
+var _low_pass: AudioEffectLowPassFilter = null
+var _low_pass_bus := -1
+var _low_pass_effect_idx := -1
+var _low_pass_owned := false
+var _duck_tween: Tween = null
 
 
 func _ready() -> void:
@@ -32,6 +43,8 @@ func _ready() -> void:
 		player.finished.connect(_on_voice_finished.bind(index))
 		add_child(player)
 		players.append(player)
+	# 挂载/复用 Master 低通，供重击 duck
+	_ensure_low_pass()
 
 
 func play_cue(cue: String, volume_db: float = -7.0, pitch: float = 1.0) -> void:
@@ -53,6 +66,44 @@ func play_cue(cue: String, volume_db: float = -7.0, pitch: float = 1.0) -> void:
 	player.play()
 
 
+## 重击命中时短时降低截止频率，制造闷击感；headless 直接 no-op
+func duck_heavy_impact(duration: float = DUCK_DURATION_DEFAULT) -> void:
+	if not _audio_enabled or _shutting_down or _low_pass == null:
+		return
+	var duck_seconds := maxf(duration, 0.05)
+	if _duck_tween != null and is_instance_valid(_duck_tween):
+		_duck_tween.kill()
+	_low_pass.cutoff_hz = DUCK_CUTOFF_CLOSED_HZ
+	_duck_tween = create_tween()
+	# 先短暂保持闷声，再平滑恢复通透
+	var hold := duck_seconds * 0.35
+	var release := duck_seconds * 0.65
+	_duck_tween.tween_interval(hold)
+	_duck_tween.tween_property(
+		_low_pass, "cutoff_hz", DUCK_CUTOFF_OPEN_HZ, release
+	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+
+
+func _ensure_low_pass() -> void:
+	_low_pass_bus = AudioServer.get_bus_index("Master")
+	if _low_pass_bus < 0:
+		return
+	# 优先复用总线上已有低通，避免重复叠加
+	for effect_idx in AudioServer.get_bus_effect_count(_low_pass_bus):
+		var effect := AudioServer.get_bus_effect(_low_pass_bus, effect_idx)
+		if effect is AudioEffectLowPassFilter:
+			_low_pass = effect as AudioEffectLowPassFilter
+			_low_pass_effect_idx = effect_idx
+			_low_pass_owned = false
+			_low_pass.cutoff_hz = DUCK_CUTOFF_OPEN_HZ
+			return
+	_low_pass = AudioEffectLowPassFilter.new()
+	_low_pass.cutoff_hz = DUCK_CUTOFF_OPEN_HZ
+	AudioServer.add_bus_effect(_low_pass_bus, _low_pass)
+	_low_pass_effect_idx = AudioServer.get_bus_effect_count(_low_pass_bus) - 1
+	_low_pass_owned = true
+
+
 func _on_voice_finished(index: int) -> void:
 	if _shutting_down or index < 0 or index >= players.size():
 		return
@@ -63,6 +114,19 @@ func _on_voice_finished(index: int) -> void:
 
 func _exit_tree() -> void:
 	_shutting_down = true
+	if _duck_tween != null and is_instance_valid(_duck_tween):
+		_duck_tween.kill()
+	_duck_tween = null
+	# 离开场景时恢复截止频率；自建效果则卸下
+	if _low_pass != null:
+		_low_pass.cutoff_hz = DUCK_CUTOFF_OPEN_HZ
+		if _low_pass_owned and _low_pass_bus >= 0 and _low_pass_effect_idx >= 0:
+			if _low_pass_effect_idx < AudioServer.get_bus_effect_count(_low_pass_bus):
+				AudioServer.remove_bus_effect(_low_pass_bus, _low_pass_effect_idx)
+	_low_pass = null
+	_low_pass_bus = -1
+	_low_pass_effect_idx = -1
+	_low_pass_owned = false
 	for player in players:
 		if not is_instance_valid(player):
 			continue

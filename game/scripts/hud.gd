@@ -49,6 +49,7 @@ var prompt_panel: PanelContainer
 var prompt_label: Label
 var message_panel: PanelContainer
 var message_label: Label
+var buffer_debug_label: Label  # B-03：输入缓冲 debug 可视化
 var lock_label: Label
 var boss_panel: PanelContainer
 var boss_name_label: Label
@@ -276,6 +277,14 @@ func show_message(text: String, duration: float = 2.0) -> void:
 		message_panel.visible = false
 
 
+## B-03：显示当前输入缓冲槽（空字符串则隐藏）
+func set_input_buffer_debug(text: String) -> void:
+	if buffer_debug_label == null:
+		return
+	buffer_debug_label.text = text
+	buffer_debug_label.visible = not text.is_empty()
+
+
 func set_lock_target(target: Node) -> void:
 	lock_target = target as Node3D
 	if lock_label != null:
@@ -414,6 +423,7 @@ func _build_interface() -> void:
 	vertical_layout.add_child(_build_prompt_lane())
 
 	_build_message_lane()
+	_build_buffer_debug_label()
 	_build_lock_marker()
 	_build_mobile_controls()
 	death_overlay = _make_end_overlay(Color(0.11, 0.0, 0.0, 0.74), "THE RELIQUARY ENDURES", Color(0.78, 0.18, 0.12), "YOUR SCATTERED EMBERS AWAIT")
@@ -626,6 +636,24 @@ func _build_message_lane() -> void:
 	message_label.add_theme_constant_override("shadow_offset_x", 2)
 	message_label.add_theme_constant_override("shadow_offset_y", 2)
 	message_panel.add_child(message_label)
+
+
+## B-03：左上角缓冲队列 debug 标签（combat tip / debug build 时由 player 刷新）
+func _build_buffer_debug_label() -> void:
+	buffer_debug_label = _make_label("", 16, COLOR_EMBER)
+	buffer_debug_label.name = "InputBufferDebug"
+	buffer_debug_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	buffer_debug_label.offset_left = 18.0
+	buffer_debug_label.offset_top = 96.0
+	buffer_debug_label.offset_right = 320.0
+	buffer_debug_label.offset_bottom = 120.0
+	buffer_debug_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	buffer_debug_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	buffer_debug_label.add_theme_constant_override("shadow_offset_x", 1)
+	buffer_debug_label.add_theme_constant_override("shadow_offset_y", 1)
+	buffer_debug_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	buffer_debug_label.visible = false
+	root.add_child(buffer_debug_label)
 
 
 func _build_lock_marker() -> void:

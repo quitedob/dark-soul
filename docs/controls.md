@@ -140,7 +140,7 @@ Additional parry-capable equipment uses its own data profile: the Jade Buckler h
 
 ## Planned Combat Inputs
 
-The combat system includes hold-to-charge heavies, grip modes, human executions, **Boss Execution Break / weak-point executions**, and a **Boss grab telegraph** vertical slice. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md).
+The combat system includes hold-to-charge heavies, grip modes, human executions, **Boss Execution Break / weak-point executions**, **procedural grab pairing**, **Boss combat camera shots**, and a **fate choice overlay** that writes string `choice_flags`. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md).
 
 ## Resources
 

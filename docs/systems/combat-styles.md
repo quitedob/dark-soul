@@ -4,7 +4,7 @@
 
 Building on Ashen Hollow's 5 compatibility loadouts, 烬渊 re-themes the current prototype while defining a broader weapon-class future. Tables in this file describe the **current or currently targeted compatibility loadouts**, not a complete one-hand/two-hand execution system. Planned charge attacks, grip modes, context attacks, executions, Boss weak points, grabs, and data-driven weapon arts are specified in [Combat Execution, Guard & Weapon Arts](combat-execution-guard-weapon-arts.md).
 
-**Implementation boundary:** normal light/heavy attacks read `CombatStyleData` resources. Leap, dodge, and action armor still have legacy-data dependencies. Features listed as class fantasy below may not yet exist in runtime; `controls.md` is authoritative for currently playable inputs.
+**Implementation boundary:** Ordinary light/heavy timing for the three melee loadouts is owned by `CombatStyleData` resources and matches the Compatibility Frame Baseline in `tasks-master.md`. Veilcraft / Ember Rite primary casts use Focus via `SPELL_CONFIG`; their `.tres` light row maps cast/Instant/recovery, while heavy columns are baseline N/A and retain offhand compatibility timings. Leap / dodge / action armor may still have legacy dependencies. `controls.md` is authoritative for currently playable inputs.
 
 ---
 
@@ -28,8 +28,8 @@ Building on Ashen Hollow's 5 compatibility loadouts, 烬渊 re-themes the curren
 
 | Action | Stamina | Windup | Active | Recovery | Damage |
 |--------|---------|--------|--------|----------|--------|
-| Light Attack | 22 | 0.28s | 0.16s | 0.38s | 22 |
-| Heavy Attack | 40 | 0.58s | 0.22s | 0.62s | 38 |
+| Light Attack | 22 | 0.28s | 0.15s | 0.32s | 22 |
+| Heavy Attack | 40 | 0.58s | 0.22s | 0.65s | 38 |
 | Dodge | 24 | — | — | — | — |
 | Medium Shield Parry | 10 | 0.40s | 0.20s | 0.60s × 1.5 miss | Counter |
 
@@ -50,8 +50,8 @@ Building on Ashen Hollow's 5 compatibility loadouts, 烬渊 re-themes the curren
 
 | Action | Stamina | Windup | Active | Recovery | Damage |
 |--------|---------|--------|--------|----------|--------|
-| Light Attack | 38 | 0.48s | 0.20s | 0.62s | 32 |
-| Heavy Attack | 65 | 0.82s | 0.26s | 0.92s | 56 |
+| Light Attack | 38 | 0.48s | 0.22s | 0.52s | 32 |
+| Heavy Attack | 65 | 0.82s | 0.28s | 0.90s | 56 |
 | Dodge | 32 | — | — | — | — |
 | Leap Attack | 38 | 0.65s | 0.30s | 0.75s | 58 |
 
@@ -73,8 +73,8 @@ Building on Ashen Hollow's 5 compatibility loadouts, 烬渊 re-themes the curren
 
 | Action | Stamina/Focus | Windup | Active | Recovery | Damage |
 |--------|--------------|--------|--------|----------|--------|
-| Quick Shot | 16 stam | 0.20s | Instant | 0.28s | 16 |
-| Power Shot | 28 stam | 0.38s | Instant | 0.44s | 26 |
+| Quick Shot / Light | 16 stam | 0.20s | 0.12s | 0.20s | 16 |
+| Power Shot / Heavy | 28 stam | 0.38s | 0.16s | 0.38s | 26 |
 | Evade / Crescent Leap | 27 stam | 0.22s | 0.34s | 0.34s | 18×2 |
 | Dodge | 18 stam | — | — | — | — |
 
@@ -91,13 +91,13 @@ Building on Ashen Hollow's 5 compatibility loadouts, 烬渊 re-themes the curren
 **Weapon:** Spell Seal + Spirit Stone
 **Timing Profile:** Spellcasting tier
 
-| Action | Focus | Cast Time | Recovery | Damage |
-|--------|-------|-----------|----------|--------|
-| Spirit Bolt | 8 | 0.25s | 0.20s | 16 |
-| Elemental Burst | 25 | 1.00s | 0.50s | 28-38 (varies by element) |
-| Magic Formation | 35 | 0.80s cast | 0.30s | Varies (8s duration) |
-| Flash Step | 15 Focus + 20 Stam | Instant | 0.15s | 0 (movement) |
-| Spell Shield | 5 Focus/s | Instant | — | Absorbs 70% dmg as Focus drain |
+| Action | Focus | Cast Time | Active | Recovery | Damage |
+|--------|-------|-----------|--------|----------|--------|
+| Spirit Bolt (compat light) | 14 | 0.25s | Instant | 0.20s | 16 |
+| Elemental Burst | 22 | 1.00s | Instant | 0.50s | 28-38 (varies by element) |
+| Magic Formation | 35 | 0.80s | Instant | 0.30s | Varies (8s duration) |
+| Flash Step | 15 Focus + 20 Stam | Instant | — | 0.15s | 0 (movement) |
+| Spell Shield | 5 Focus/s | Instant | — | — | Absorbs 70% dmg as Focus drain |
 
 **Five Elements:**
 | Element | Burst Effect | Formation Effect |
@@ -116,14 +116,14 @@ Building on Ashen Hollow's 5 compatibility loadouts, 烬渊 re-themes the curren
 **Weapon:** Prayer Beads + Talisman Papers
 **Timing Profile:** Prayer casting tier
 
-| Action | Focus | Cast Time | Recovery | Effect |
-|--------|-------|-----------|----------|--------|
-| Light of Compassion | 15 | 0.50s | 0.30s | Heal self/ally 22 HP |
-| Karmic Fire Talisman | 20 | 0.55s | 0.35s | 24 dmg + Karmic Debt |
-| Spirit Summon | 30 + 20% reserve | 1.00s | 0.40s | Summon spirit ally |
-| Purification | 25 | 0.60s | 0.25s | Cleanse all debuffs |
-| Rebirth Mantra | 8/s channel | — | — | 5m aura, 6 HP/s heal |
-| Soul Release | 40 | 0.70s | 0.45s | Dmg = stored karma × 1.5 |
+| Action | Focus | Cast Time | Active | Recovery | Effect |
+|--------|-------|-----------|--------|----------|--------|
+| Light of Compassion (compat light) | 20 | 0.50s | Instant | 0.30s | Heal self/ally 22 HP |
+| Karmic Fire Talisman | 35 | 0.55s | Instant | 0.35s | 24 dmg + Karmic Debt |
+| Spirit Summon | 30 + 20% reserve | 1.00s | Instant | 0.40s | Summon spirit ally |
+| Purification | 25 | 0.60s | Instant | 0.25s | Cleanse all debuffs |
+| Rebirth Mantra | 8/s channel | — | — | — | 5m aura, 6 HP/s heal |
+| Soul Release | 40 | 0.70s | Instant | 0.45s | Dmg = stored karma × 1.5 |
 
 **Karmic Debt Mechanic:** Each application adds 1 stack (max 10). Per stack: enemy -2% damage dealt, +2% damage taken. At 10 stacks, Soul Release deals double.
 

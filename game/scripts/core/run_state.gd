@@ -288,7 +288,7 @@ static func _read_v2_fields(data: Dictionary, state, nested: bool) -> bool:
 	state.inventory = raw_inventory.duplicate(true)
 	state.choice_flags = raw_choice_flags.duplicate(true)
 	state.progression_values = raw_progression_values.duplicate(true)
-	if not _is_non_negative_int_map(state.inventory) or not _is_bool_map(state.choice_flags) or not _is_non_negative_int_map(state.progression_values):
+	if not _is_non_negative_int_map(state.inventory) or not _is_choice_flags_map(state.choice_flags) or not _is_non_negative_int_map(state.progression_values):
 		return false
 
 	var fields := [
@@ -337,7 +337,7 @@ static func _read_nested_v2_fields(data: Dictionary, state) -> bool:
 	state.inventory = raw_inventory.duplicate(true)
 	state.choice_flags = raw_flags.duplicate(true)
 	state.progression_values = raw_values.duplicate(true)
-	if not _is_non_negative_int_map(state.inventory) or not _is_bool_map(state.choice_flags) or not _is_non_negative_int_map(state.progression_values):
+	if not _is_non_negative_int_map(state.inventory) or not _is_choice_flags_map(state.choice_flags) or not _is_non_negative_int_map(state.progression_values):
 		return false
 
 	var fields := [
@@ -404,9 +404,37 @@ static func _is_non_negative_int_map(value: Dictionary) -> bool:
 	return true
 
 
+func set_choice_flag(flag: StringName, value: Variant) -> void:
+	# 允许 bool（旧档）或 String（命运旗标）
+	var key := String(flag).strip_edges()
+	if key.is_empty():
+		return
+	if value is bool or value is String:
+		choice_flags[key] = value
+	else:
+		choice_flags[key] = str(value)
+
+
+func get_choice_flag(flag: StringName, default_value: Variant = null) -> Variant:
+	return choice_flags.get(String(flag), default_value)
+
+
 static func _is_bool_map(value: Dictionary) -> bool:
 	for key in value:
 		if not key is String or String(key).strip_edges().is_empty() or not value[key] is bool:
+			return false
+	return true
+
+
+static func _is_choice_flags_map(value: Dictionary) -> bool:
+	# 兼容旧 bool 与叙事字符串旗标
+	for key in value:
+		if not key is String or String(key).strip_edges().is_empty():
+			return false
+		var v = value[key]
+		if not (v is bool or v is String):
+			return false
+		if v is String and String(v).strip_edges().is_empty():
 			return false
 	return true
 

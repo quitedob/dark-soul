@@ -44,6 +44,20 @@ Web embeds may let the host own persistence via `GameHostBridge` instead of loca
 | `play_time_ms` | int | Accumulated play time |
 | `inventory`, progression arrays, `choice_flags`, `progression_values` | various | Campaign/story hooks |
 
+### `choice_flags` (narrative)
+
+Values may be **`bool` (legacy)** or **`String` (canonical fate outcomes)**. Validation uses `_is_choice_flags_map`.
+
+| Flag | Example values | Writer |
+|------|----------------|--------|
+| `ch1_guardian_fate` | `released` / `preserved` | FateChoiceOverlay after 巨阙 floor |
+| `ch2_xingtian_fate` | `honored` / `absorbed` | FateChoiceOverlay |
+| `ch3_nine_tails_fate` | `redeemed` / `sealed` | FateChoiceOverlay |
+| `ch4_xuanxiao_fate` | `ascended` / `remembered` | FateChoiceOverlay |
+| `ending_state` | `kindle` / `keeper` / `void` | FateChoiceOverlay (烛阴) |
+
+API: `AshenRunState.set_choice_flag(flag, value)` / `get_choice_flag(flag, default)`.
+
 ### API
 
 ```text
