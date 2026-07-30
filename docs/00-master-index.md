@@ -35,7 +35,7 @@ The world runs on **烬 (Embers)** — remnants of divine fire that once maintai
 ### 🦸 Characters
 | File | Description |
 |------|-------------|
-| [characters/classes/](characters/) | 4 starting classes + unlockable paths |
+| [characters/classes/](characters/classes/) | 4 starting classes + unlockable paths |
 | [characters/upgrade-system.md](characters/upgrade-system.md) | Leveling, stat allocation, upgrade tiers |
 | [characters/switching-system.md](characters/switching-system.md) | Character swapping mechanics |
 | [characters/talent-skills.md](characters/talent-skills.md) | Talent trees and skill progression |
@@ -45,21 +45,29 @@ The world runs on **烬 (Embers)** — remnants of divine fire that once maintai
 |------|-------------|
 | [systems/combat-styles.md](systems/combat-styles.md) | 5 combat styles (from Ashen Hollow) adapted to Chinese themes |
 | [systems/weapons-compendium.md](systems/weapons-compendium.md) | All weapons across 5 chapters |
-| [systems/spells-compendium.md](systems/spells-compendium.md) | All spells (法术) across 5 chapters |
-| [systems/prayers-compendium.md](systems/prayers-compendium.md) | All prayers (祷告) across 5 chapters |
+| [systems/spells-compendium.md](systems/spells-compendium.md) | All spells (法术) and prayers (祷告) across 5 chapters |
 | [systems/equipment-compendium.md](systems/equipment-compendium.md) | Armor, talismans, rings, chapter artifacts |
 
 ### 👹 Bestiary
 | File | Description |
 |------|-------------|
-| [bestiary/enemies-master.md](bestiary/enemies-master.md) | All minion enemies (3+ per chapter, 17+ total) |
+| [bestiary/enemies-master.md](bestiary/enemies-master.md) | All minion enemies (4-9 per chapter, 32 total) |
 | [bestiary/bosses-master.md](bestiary/bosses-master.md) | All bosses (5 main + optional sub-bosses) |
 
 ### 🔧 Systems
 | File | Description |
 |------|-------------|
 | [systems/level-design-patterns.md](systems/level-design-patterns.md) | Puzzle types, trap catalog, shortcut patterns |
-| [systems/progression-economy.md](systems/progression-economy.md) | Ember economy, loot tables, upgrade costs |
+| [systems/equipment-compendium.md](systems/equipment-compendium.md) | Armor, consumables, and progression economy |
+
+### 📱 Platform & Testing
+| File | Description |
+|------|-------------|
+| [controls.md](controls.md) | Keyboard, mouse, controller, and touch input bindings |
+| [validation.md](validation.md) | Automated test commands and manual test checklist |
+| [phone-compatibility.md](phone-compatibility.md) | Phone screen size testing results (Chrome DevTools) |
+| [audit-docs-codebase-health.md](audit-docs-codebase-health.md) | Full doc + codebase health assessment |
+| [project-structure.md](project-structure.md) | Repository layout, naming rules, safe-change procedures |
 
 ---
 
@@ -83,7 +91,7 @@ The world runs on **烬 (Embers)** — remnants of divine fire that once maintai
 |---|---|---|---|---|---|
 | **Theme** | Ruined Temple | War Fortress | Jade Forest | Sky City | Cosmic Furnace |
 | **Boss** | 守炉灵·巨阙 | 血将军·刑天 | 玉面狐·九尾 | 堕仙·玄霄 | 烬渊之主·烛阴 |
-| **Minions** | 3 types | 4 types | 4 types | 4 types | 4 types |
+| **Minions** | 4 types | 6 types | 9 types | 7 types | 6 types |
 | **Levels** | 5 | 6 | 6 | 6 | 5 |
 | **Tone** | Tutorial, mystery | Brutal, martial | Deceptive, elegant | Tragic, epic | Cosmic, final |
 | **Key Mechanic** | Basic combat | Siege weapons | Illusion puzzles | Gravity/platform | Phase reality |

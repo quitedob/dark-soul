@@ -85,7 +85,7 @@ A vast circular arena carved into the mountain's peak. Two phantom armies fill t
 
 ## Boss: 血将军·刑天
 
-*See full boss document in [bosses.md](bosses.md)*
+*See full boss document in [bestiary/bosses-master.md](../../bestiary/bosses-master.md)*
 
 **Key Mechanics:**
 - Phase 1: 刑天 fights with axes embedded (slower, deliberate)

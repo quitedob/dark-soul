@@ -979,21 +979,9 @@ func _begin_play() -> void:
 
 
 func _should_use_mobile_controls() -> bool:
-	if OS.has_feature("mobile"):
+	var ProcUtils = preload("res://scripts/core/procedural_utils.gd")
+	if ProcUtils.is_mobile_runtime():
 		return true
-	if OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge"):
-		var bridge = Engine.get_singleton("JavaScriptBridge")
-		var coarse_pointer = bridge.call(
-			"eval",
-			"window.matchMedia('(pointer: coarse)').matches",
-			true
-		)
-		var mobile_browser = bridge.call(
-			"eval",
-			"/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)",
-			true
-		)
-		return bool(coarse_pointer) or bool(mobile_browser)
 	if not DisplayServer.is_touchscreen_available():
 		return false
 	var screen_size := DisplayServer.screen_get_size()

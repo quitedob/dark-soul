@@ -2,6 +2,25 @@ class_name AshenProceduralUtils
 extends RefCounted
 
 
+static func is_mobile_runtime() -> bool:
+	if OS.has_feature("mobile"):
+		return true
+	if OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge"):
+		var bridge = Engine.get_singleton("JavaScriptBridge")
+		var coarse_pointer = bridge.call(
+			"eval",
+			"window.matchMedia('(pointer: coarse)').matches",
+			true
+		)
+		var mobile_browser = bridge.call(
+			"eval",
+			"/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)",
+			true
+		)
+		return bool(coarse_pointer) or bool(mobile_browser)
+	return OS.has_feature("web") and DisplayServer.is_touchscreen_available()
+
+
 static func make_material(
 	color: Color,
 	roughness: float,

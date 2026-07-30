@@ -503,6 +503,9 @@ func _apply_settings() -> void:
 			0.0001
 		)
 		AudioServer.set_bus_volume_db(master_index, linear_to_db(linear_volume))
+	# NOTE: game_settings.music_volume is stored and ready to wire.
+	# When a Music audio bus is added (via project settings default_bus_layout),
+	# wire it here: AudioServer.set_bus_volume_db(music_index, linear_to_db(game_settings.music_volume))
 	if world_environment != null and world_environment.environment != null:
 		var low_quality: bool = game_settings.quality_preset == &"low"
 		world_environment.environment.glow_enabled = not low_quality
@@ -510,22 +513,7 @@ func _apply_settings() -> void:
 
 
 func _is_mobile_runtime() -> bool:
-	if OS.has_feature("mobile"):
-		return true
-	if OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge"):
-		var bridge = Engine.get_singleton("JavaScriptBridge")
-		var coarse_pointer = bridge.call(
-			"eval",
-			"window.matchMedia('(pointer: coarse)').matches",
-			true
-		)
-		var mobile_browser = bridge.call(
-			"eval",
-			"/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)",
-			true
-		)
-		return bool(coarse_pointer) or bool(mobile_browser)
-	return OS.has_feature("web") and DisplayServer.is_touchscreen_available()
+	return _ProcUtils.is_mobile_runtime()
 
 
 func _on_host_new_run_requested() -> void:
@@ -874,143 +862,5 @@ func _generate_navigation() -> void:
 
 
 func _run_smoke_test() -> void:
-	if player == null or hud == null or enemies.is_empty():
-		push_error("Smoke test failed: systems missing")
-		get_tree().quit(1)
-		return
-	if not is_equal_approx(player.health, player.max_health):
-		push_error(
-			"Smoke test failed: sanctuary did not protect spawn; health %.1f / %.1f"
-			% [player.health, player.max_health]
-		)
-		get_tree().quit(1)
-		return
-	for initial_enemy in enemies:
-		if initial_enemy.engaged:
-			push_error(
-				"Smoke test failed: %s engaged inside sanctuary at %s"
-				% [initial_enemy.name, initial_enemy.global_position]
-			)
-			get_tree().quit(1)
-			return
-	for required_action in [
-		&"guard",
-		&"parry",
-		&"special_attack",
-		&"cast_spell",
-		&"cycle_style",
-	]:
-		if not InputMap.has_action(required_action):
-			push_error("Smoke test failed: missing action %s" % required_action)
-			get_tree().quit(1)
-			return
-	for style_id in range(5):
-		player.set_combat_style(style_id)
-		if int(player.combat_style) != style_id:
-			push_error("Smoke test failed: combat style %d unavailable" % style_id)
-			get_tree().quit(1)
-			return
-	if LocalizationScript.text("PARRY", "zh_CN") != "弹反":
-		push_error("Smoke test failed: Simplified Chinese combat text unavailable")
-		get_tree().quit(1)
-		return
-
-	player.set_combat_style(0)
-	player.stamina = player.max_stamina
-	player.call("_try_parry")
-	await get_tree().create_timer(0.12).timeout
-	var health_before_parry: float = player.health
-	var parried_enemy = enemies[0]
-	var enemy_state_before: int = int(parried_enemy.state)
-	player.receive_hit(12.0, 20.0, Vector3.FORWARD, parried_enemy)
-	if (
-		not is_equal_approx(player.health, health_before_parry)
-		or int(parried_enemy.state) == enemy_state_before
-	):
-		push_error("Smoke test failed: parry contract did not resolve")
-		get_tree().quit(1)
-		return
-
-	player.call("_change_state", 0)
-	player.set_combat_style(0)
-	player.stamina = player.max_stamina
-	player.call("_try_guarded_thrust")
-	if player.stamina >= player.max_stamina or not player.combat_area.active:
-		push_error("Smoke test failed: guarded thrust was not committed")
-		get_tree().quit(1)
-		return
-
-	player.call("_change_state", 0)
-	player.set_combat_style(1)
-	player.stamina = player.max_stamina
-	player.call("_try_style_skill")
-	if player.stamina >= player.max_stamina:
-		push_error("Smoke test failed: twin-colossi leap was not committed")
-		get_tree().quit(1)
-		return
-
-	player.call("_change_state", 0)
-	player.set_combat_style(2)
-	player.stamina = player.max_stamina
-	player.call("_try_style_skill")
-	if player.stamina >= player.max_stamina:
-		push_error("Smoke test failed: crescent-pair leap was not committed")
-		get_tree().quit(1)
-		return
-
-	player.call("_change_state", 0)
-	player.set_combat_style(3)
-	player.set_focus(player.max_focus)
-	player.call("_try_cast_for_style")
-	player.call("_resolve_cast")
-	await get_tree().process_frame
-	if (
-		player.focus >= player.max_focus
-		or find_child("VeilBolt", true, false) == null
-	):
-		push_error("Smoke test failed: veilcraft projectile was not cast")
-		get_tree().quit(1)
-		return
-
-	player.call("_change_state", 0)
-	player.set_combat_style(4)
-	player.set_focus(player.max_focus)
-	player.health = 40.0
-	player.call("_try_cast_for_style")
-	player.call("_resolve_cast")
-	if player.focus >= player.max_focus or player.health <= 40.0:
-		push_error("Smoke test failed: ember rite was not resolved")
-		get_tree().quit(1)
-		return
-
-	player.call("_change_state", 0)
-	player.add_embers(3)
-	player.receive_hit(5.0, 0.0, Vector3.FORWARD, null)
-	player.heal_full()
-	enemies[0].receive_hit(5.0, 0.0, Vector3.BACK, player)
-	hud.set_prompt("Smoke interaction")
-	if not hud.is_prompt_visible():
-		push_error("Smoke test failed: interaction prompt did not appear")
-		get_tree().quit(1)
-		return
-	hud.set_prompt("")
-	hud.show_boss("Smoke Guardian", 50.0, 100.0)
-	if not hud.is_boss_visible():
-		push_error("Smoke test failed: boss HUD did not appear")
-		get_tree().quit(1)
-		return
-	hud.hide_boss()
-	hud.show_death()
-	if not hud.is_death_visible():
-		push_error("Smoke test failed: death overlay did not appear")
-		get_tree().quit(1)
-		return
-	hud.clear_death()
-	if hud.is_death_visible():
-		push_error("Smoke test failed: death overlay did not clear")
-		get_tree().quit(1)
-		return
-	hud.show_message("HUD SMOKE", 0.35)
-	print("ASHEN_HOLLOW_SMOKE_OK")
-	await get_tree().create_timer(1.2).timeout
-	get_tree().quit(0)
+	var SmokeTest = load("res://tests/smoke/smoke_test.gd")
+	SmokeTest.run(self)

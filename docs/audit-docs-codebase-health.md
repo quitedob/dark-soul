@@ -1,7 +1,7 @@
 # Audit — Documentation & Codebase Health
 
 **Date:** 2026-07-30
-**Status:** `ACTIVE` — comprehensive scan complete; 4 stale documents identified, 6 missing topics, 0 broken references
+**Status:** `ACTIVE` — comprehensive scan complete; 4 stale documents identified, 6 missing topics, 3 broken references (fixed 2026-07-30)
 **See also:** [`research-dark-souls-design.md`](research-dark-souls-design.md) — 12-topic DS design audit, vertical slice checklist, documentation reliability table
 **See also:** [`research-dark-souls-weapons.md`](research-dark-souls-weapons.md) — per-style weapon tuning, documentation staleness assessment
 **See also:** [`research-dark-souls-mechanics-deep.md`](research-dark-souls-mechanics-deep.md) — frame data, poise math, verified-implemented vs pending gaps

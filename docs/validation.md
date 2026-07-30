@@ -22,7 +22,7 @@ Reported version:
 Command pattern:
 
 ```bash
-for script in scripts/*.gd; do
+for script in scripts/**/*.gd; do
   "D:/godot/Godot_v4.7.1-stable_win64_console.exe" \
     --headless --path "D:/godot/newproject" \
     --check-only --script "$script"
@@ -61,6 +61,18 @@ Result: `ASHEN_HOLLOW_SMOKE_OK`, clean exit.
 
 The smoke path verifies runtime construction, player ember changes, player damage and healing, enemy damage, interaction prompt visibility, guardian HUD visibility, death overlay visibility and cleanup, and transient message creation. The bounded runtime also exercises several seconds of physics, camera setup, responsive UI processing, and enemy state updates.
 
+### Core contract tests
+
+```bash
+"D:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "D:/godot/newproject/game" \
+  --script tests/smoke/core_contract_test.gd
+```
+
+Result: `ASHEN_CORE_CONTRACTS_OK`
+
+The contract tests verify: run state serialization round-trip, invalid data rejection, settings value sanitization, and host bridge protocol message parsing.
+
 ## Manual Test Checklist
 
 Automated headless tests cannot judge game feel. In the graphical build, verify:
@@ -85,7 +97,7 @@ Automated headless tests cannot judge game feel. In the graphical build, verify:
 ## Known Limitations
 
 - Visuals and sounds are generated primitives intended to validate systems, not final production assets.
-- Enemy pathfinding currently has direct steering fallback because the runtime-generated gray-box does not bake a navigation mesh.
-- There is no persistent save file; progression lasts for the application run.
-- Keyboard/mouse is implemented; controller support and remapping UI remain future work.
+- The single-scene level is manually authored, not algorithmically generated.
+- No quest, NPC, or dialogue infrastructure exists.
+- The `music_volume` setting in game settings is not yet wired to any audio bus.
 - Human playtesting is still required for combat balance, telegraph clarity, camera comfort, and accessibility.
