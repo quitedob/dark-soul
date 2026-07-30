@@ -117,6 +117,7 @@ func _create_systems() -> void:
 	player.embers_changed.connect(hud.update_embers)
 	player.lock_target_changed.connect(hud.set_lock_target)
 	player.combat_style_changed.connect(hud.set_combat_style)
+	player.hands_changed.connect(hud.set_hands)
 	player.healing_started.connect(_on_player_healing)
 	add_child(player)
 	player.combat_area.hit_landed.connect(_on_player_hit_landed)
@@ -377,7 +378,10 @@ func _apply_run_state(state) -> void:
 		player.embers = run_state.embers
 		player.embers_changed.emit(player.embers)
 	player.set_focus(run_state.focus)
-	player.set_combat_style(run_state.combat_style)
+	if player.has_method("set_hand_loadout") and not player.set_hand_loadout(run_state.right_hand, run_state.left_hand):
+		player.set_combat_style(run_state.combat_style)
+	elif not player.has_method("set_hand_loadout"):
+		player.set_combat_style(run_state.combat_style)
 	if player.has_method("set_upgrade_tier"):
 		player.set_upgrade_tier(run_state.upgrade_tier)
 	checkpoint.activate()
@@ -397,6 +401,10 @@ func _snapshot_run_state() -> Dictionary:
 	run_state.embers = int(player.embers)
 	run_state.focus = float(player.focus)
 	run_state.combat_style = int(player.combat_style)
+	if player.has_method("get_hand_loadout"):
+		var hand_loadout: Dictionary = player.get_hand_loadout()
+		run_state.right_hand = String(hand_loadout.get("right_hand", run_state.right_hand))
+		run_state.left_hand = String(hand_loadout.get("left_hand", run_state.left_hand))
 	if player.has_method("get_upgrade_tier"):
 		run_state.upgrade_tier = player.get_upgrade_tier()
 	run_state.guardian_defeated = victory
@@ -596,6 +604,9 @@ func _create_materials() -> void:
 	materials["ember"] = _material(Color("ff5a24"), 0.35, 0.0, Color("ff3a12"), 3.2)
 	materials["moss"] = _material(Color("203a31"), 0.95, 0.0)
 	materials["void"] = _material(Color("05070c"), 1.0, 0.0)
+	materials["rubble"] = _material(Color("1a1f28"), 0.95, 0.03)
+	materials["wood"] = _material(Color("2a1f14"), 0.85, 0.02)
+	materials["ember_vein"] = _material(Color("ff3a12"), 0.4, 0.0, Color("ff5a24"), 2.5)
 
 
 func _create_level() -> void:
@@ -624,6 +635,10 @@ func _create_level() -> void:
 		_create_ember_brazier(brazier_position)
 	_create_landmark()
 	_create_boundary_fog()
+	_create_ground_detail()
+	_create_wall_detail()
+	_create_ceiling_beams()
+	_create_atmospheric_particles()
 
 
 func _create_landmark() -> void:
@@ -633,12 +648,35 @@ func _create_landmark() -> void:
 	mesh.top_radius = 0.3
 	mesh.bottom_radius = 1.4
 	mesh.height = 13.0
-	mesh.radial_segments = 7
+	mesh.radial_segments = 8
 	mesh.material = materials["stone"]
 	spire.mesh = mesh
 	spire.position = Vector3(0.0, 6.0, -37.0)
 	spire.rotation_degrees.z = -7.0
 	add_child(spire)
+	# Broken top fragment — tilted block on top
+	var fragment := MeshInstance3D.new()
+	fragment.name = "SpireTopFragment"
+	var frag_mesh := BoxMesh.new()
+	frag_mesh.size = Vector3(1.1, 1.4, 1.8)
+	frag_mesh.material = materials["stone"]
+	fragment.mesh = frag_mesh
+	fragment.position = Vector3(0.3, 8.5, -36.2)
+	fragment.rotation_degrees = Vector3(-22.0, 18.0, 5.0)
+	add_child(fragment)
+	# Rubble at base
+	for i in range(4):
+		var rubble := MeshInstance3D.new()
+		var rubble_mesh := BoxMesh.new()
+		rubble_mesh.size = Vector3(0.8 + float(i) * 0.3, 0.4, 0.8 + float(i) * 0.2)
+		rubble_mesh.material = materials["stone_dark"]
+		rubble.mesh = rubble_mesh
+		var angle := float(i) / 4.0 * TAU + 0.3
+		var dist := 2.2 + float(i) * 0.6
+		rubble.position = Vector3(sin(angle) * dist, 0.15, -37.0 + cos(angle) * dist * 0.4)
+		rubble.rotation_degrees = Vector3(randf() * 20.0, randf() * 60.0, randf() * 15.0)
+		add_child(rubble)
+	# Beacon light
 	var beacon := OmniLight3D.new()
 	beacon.position = Vector3(0.0, 9.5, -37.0)
 	beacon.light_color = Color("f14b28")
@@ -659,9 +697,171 @@ func _create_boundary_fog() -> void:
 		add_child(veil)
 
 
+func _create_ground_detail() -> void:
+	# Scattered rubble stones on the floor
+	var rubble_positions := [
+		Vector3(-5.2, 0.05, 3.5), Vector3(4.8, 0.05, -1.2), Vector3(-3.5, 0.05, -8.0),
+		Vector3(6.0, 0.05, -10.5), Vector3(-6.5, 0.05, -20.0), Vector3(3.2, 0.05, -24.0),
+		Vector3(-2.0, 0.05, -14.5), Vector3(7.2, 0.05, -18.0), Vector3(-4.8, 0.05, 8.0),
+		Vector3(1.5, 0.05, -3.5), Vector3(-7.0, 0.05, -12.0), Vector3(5.5, 0.05, 6.0),
+	]
+	for pos in rubble_positions:
+		var rubble := MeshInstance3D.new()
+		var size := Vector3(randf_range(0.2, 0.6), randf_range(0.08, 0.18), randf_range(0.2, 0.55))
+		var box := BoxMesh.new()
+		box.size = size
+		box.material = materials["rubble"]
+		rubble.mesh = box
+		rubble.position = pos + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
+		rubble.rotation_degrees = Vector3(randf_range(0, 15), randf_range(0, 60), randf_range(0, 15))
+		add_child(rubble)
+	# Ember vein cracks on the floor (emissive lines)
+	var vein_positions := [
+		Vector3(-3.0, 0.02, -12.0),
+		Vector3(4.0, 0.02, -20.0),
+		Vector3(-5.5, 0.02, -25.0),
+		Vector3(2.0, 0.02, 5.0),
+	]
+	for pos in vein_positions:
+		for k in range(3):
+			var vein := MeshInstance3D.new()
+			var box := BoxMesh.new()
+			box.size = Vector3(randf_range(0.3, 0.8), 0.015, randf_range(0.03, 0.06))
+			box.material = materials["ember_vein"]
+			vein.mesh = box
+			vein.position = pos + Vector3(randf_range(-1.0, 1.0), 0, randf_range(-0.5, 0.5))
+			vein.rotation_degrees.y = randf_range(0, 90)
+			add_child(vein)
+
+
+func _create_wall_detail() -> void:
+	# Moss patches on walls
+	var moss_positions := [
+		Vector3(-8.95, 0.6, -3.0), Vector3(8.95, 0.8, -8.0),
+		Vector3(-8.95, 1.2, -15.0), Vector3(8.95, 0.5, -22.0),
+		Vector3(-8.95, 0.7, -25.0), Vector3(8.95, 1.1, -4.0),
+	]
+	for pos in moss_positions:
+		var moss := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.06, randf_range(0.5, 1.2), randf_range(0.8, 2.0))
+		box.material = materials["moss"]
+		moss.mesh = box
+		moss.position = pos
+		add_child(moss)
+	# Wall crack marks (thin dark lines)
+	for i in range(8):
+		var crack := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		var side := -1.0 if i % 2 == 0 else 1.0
+		var z := float(i) * 5.5 - 15.0
+		box.size = Vector3(0.03, randf_range(0.6, 1.6), randf_range(0.02, 0.04))
+		box.material = materials["stone_dark"]
+		crack.mesh = box
+		crack.position = Vector3(side * 8.5, randf_range(0.4, 2.2), z)
+		crack.rotation_degrees.z = randf_range(-15, 15)
+		add_child(crack)
+	# Ember vein markings on walls
+	for i in range(5):
+		var vein := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		var side := -1.0 if i % 2 == 0 else 1.0
+		box.size = Vector3(0.015, randf_range(0.4, 0.9), randf_range(0.03, 0.05))
+		box.material = materials["ember_vein"]
+		vein.mesh = box
+		vein.position = Vector3(side * 8.51, randf_range(0.5, 2.5), float(i) * 7.0 - 18.0)
+		add_child(vein)
+
+
+func _create_ceiling_beams() -> void:
+	# Overhead beams crossing the corridor
+	for z_pos in [-3.0, -10.0, -18.0, -26.0]:
+		var beam := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(18.5, 0.2, 0.35)
+		box.material = materials["wood"]
+		beam.mesh = box
+		beam.position = Vector3(0, 4.3, z_pos)
+		add_child(beam)
+		# Beam end supports
+		for side in [-1.0, 1.0]:
+			var bracket := MeshInstance3D.new()
+			var bracket_mesh := BoxMesh.new()
+			bracket_mesh.size = Vector3(0.25, 0.5, 0.35)
+			bracket_mesh.material = materials["metal"]
+			bracket.mesh = bracket_mesh
+			bracket.position = Vector3(side * 8.6, 4.0, z_pos)
+			add_child(bracket)
+	# Hanging chain stubs from beams
+	for z_pos in [-3.0, -18.0]:
+		for x_off in [-3.0, 3.0]:
+			var chain := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 0.03
+			cyl.bottom_radius = 0.03
+			cyl.height = randf_range(0.5, 1.2)
+			cyl.material = materials["metal"]
+			chain.mesh = cyl
+			chain.position = Vector3(x_off, 3.7, z_pos + randf_range(-0.3, 0.3))
+			add_child(chain)
+
+
+func _create_atmospheric_particles() -> void:
+	# Floating ember motes
+	var ember_particles := GPUParticles3D.new()
+	ember_particles.name = "EmberParticles"
+	ember_particles.emitting = true
+	ember_particles.amount = 40
+	ember_particles.lifetime = 4.0
+	ember_particles.position = Vector3(0, 2.2, -10.0)
+	var ember_box := BoxMesh.new()
+	ember_box.size = Vector3(16.0, 3.5, 30.0)
+	ember_particles.draw_pass_1 = ember_box
+	ember_particles.draw_pass_1.material = materials["ember"]
+	var ember_mat := ParticleProcessMaterial.new()
+	ember_mat.direction = Vector3(0, 0.5, 0)
+	ember_mat.spread = 35.0
+	ember_mat.initial_velocity_min = 0.3
+	ember_mat.initial_velocity_max = 1.5
+	ember_mat.gravity = Vector3(0, 0.15, 0)
+	ember_mat.scale_min = 0.08
+	ember_mat.scale_max = 0.25
+	ember_mat.color = Color(1.0, 0.4, 0.08, 0.7)
+	ember_particles.process_material = ember_mat
+	add_child(ember_particles)
+	# Fog dust motes
+	var dust_particles := GPUParticles3D.new()
+	dust_particles.name = "DustParticles"
+	dust_particles.emitting = true
+	dust_particles.amount = 25
+	dust_particles.lifetime = 6.0
+	dust_particles.position = Vector3(0, 1.0, -10.0)
+	var dust_sphere := SphereMesh.new()
+	dust_sphere.radius = 0.02
+	dust_sphere.height = 0.04
+	var dust_mesh_mat := _material(Color(0.5, 0.55, 0.6, 0.4), 0.0, 0.0)
+	dust_sphere.material = dust_mesh_mat
+	dust_particles.draw_pass_1 = dust_sphere
+	var dust_mat := ParticleProcessMaterial.new()
+	dust_mat.direction = Vector3(0, 0, 0)
+	dust_mat.spread = 180.0
+	dust_mat.initial_velocity_min = 0.05
+	dust_mat.initial_velocity_max = 0.3
+	dust_mat.gravity = Vector3(0, -0.02, 0)
+	dust_mat.scale_min = 0.5
+	dust_mat.scale_max = 1.5
+	dust_mat.color = Color(0.6, 0.65, 0.7, 0.25)
+	dust_particles.process_material = dust_mat
+	add_child(dust_particles)
+
+
 func _create_pillar(at: Vector3) -> void:
+	# Pillar shaft
 	_create_block(at, Vector3(1.1, 3.4, 1.1), "stone")
+	# Capital (top)
 	_create_block(at + Vector3(0.0, 1.9, 0.0), Vector3(1.6, 0.35, 1.6), "stone")
+	# Base plinth
+	_create_block(at + Vector3(0.0, -1.55, 0.0), Vector3(1.4, 0.25, 1.4), "stone_dark")
 
 
 func _create_ember_brazier(at: Vector3) -> void:
@@ -670,33 +870,70 @@ func _create_ember_brazier(at: Vector3) -> void:
 	brazier.position = at
 	add_child(brazier)
 
+	# Base stone
+	var base := MeshInstance3D.new()
+	var base_mesh := CylinderMesh.new()
+	base_mesh.top_radius = 0.28
+	base_mesh.bottom_radius = 0.38
+	base_mesh.height = 0.15
+	base_mesh.radial_segments = 10
+	base_mesh.material = materials["stone"]
+	base.mesh = base_mesh
+	base.position.y = 0.07
+	brazier.add_child(base)
+
 	var pedestal := MeshInstance3D.new()
 	var pedestal_mesh := CylinderMesh.new()
 	pedestal_mesh.top_radius = 0.24
 	pedestal_mesh.bottom_radius = 0.34
 	pedestal_mesh.height = 1.15
-	pedestal_mesh.radial_segments = 8
+	pedestal_mesh.radial_segments = 10
 	pedestal_mesh.material = materials["metal"]
 	pedestal.mesh = pedestal_mesh
-	pedestal.position.y = 0.57
+	pedestal.position.y = 0.64
 	brazier.add_child(pedestal)
+
+	# Metal ring band
+	var band := MeshInstance3D.new()
+	var band_mesh := CylinderMesh.new()
+	band_mesh.top_radius = 0.28
+	band_mesh.bottom_radius = 0.28
+	band_mesh.height = 0.06
+	band_mesh.radial_segments = 10
+	band_mesh.material = materials["metal"]
+	band.mesh = band_mesh
+	band.position.y = 1.0
+	brazier.add_child(band)
 
 	var ember_core := MeshInstance3D.new()
 	var ember_mesh := SphereMesh.new()
 	ember_mesh.radius = 0.22
 	ember_mesh.height = 0.42
-	ember_mesh.radial_segments = 8
-	ember_mesh.rings = 5
+	ember_mesh.radial_segments = 10
+	ember_mesh.rings = 6
 	ember_mesh.material = materials["ember"]
 	ember_core.mesh = ember_mesh
-	ember_core.position.y = 1.24
+	ember_core.position.y = 1.28
 	brazier.add_child(ember_core)
 
+	# Inner flame wisp
+	var wisp := MeshInstance3D.new()
+	var wisp_mesh := SphereMesh.new()
+	wisp_mesh.radius = 0.12
+	wisp_mesh.height = 0.24
+	wisp_mesh.radial_segments = 8
+	wisp_mesh.rings = 4
+	var wisp_mat := _material(Color(1.0, 0.95, 0.5), 0.15, 0.0, Color(1.0, 0.6, 0.1), 5.0)
+	wisp.mesh = wisp_mesh
+	wisp.position.y = 1.32
+	wisp.material_override = wisp_mat
+	brazier.add_child(wisp)
+
 	var light := OmniLight3D.new()
-	light.position.y = 1.35
+	light.position.y = 1.38
 	light.light_color = Color("ff7338")
-	light.light_energy = 2.4
-	light.omni_range = 6.5
+	light.light_energy = 2.8
+	light.omni_range = 7.0
 	light.shadow_enabled = false
 	brazier.add_child(light)
 
@@ -706,7 +943,8 @@ func _create_gate(at: Vector3) -> Node3D:
 	gate.name = "ShortcutGate"
 	gate.position = at
 	add_child(gate)
-	for offset in [-1.6, -0.8, 0.0, 0.8, 1.6]:
+	# Vertical bars
+	for offset: float in [-1.6, -0.8, 0.0, 0.8, 1.6]:
 		var bar := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3(0.22, 3.0, 0.3)
@@ -714,6 +952,35 @@ func _create_gate(at: Vector3) -> Node3D:
 		bar.mesh = mesh
 		bar.position = Vector3(offset, 0.0, 0.0)
 		gate.add_child(bar)
+	# Top crossbeam
+	var beam := MeshInstance3D.new()
+	beam.name = "GateBeam"
+	var beam_mesh := BoxMesh.new()
+	beam_mesh.size = Vector3(3.8, 0.22, 0.35)
+	beam_mesh.material = materials["metal"]
+	beam.mesh = beam_mesh
+	beam.position = Vector3(0.0, 1.55, 0.0)
+	gate.add_child(beam)
+	# Bottom crossbeam
+	var bot_beam := MeshInstance3D.new()
+	bot_beam.name = "GateBottomBeam"
+	var bot_mesh := BoxMesh.new()
+	bot_mesh.size = Vector3(3.8, 0.18, 0.3)
+	bot_mesh.material = materials["metal"]
+	bot_beam.mesh = bot_mesh
+	bot_beam.position = Vector3(0.0, -1.55, 0.0)
+	gate.add_child(bot_beam)
+	# Rivets on crossbeam
+	for rivet_x in [-1.5, -0.5, 0.5, 1.5]:
+		var rivet := MeshInstance3D.new()
+		var rivet_mesh := SphereMesh.new()
+		rivet_mesh.radius = 0.06
+		rivet_mesh.height = 0.10
+		rivet_mesh.material = materials["metal"]
+		rivet.mesh = rivet_mesh
+		rivet.position = Vector3(rivet_x, 1.66, 0.18)
+		gate.add_child(rivet)
+
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	var shape := CollisionShape3D.new()
@@ -757,6 +1024,10 @@ func _configure_inputs() -> void:
 	_add_key_action("dodge", KEY_SPACE)
 	_add_key_action("lock_on", KEY_Q)
 	_add_key_action("interact", KEY_E)
+	_add_key_action("right_primary", KEY_J)
+	_add_key_action("right_secondary", KEY_K)
+	_add_key_action("left_primary", KEY_C)
+	_add_key_action("left_secondary", KEY_R)
 	_add_key_action("light_attack_alt", KEY_J)
 	_add_key_action("heavy_attack_alt", KEY_K)
 	_add_key_action("help", KEY_F1)
@@ -771,6 +1042,8 @@ func _configure_inputs() -> void:
 	_add_key_action("style_3", KEY_3)
 	_add_key_action("style_4", KEY_4)
 	_add_key_action("style_5", KEY_5)
+	_add_mouse_action("right_primary", MOUSE_BUTTON_LEFT)
+	_add_mouse_action("right_secondary", MOUSE_BUTTON_RIGHT)
 	_add_mouse_action("light_attack", MOUSE_BUTTON_LEFT)
 	_add_mouse_action("heavy_attack", MOUSE_BUTTON_RIGHT)
 	_add_mouse_action("lock_on", MOUSE_BUTTON_MIDDLE)
@@ -784,13 +1057,16 @@ func _configure_inputs() -> void:
 	_add_joy_axis_action("look_down", JOY_AXIS_RIGHT_Y, 1.0)
 	_add_joy_button_action("dodge", JOY_BUTTON_A)
 	_add_joy_button_action("interact", JOY_BUTTON_Y)
+	_add_joy_button_action("right_primary", JOY_BUTTON_RIGHT_SHOULDER)
+	_add_joy_axis_action("right_secondary", JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	_add_joy_button_action("left_primary", JOY_BUTTON_LEFT_SHOULDER)
+	_add_joy_axis_action("left_secondary", JOY_AXIS_TRIGGER_LEFT, 1.0)
 	_add_joy_button_action("light_attack", JOY_BUTTON_RIGHT_SHOULDER)
-	_add_joy_button_action("heavy_attack", JOY_BUTTON_LEFT_SHOULDER)
+	_add_joy_axis_action("heavy_attack", JOY_AXIS_TRIGGER_RIGHT, 1.0)
 	_add_joy_button_action("lock_on", JOY_BUTTON_RIGHT_STICK)
 	_add_joy_button_action("sprint", JOY_BUTTON_LEFT_STICK)
 	_add_joy_button_action("pause", JOY_BUTTON_START)
 	_add_joy_button_action("help", JOY_BUTTON_BACK)
-	_add_joy_axis_action("guard", JOY_AXIS_TRIGGER_LEFT, 1.0)
 	_add_joy_button_action("special_attack", JOY_BUTTON_B)
 	_add_joy_button_action("parry", JOY_BUTTON_X)
 	_add_joy_button_action("cycle_style", JOY_BUTTON_DPAD_RIGHT)

@@ -99,15 +99,49 @@ func _build_collision() -> void:
 
 
 func _build_visuals() -> void:
+	# Stone base platform
+	var base := MeshInstance3D.new()
+	base.name = "LeverBase"
+	var base_mesh := CylinderMesh.new()
+	base_mesh.top_radius = 0.55
+	base_mesh.bottom_radius = 0.65
+	base_mesh.height = 0.16
+	base_mesh.radial_segments = 10
+	base.mesh = base_mesh
+	base.position.y = 0.08
+	base.material_override = _material(Color(0.10, 0.105, 0.11), 0.88, 0.02)
+	add_child(base)
+	# Pedestal
 	var pedestal := MeshInstance3D.new()
 	pedestal.name = "LeverPedestal"
 	var pedestal_mesh := BoxMesh.new()
 	pedestal_mesh.size = Vector3(0.7, 1.1, 0.55)
 	pedestal.mesh = pedestal_mesh
-	pedestal.position.y = 0.55
+	pedestal.position.y = 0.63
 	pedestal.material_override = _material(Color(0.115, 0.12, 0.125), 0.82, 0.1)
 	add_child(pedestal)
-
+	# Pedestal top cap
+	var cap := MeshInstance3D.new()
+	var cap_mesh := BoxMesh.new()
+	cap_mesh.size = Vector3(0.76, 0.08, 0.62)
+	cap.mesh = cap_mesh
+	cap.position.y = 1.19
+	cap.material_override = _material(Color(0.18, 0.17, 0.14), 0.72, 0.18)
+	add_child(cap)
+	# Gear/pivot mechanism
+	var gear := MeshInstance3D.new()
+	gear.name = "GearMechanism"
+	var gear_mesh := CylinderMesh.new()
+	gear_mesh.top_radius = 0.15
+	gear_mesh.bottom_radius = 0.15
+	gear_mesh.height = 0.1
+	gear_mesh.radial_segments = 12
+	gear.mesh = gear_mesh
+	gear.position = Vector3(0.0, 1.26, 0.28)
+	gear.rotation.x = PI * 0.5
+	gear.material_override = _material(Color(0.24, 0.19, 0.10), 0.42, 0.58)
+	add_child(gear)
+	# Lever arm
 	var lever := MeshInstance3D.new()
 	lever.name = "Lever"
 	var lever_mesh := CylinderMesh.new()
@@ -120,26 +154,26 @@ func _build_visuals() -> void:
 	lever.rotation.x = deg_to_rad(-28.0)
 	lever.material_override = _material(Color(0.23, 0.17, 0.095), 0.5, 0.55)
 	add_child(lever)
-
+	# Handle sphere
 	var handle := MeshInstance3D.new()
 	handle.name = "Handle"
 	var handle_mesh := SphereMesh.new()
 	handle_mesh.radius = 0.14
 	handle_mesh.height = 0.28
-	handle_mesh.radial_segments = 8
-	handle_mesh.rings = 4
+	handle_mesh.radial_segments = 10
+	handle_mesh.rings = 5
 	handle.mesh = handle_mesh
 	handle.position = Vector3(0.0, 1.72, -0.13)
 	handle.material_override = _material(Color(0.32, 0.17, 0.055), 0.45, 0.25)
 	add_child(handle)
-
+	# Rune indicator
 	indicator = MeshInstance3D.new()
 	indicator.name = "Rune"
 	var rune_mesh := TorusMesh.new()
 	rune_mesh.inner_radius = 0.13
 	rune_mesh.outer_radius = 0.22
-	rune_mesh.rings = 12
-	rune_mesh.ring_segments = 6
+	rune_mesh.rings = 14
+	rune_mesh.ring_segments = 8
 	indicator.mesh = rune_mesh
 	indicator.position = Vector3(0.0, 1.25, 0.43)
 	indicator.rotation.x = PI * 0.5

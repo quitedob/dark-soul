@@ -22,6 +22,8 @@ enum EnemyType {
 }
 
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
+const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
+const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
 const AI_DECISION_INTERVAL := 0.1
 
 var world_node: Node
@@ -75,6 +77,7 @@ var body_shape: CapsuleShape3D
 var visual_root: Node3D
 var body_mesh: MeshInstance3D
 var head_mesh: MeshInstance3D
+var weapon_pivot: Node3D
 var weapon_mesh: MeshInstance3D
 var telegraph_mesh: MeshInstance3D
 var combat_area
@@ -578,7 +581,7 @@ func _update_telegraph() -> void:
 	var base_scale := lerpf(0.62, 1.08, progress) * pulse
 	telegraph_mesh.scale = Vector3(base_scale, 1.0, base_scale)
 	telegraph_material.emission_energy_multiplier = lerpf(1.2, 4.5, progress)
-	weapon_mesh.rotation.z = lerpf(-0.2, -1.35 if attack_heavy else -0.95, progress)
+	weapon_pivot.rotation.z = lerpf(-0.2, -1.35 if attack_heavy else -0.95, progress)
 
 
 func _update_state_visuals() -> void:
@@ -590,25 +593,31 @@ func _update_state_visuals() -> void:
 			weapon_material.albedo_color = Color(1.0, 0.24, 0.08)
 		State.ACTIVE:
 			weapon_material.albedo_color = Color(1.0, 0.72, 0.25)
-			weapon_mesh.rotation.z = 0.9
+			weapon_pivot.rotation.z = 0.9
 		State.STAGGER:
 			body_material.albedo_color = Color(0.9, 0.84, 0.7)
 
 
 func _set_visual_palette() -> void:
+	var type_key: String
 	if guardian:
 		body_material.albedo_color = Color(0.17, 0.11, 0.25)
 		weapon_material.albedo_color = Color(0.34, 0.3, 0.42)
 		eye_material.emission = Color(1.0, 0.3, 0.04)
+		type_key = "cinder_guardian"
 	elif enemy_type == EnemyType.ASH_STALKER:
 		body_material.albedo_color = Color(0.18, 0.17, 0.19)
 		weapon_material.albedo_color = Color(0.38, 0.28, 0.22)
 		eye_material.emission = Color(1.0, 0.45, 0.08)
+		type_key = "ash_stalker"
 	else:
 		body_material.albedo_color = Color(0.22, 0.075, 0.065)
 		weapon_material.albedo_color = Color(0.28, 0.27, 0.29)
 		eye_material.emission = Color(1.0, 0.06, 0.02)
-	weapon_mesh.rotation = Vector3(0.0, 0.0, -0.2)
+		type_key = "hollow_sentinel"
+	CharacterMeshFactory.build_enemy(visual_root, type_key, body_material)
+	WeaponMeshFactory.build_enemy_weapon(weapon_pivot, type_key, weapon_material)
+	weapon_pivot.rotation = Vector3(0.0, 0.0, -0.2)
 
 
 func _apply_tuning() -> void:
@@ -703,43 +712,21 @@ func _ensure_nodes() -> void:
 	eye_material.emission_energy_multiplier = 3.2
 
 	body_mesh = MeshInstance3D.new()
-	body_mesh.name = "Body"
-	var capsule_mesh := CapsuleMesh.new()
-	capsule_mesh.radius = 0.43
-	capsule_mesh.height = 1.55
-	body_mesh.mesh = capsule_mesh
-	body_mesh.position.y = 0.95
+	body_mesh.name = "BodyRoot"
 	body_mesh.material_override = body_material
 	visual_root.add_child(body_mesh)
+	# Composite character model built by _set_visual_palette() below
+	head_mesh = body_mesh  # legacy ref — composite model has no single head node
 
-	head_mesh = MeshInstance3D.new()
-	head_mesh.name = "Head"
-	var head_shape := SphereMesh.new()
-	head_shape.radius = 0.31
-	head_shape.height = 0.62
-	head_mesh.mesh = head_shape
-	head_mesh.position.y = 1.82
-	head_mesh.material_override = body_material
-	visual_root.add_child(head_mesh)
-
-	for eye_x in [-0.13, 0.13]:
-		var eye := MeshInstance3D.new()
-		var eye_shape := SphereMesh.new()
-		eye_shape.radius = 0.045
-		eye_shape.height = 0.09
-		eye.mesh = eye_shape
-		eye.position = Vector3(eye_x, 1.86, -0.285)
-		eye.material_override = eye_material
-		visual_root.add_child(eye)
-
+	weapon_pivot = Node3D.new()
+	weapon_pivot.name = "WeaponPivot"
+	weapon_pivot.position = Vector3(0.68, 1.2, -0.16)
+	visual_root.add_child(weapon_pivot)
+	# placeholder reference — composite meshes built by _set_visual_palette()
 	weapon_mesh = MeshInstance3D.new()
-	weapon_mesh.name = "Weapon"
-	var weapon_shape := BoxMesh.new()
-	weapon_shape.size = Vector3(0.13, 1.45, 0.16)
-	weapon_mesh.mesh = weapon_shape
-	weapon_mesh.position = Vector3(0.68, 1.2, -0.16)
+	weapon_mesh.name = "WeaponRoot"
 	weapon_mesh.material_override = weapon_material
-	visual_root.add_child(weapon_mesh)
+	weapon_pivot.add_child(weapon_mesh)
 
 	telegraph_material = StandardMaterial3D.new()
 	telegraph_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

@@ -89,13 +89,29 @@ func _build_collision() -> void:
 
 
 func _build_visuals() -> void:
+	# Ground glow disc
+	var ground_glow := MeshInstance3D.new()
+	var disc_mesh := CylinderMesh.new()
+	disc_mesh.top_radius = 0.35
+	disc_mesh.bottom_radius = 0.35
+	disc_mesh.height = 0.02
+	disc_mesh.radial_segments = 16
+	ground_glow.mesh = disc_mesh
+	ground_glow.position.y = 0.02
+	var disc_mat := _material(Color(0.22, 0.72, 0.58, 0.45), 0.2, 0.0)
+	disc_mat.emission_enabled = true
+	disc_mat.emission = Color(0.08, 0.56, 0.4)
+	disc_mat.emission_energy_multiplier = 1.5
+	ground_glow.material_override = disc_mat
+	add_child(ground_glow)
+	# Core sphere
 	core = MeshInstance3D.new()
 	core.name = "EchoCore"
 	var core_mesh := SphereMesh.new()
 	core_mesh.radius = 0.32
 	core_mesh.height = 0.64
-	core_mesh.radial_segments = 12
-	core_mesh.rings = 7
+	core_mesh.radial_segments = 14
+	core_mesh.rings = 8
 	core.mesh = core_mesh
 	core.position.y = 0.7
 	var core_material := _material(Color(0.22, 0.72, 0.58), 0.22, 0.0)
@@ -104,14 +120,14 @@ func _build_visuals() -> void:
 	core_material.emission_energy_multiplier = 3.4
 	core.material_override = core_material
 	add_child(core)
-
+	# Primary ring
 	ring = MeshInstance3D.new()
 	ring.name = "EchoRing"
 	var ring_mesh := TorusMesh.new()
 	ring_mesh.inner_radius = 0.38
 	ring_mesh.outer_radius = 0.48
-	ring_mesh.rings = 16
-	ring_mesh.ring_segments = 6
+	ring_mesh.rings = 18
+	ring_mesh.ring_segments = 8
 	ring.mesh = ring_mesh
 	ring.position.y = 0.7
 	ring.rotation.x = deg_to_rad(72.0)
@@ -121,13 +137,46 @@ func _build_visuals() -> void:
 	ring_material.emission_energy_multiplier = 2.2
 	ring.material_override = ring_material
 	add_child(ring)
-
+	# Secondary ring (counter-rotated)
+	var ring2 := MeshInstance3D.new()
+	ring2.name = "EchoRing2"
+	var ring2_mesh := TorusMesh.new()
+	ring2_mesh.inner_radius = 0.28
+	ring2_mesh.outer_radius = 0.34
+	ring2_mesh.rings = 14
+	ring2_mesh.ring_segments = 6
+	ring2.mesh = ring2_mesh
+	ring2.position.y = 0.7
+	ring2.rotation.x = deg_to_rad(108.0)
+	var ring2_mat := _material(Color(0.6, 1.0, 0.8), 0.15, 0.1)
+	ring2_mat.emission_enabled = true
+	ring2_mat.emission = Color(0.2, 0.72, 0.52)
+	ring2_mat.emission_energy_multiplier = 1.8
+	ring2.material_override = ring2_mat
+	add_child(ring2)
+	# Floating motes
+	for i in range(5):
+		var mote := MeshInstance3D.new()
+		mote.name = "EchoMote%d" % i
+		var mote_mesh := SphereMesh.new()
+		mote_mesh.radius = 0.04
+		mote_mesh.height = 0.08
+		mote.mesh = mote_mesh
+		var angle := float(i) / 5.0 * TAU
+		mote.position = Vector3(sin(angle) * 0.42, 0.7 + sin(float(i) * 2.3) * 0.2, cos(angle) * 0.42)
+		var mote_mat := _material(Color(1.0, 1.0, 1.0), 0.0, 0.0)
+		mote_mat.emission_enabled = true
+		mote_mat.emission = Color(0.4, 0.9, 0.7)
+		mote_mat.emission_energy_multiplier = 2.5
+		mote.material_override = mote_mat
+		add_child(mote)
+	# Light
 	glow = OmniLight3D.new()
 	glow.name = "EchoGlow"
 	glow.position.y = 0.72
 	glow.light_color = Color(0.22, 1.0, 0.67)
 	glow.light_energy = 1.25
-	glow.omni_range = 3.6
+	glow.omni_range = 3.8
 	glow.shadow_enabled = false
 	add_child(glow)
 
