@@ -1,0 +1,21 @@
+extends Resource
+class_name InventoryItem
+
+## Display of this item in inventory, and descriptions
+@export var icon : Texture2D 
+@export_multiline var description : String
+
+## Item instanced on drop and given reference to this resource for pickup
+@export var drop_item : PackedScene
+
+## Options for the item's inventory behaviour
+@export_group("Flags")
+@export var stackable = true
+@export var fungible = false
+@export var volumetric = false 
+
+@export_group("Extra Data")
+@export var extra_resources : Dictionary[String, Resource]
+
+## The action to use the item if any, string for action_q
+@export var use_action = ""

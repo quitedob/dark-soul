@@ -1,0 +1,44 @@
+[gd_scene load_steps=10 format=3 uid="uid://3y4vbosjj5gx"]
+
+[ext_resource type="Script" uid="uid://3fyvhhrco24t" path="res://scripts/armament.gd" id="1_bu51i"]
+[ext_resource type="PackedScene" uid="uid://d1kynsixmfk71" path="res://prefabs/particles/trail_weapon.tscn" id="1_eutt0"]
+[ext_resource type="PackedScene" uid="uid://cqxi7q25mnc50" path="res://prefabs/particles/bone_dust.tscn" id="2_s35fm"]
+[ext_resource type="Material" uid="uid://cfbryicsvmobm" path="res://art/materials/debug_hitbox_transparent.tres" id="3_1ot13"]
+[ext_resource type="PackedScene" uid="uid://e4las240qute" path="res://prefabs/particles/metal_clang.tscn" id="3_3vayj"]
+[ext_resource type="Resource" uid="uid://cbn706s6jj2fj" path="res://Modular Mobility/movesets/w_1h-sword_moveset.tres" id="4_ubwlm"]
+[ext_resource type="PackedScene" uid="uid://dmv4s6i42ioqg" path="res://art/Props/sword_debug.glb" id="6_37ai3"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_1wjdx"]
+radius = 0.085
+height = 0.744
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_3fsg1"]
+material = ExtResource("3_1ot13")
+radius = 0.085
+height = 0.744
+
+[node name="sword" type="Node3D"]
+script = ExtResource("1_bu51i")
+hit_effect = ExtResource("2_s35fm")
+block_effect = ExtResource("3_3vayj")
+moveset = ExtResource("4_ubwlm")
+
+[node name="hitbox" type="ShapeCast3D" parent="."]
+shape = SubResource("CapsuleShape3D_1wjdx")
+target_position = Vector3(0, -0.535, 0)
+collision_mask = 2
+collide_with_areas = true
+collide_with_bodies = false
+
+[node name="hitbox_vis" type="MeshInstance3D" parent="hitbox"]
+transform = Transform3D(1, 0, -2.98023e-08, 1.49012e-08, 1, 0, -1.78814e-07, 0, 1, 0, -0.535, 0)
+visible = false
+mesh = SubResource("CapsuleMesh_3fsg1")
+skeleton = NodePath("../..")
+
+[node name="trail_weapon" parent="." instance=ExtResource("1_eutt0")]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, -0.922061, -4.03046e-08)
+visible = false
+
+[node name="sword_debug" parent="." instance=ExtResource("6_37ai3")]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0)

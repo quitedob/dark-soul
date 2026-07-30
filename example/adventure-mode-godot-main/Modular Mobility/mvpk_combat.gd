@@ -1,0 +1,41 @@
+extends MovementPackage
+# A class to hold a specific moveset
+class_name mvpk_combat
+
+var gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
+
+func pack_type():
+	return "mvpk_combat" # godot does not support getting custom class names 
+
+func transfer_situation_check(thrall : Actor) -> bool:
+	## NOTE - If we only check that we HAVE a weapon, 
+	## it constantly transfers in a drawing the sword loop
+	## SO used to use thrall.r_wep.moveset to see if that was our moveset
+	## This was changed to the item in the characters hand InventoryArmament
+	if thrall.r_wep and thrall.character.get_current_hand_r().moveset == self:
+		return thrall.combat_mode
+	return false
+
+func release_situation_check(thrall : Actor) -> bool:
+# parameters/claymore moveset/Attack Tree/playback
+	if name == "claymore moveset":
+		var state_machine : AnimationNodeStateMachinePlayback = thrall.animation_tree["parameters/" + name +"/Attack Tree/playback"]
+		#var my_node : AnimationNodeStateMachine = thrall.animation_tree.tree_root.get_node(name).get_node("Attack Tree")
+		#print(state_machine.get_current_node())
+		if state_machine.get_current_node() == "scheathe":
+			#thrall.combat_mode = false
+			return true
+	return !thrall.combat_mode
+
+
+func move_thrall(thrall : Actor, delta : float):
+	var old_vel = thrall.velocity
+	# Get the motion delta.
+	var motion_delta = ((thrall.animation_tree.get_root_motion_rotation_accumulator().inverse() * thrall.get_quaternion()) * thrall.animation_tree.get_root_motion_position() / delta) * 1
+	thrall.velocity = motion_delta
+	# Add the gravity.
+	if not thrall.is_on_floor():# && thrall.desired_move.y < 0.1:
+		thrall.velocity = old_vel + (motion_delta * delta)
+	thrall.velocity.y -= gravity * delta
+	thrall.quaternion = thrall.quaternion * ((thrall.animation_tree.get_root_motion_rotation() / delta) * 10)
+	# Actually move thrall

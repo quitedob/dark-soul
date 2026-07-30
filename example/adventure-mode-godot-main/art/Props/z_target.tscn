@@ -1,0 +1,34 @@
+[gd_scene format=3 uid="uid://b34jdvaqt8gbn"]
+
+[sub_resource type="Gradient" id="Gradient_0vf6r"]
+offsets = PackedFloat32Array(0.2549505, 0.3539604, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.27058825, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_4ico5"]
+gradient = SubResource("Gradient_0vf6r")
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+metadata/_snap_enabled = true
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sfdck"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+specular_mode = 2
+disable_ambient_light = true
+albedo_texture = SubResource("GradientTexture2D_4ico5")
+billboard_mode = 1
+billboard_keep_scale = true
+grow = true
+fixed_size = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_mqoav"]
+size = Vector2(0.05, 0.05)
+
+[node name="z_target" type="Node3D" unique_id=258481125]
+
+[node name="TargetReticle" type="MeshInstance3D" parent="." unique_id=359363474]
+material_override = SubResource("StandardMaterial3D_sfdck")
+mesh = SubResource("QuadMesh_mqoav")

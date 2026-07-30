@@ -1,0 +1,45 @@
+[gd_scene load_steps=10 format=3 uid="uid://nl3382vwsaev"]
+
+[ext_resource type="Script" uid="uid://3fyvhhrco24t" path="res://scripts/armament.gd" id="1_05eid"]
+[ext_resource type="PackedScene" uid="uid://cqxi7q25mnc50" path="res://prefabs/particles/bone_dust.tscn" id="2_fffj4"]
+[ext_resource type="PackedScene" uid="uid://c6uwjgcn5pnu8" path="res://art/Props/weapon_axe.glb" id="3_1y4f6"]
+[ext_resource type="PackedScene" uid="uid://d1kynsixmfk71" path="res://prefabs/particles/trail_weapon.tscn" id="3_271wk"]
+[ext_resource type="PackedScene" uid="uid://e4las240qute" path="res://prefabs/particles/metal_clang.tscn" id="3_ry28l"]
+[ext_resource type="Material" uid="uid://cfbryicsvmobm" path="res://art/materials/debug_hitbox_transparent.tres" id="4_d83eg"]
+[ext_resource type="Resource" uid="uid://diybpprbfvy0g" path="res://Modular Mobility/movesets/w_claymore_moveset.tres" id="4_u533v"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_lss0h"]
+radius = 0.15
+
+[sub_resource type="SphereMesh" id="SphereMesh_mh045"]
+material = ExtResource("4_d83eg")
+radius = 0.15
+height = 0.3
+
+[node name="axe" type="Node3D"]
+script = ExtResource("1_05eid")
+damage = 3
+hit_effect = ExtResource("2_fffj4")
+block_effect = ExtResource("3_ry28l")
+moveset = ExtResource("4_u533v")
+
+[node name="hitbox" type="ShapeCast3D" parent="."]
+transform = Transform3D(-3.55644e-07, 1.34806e-06, 1, -1.07288e-07, 1, 1.53976e-07, -1, 5.0962e-07, 4.89253e-07, -0.110456, -0.0539716, 0.000417695)
+shape = SubResource("SphereShape3D_lss0h")
+target_position = Vector3(0, -0.588, 0)
+collision_mask = 2
+collide_with_areas = true
+collide_with_bodies = false
+
+[node name="hitbox_vis" type="MeshInstance3D" parent="hitbox"]
+transform = Transform3D(1, 0, -2.98023e-08, 1.49012e-08, 1, 0, -1.78814e-07, 0, 1, -5.96046e-08, -0.588251, -2.38419e-07)
+visible = false
+mesh = SubResource("SphereMesh_mh045")
+skeleton = NodePath("../..")
+
+[node name="trail_weapon" parent="." instance=ExtResource("3_271wk")]
+transform = Transform3D(3.55644e-07, -1, -1.34806e-06, 1.07288e-07, -1.53976e-07, -1, 1, -4.89253e-07, -5.0962e-07, -0.0064599, -0.739954, 0.00041811)
+visible = false
+
+[node name="weapon_axe" parent="." instance=ExtResource("3_1y4f6")]
+transform = Transform3D(0.45, -3.93402e-08, -3.93403e-08, -3.93403e-08, -0.45, 3.43924e-15, -3.93403e-08, -2.11758e-22, -0.45, -1.12866e-08, -0.129104, 0)
