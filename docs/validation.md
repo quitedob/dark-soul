@@ -1,12 +1,12 @@
 # Validation
 
-Validated on **2026-07-29** using the exact requested engine binaries.
+Validated on **2026-07-30** using Godot 4.7.1. Project root for all `--path` arguments is `game/` (this repository: `e:/godot/darksoul/game`).
 
 ## Engine
 
 ```text
-D:\godot\Godot_v4.7.1-stable_win64.exe
-D:\godot\Godot_v4.7.1-stable_win64_console.exe
+E:\godot\Godot_v4.7.1-stable_win64.exe
+E:\godot\Godot_v4.7.1-stable_win64_console.exe
 ```
 
 Reported version:
@@ -19,59 +19,77 @@ Reported version:
 
 ### Script parsing
 
-Command pattern:
+Command pattern (recursive):
 
 ```bash
 for script in scripts/**/*.gd; do
-  "D:/godot/Godot_v4.7.1-stable_win64_console.exe" \
-    --headless --path "D:/godot/newproject" \
+  "E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+    --headless --path "e:/godot/darksoul/game" \
     --check-only --script "$script"
 done
 ```
 
-Result: `ALL_SCRIPTS_PARSE_OK`
+Result: `ALL_SCRIPTS_PARSE_OK` (re-run after large combat/campaign changes).
 
 ### Editor import
 
 ```bash
-"D:/godot/Godot_v4.7.1-stable_win64_console.exe" \
-  --headless --editor --path "D:/godot/newproject" --quit
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --editor --path "e:/godot/darksoul/game" --quit
 ```
-
-Result: completed successfully with no script or resource errors.
 
 ### Bounded runtime
 
 ```bash
-"D:/godot/Godot_v4.7.1-stable_win64_console.exe" \
-  --headless --path "D:/godot/newproject" --quit-after 180
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" --quit-after 180
 ```
-
-Result: completed successfully with no runtime errors.
 
 ### Gameplay smoke path
 
 ```bash
-"D:/godot/Godot_v4.7.1-stable_win64_console.exe" \
-  --headless --path "D:/godot/newproject" \
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
   --quit-after 600 -- --smoke-test
 ```
 
-Result: `ASHEN_HOLLOW_SMOKE_OK`, clean exit.
+Result: `ASHEN_HOLLOW_SMOKE_OK` when the smoke path is enabled.
 
-The smoke path verifies runtime construction, player ember changes, player damage and healing, enemy damage, interaction prompt visibility, guardian HUD visibility, death overlay visibility and cleanup, and transient message creation. The bounded runtime also exercises several seconds of physics, camera setup, responsive UI processing, and enemy state updates.
-
-### Core contract tests
+### Core / combat / campaign contracts
 
 ```bash
-"D:/godot/Godot_v4.7.1-stable_win64_console.exe" \
-  --headless --path "D:/godot/newproject/game" \
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
   --script tests/smoke/core_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/poise_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/chapter1_slice_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/death_loop_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/combat_contract_test.gd
 ```
 
-Result: `ASHEN_CORE_CONTRACTS_OK`
+Expected prints include `ASHEN_CORE_CONTRACTS_OK`, `ASHEN_POISE_CONTRACTS_OK`, `ASHEN_CHAPTER1_SLICE_CONTRACTS_OK`, `ASHEN_DEATH_LOOP_CONTRACTS_OK`.
 
-The contract tests verify: run state serialization round-trip, invalid data rejection, settings value sanitization, and host bridge protocol message parsing.
+### GUT unit tests
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  -s addons/gut/gut_cmdln.gd
+```
+
+Uses `.gutconfig.json` (`tests/unit/`, `tests/integration/`).
 
 ## Manual Test Checklist
 
@@ -80,24 +98,23 @@ Automated headless tests cannot judge game feel. In the graphical build, verify:
 - `WASD` movement follows camera orientation.
 - Mouse orbit starts behind the player and the spring arm avoids walls.
 - Light/heavy attacks spend different stamina amounts and hit only once per swing.
+- Standing poise absorbs light hits without stagger until the reserve empties.
+- Veilcraft/Ember melee spends Focus (not free stamina-zero spam).
+- Hit-stop freezes the struck/striking actors briefly without global `Engine.time_scale`.
+- Recovery dodge-cancel works on styles that author `dodge_cancel_seconds`.
 - Dodge moves in the intended direction and avoids damage only during its central interval.
+- Controller bindings work for move, attack, dodge, lock-on, and style cycle.
 - `Q` or middle mouse locks to a nearby living enemy and releases on death/range.
-- `E` activates and rests at the shrine.
-- The side lever raises the shortcut gate.
+- `E` activates and rests at the shrine; reload restores shrine respawn via `checkpoint_id`.
+- Chapter 1: `level_01_01` → `01_05` encounters, arena seal, boss `守炉灵·巨阙`, victory exit to `level_02_01`.
 - Death drops embers and respawns at the shrine after the overlay.
 - Touching the Lost Echo restores the dropped amount.
-- The guardian displays a health bar and victory overlay.
-- `Esc` pauses, focuses `RESUME`, and supports keyboard navigation.
-- `F1` shows accurate controls in readable action/input rows, and closing it restores the prior pause state.
-- The HUD remains unclipped and well-spaced at 1280×720 and at least one wider desktop window size.
-- Interaction prompts and guardian health do not overlap, and the projected lock marker stays centered on visible targets.
-- Death presentation clears after respawn; prompt and boss presentation remain hidden during death and victory states.
-- Prompt, message, ember, boss, death, and victory motion remains readable without becoming distracting.
+- `Esc` pauses; `F1` shows controls.
 
 ## Known Limitations
 
 - Visuals and sounds are generated primitives intended to validate systems, not final production assets.
-- The single-scene level is manually authored, not algorithmically generated.
-- No quest, NPC, or dialogue infrastructure exists.
+- Campaign levels beyond Chapter 1 still use placeholder encounters.
 - The `music_volume` setting in game settings is not yet wired to any audio bus.
+- Independent `GUARD_BROKEN` FSM state remains a target (E-08), not fully shipped.
 - Human playtesting is still required for combat balance, telegraph clarity, camera comfort, and accessibility.

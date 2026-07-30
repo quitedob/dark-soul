@@ -1,6 +1,6 @@
 # Attack and Moveset Data Schema
 
-> **Status:** Core Resources implemented (`AttackData` / `MovesetData` / factory); grip modes and charge tiers still pending.
+> **Status:** Core Resources implemented (`AttackData` / `MovesetData` / `ChargeProfile` / `WeaponData` / `WeaponArtData` / `ExecutionProfile`); Reliquary authored `.tres` present; grip/charge/context/guard-execution runtime shipped. AnimationTree root-motion is a straight-sword POC only.
 >
 > **Purpose:** Replace per-style scalar dictionaries and code-specific dispatch with composable Resources for attacks, movement actions, defensive tools, paired interactions, and weapon arts. Existing `CombatStyleData` remains a compatibility container until its gameplay fields are migrated.
 
@@ -371,6 +371,33 @@ Recommended defender resolution order:
 6. Apply Execution Break to an eligible weak point
 7. Emit hit feedback and chain result
 ```
+
+## Runtime Validation Audit (J-12 — 2026-07-30)
+
+Checked against `game/scripts/combat/data/` and player commit path:
+
+| Resource | Path | Status |
+|----------|------|--------|
+| `AttackData` | `attack_data.gd` | Present — timing, costs, hitbox, dodge_cancel, focus_cost, `validate()`, `to_hit_metadata()` |
+| `MovesetData` | `moveset_data.gd` | Present — context resolve + charged heavy |
+| `ChargeProfile` | `charge_profile.gd` | Present — tier hold thresholds |
+| `WeaponData` | `weapon_data.gd` | Present — grip flags + moveset slots |
+| `WeaponArtData` | `weapon_art_data.gd` | Present — class exists; not all arts fully migrated off `match` |
+| `ExecutionProfile` | `execution_profile.gd` | Present |
+| `GuardProfile` | `guard_profile.gd` | Present — still dual-owned with HandEquipment dicts |
+| `GrabProfile` | `grab_profile.gd` | Present — grab runtime incomplete |
+| `MovementActionProfile` | — | **Not a separate class yet**; dodge/backstep live on player + `CombatStyleData` |
+
+Ownership rules 1–3 and 8 are active via `CompatibilityMovesetFactory` → `_commit_attack` → `CombatArea`.
+
+Remaining gaps (tracked elsewhere):
+
+- A-06: finish weapon-art `match` removal  
+- A-07: HandEquipment → Resource references  
+- D-01: AnimationTree root motion beyond POC  
+- E-07: Guard Meter full ownership on `GuardProfile`
+
+Automated coverage: `tests/unit/combat/test_attack_moveset_schema.gd` (+ grip/charge smoke contracts).
 
 ## Migration Plan
 

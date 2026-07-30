@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/weapon_art_data.gd" id="1_njiu1"]
+[ext_resource type="Resource" path="res://resources/movesets/reliquary_guard_one_handed.tres" id="2_qkrh3"]
+[ext_resource type="Script" path="res://scripts/combat/data/weapon_data.gd" id="3_k6qas"]
+[ext_resource type="Resource" path="res://resources/movesets/reliquary_guard_two_handed.tres" id="4_lt8cv"]
+
+[sub_resource type="Resource" id="Resource_b2udh"]
+script = ExtResource("1_njiu1")
+art_id = &"reliquary_pierce"
+art_kind = &"pierce_thrust"
+
+[resource]
+script = ExtResource("3_k6qas")
+weapon_id = &"reliquary_guard"
+weapon_class_id = &"reliquary_guard"
+one_hand_moveset = ExtResource("2_qkrh3")
+two_hand_moveset = ExtResource("4_lt8cv")
+default_weapon_art = SubResource("Resource_b2udh")
+supports_two_handed = true

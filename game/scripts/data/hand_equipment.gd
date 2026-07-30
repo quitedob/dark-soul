@@ -19,7 +19,11 @@ const ITEMS := {
 		"hand": "left", "primary": "shield_guard", "secondary": "shield_parry",
 		"primary_label": "SHIELD GUARD", "secondary_label": "SHIELD PARRY",
 		"weapon_type": "shield",
-		"guard": {"absorption": 0.82, "stability": 0.72, "front_dot": 0.15},
+		"guard": {
+			"absorption": 0.82, "stability": 0.72, "front_dot": 0.15,
+			"max_guard_meter": 110.0, "direct_break_threshold": 78.0,
+			"guard_meter_damage_multiplier": 1.0, "stamina_damage_multiplier": 1.0,
+		},
 		"parry": {"startup": 0.40, "active": 0.20, "recovery": 0.60, "miss_penalty": 1.5, "cost": 10.0},
 		"parry_feedback": {"cue": "parry_shield", "message": "SHIELD PARRY", "vfx_scale": 0.8},
 		"mesh_shape": "shield", "mesh_color": "614725",
@@ -28,7 +32,11 @@ const ITEMS := {
 		"hand": "left", "primary": "shield_guard", "secondary": "shield_parry",
 		"primary_label": "BUCKLER GUARD", "secondary_label": "BUCKLER PARRY",
 		"weapon_type": "shield",
-		"guard": {"absorption": 0.62, "stability": 0.45, "front_dot": 0.15},
+		"guard": {
+			"absorption": 0.62, "stability": 0.45, "front_dot": 0.15,
+			"max_guard_meter": 70.0, "direct_break_threshold": 52.0,
+			"guard_meter_damage_multiplier": 1.25, "stamina_damage_multiplier": 1.15,
+		},
 		"parry": {"startup": 0.266, "active": 0.333, "recovery": 0.80, "miss_penalty": 2.0, "cost": 8.0},
 		"parry_feedback": {"cue": "parry_buckler", "message": "BUCKLER PARRY", "vfx_scale": 1.35},
 		"mesh_shape": "shield", "mesh_color": "5f8f72",
@@ -78,7 +86,11 @@ const ITEMS := {
 		"hand": "left", "primary": "spell_shield", "secondary": "stone_pulse",
 		"primary_label": "SPELL SHIELD", "secondary_label": "STONE PULSE",
 		"weapon_type": "catalyst",
-		"guard": {"absorption": 0.58, "stability": 0.55, "front_dot": 0.0},
+		"guard": {
+			"absorption": 0.58, "stability": 0.55, "front_dot": 0.0,
+			"max_guard_meter": 55.0, "direct_break_threshold": 48.0,
+			"guard_meter_damage_multiplier": 1.35, "stamina_damage_multiplier": 1.1,
+		},
 		"mesh_shape": "spirit_stone", "mesh_color": "668ee0",
 	},
 	"prayer_beads": {
@@ -96,6 +108,22 @@ const ITEMS := {
 
 static func get_item(item_id: String) -> Dictionary:
 	return ITEMS.get(item_id, {}).duplicate(true)
+
+
+static func get_guard_profile(item_id: String) -> Dictionary:
+	# 统一 Guard Meter 字段，供 GuardResolver 使用
+	var guard: Dictionary = ITEMS.get(item_id, {}).get("guard", {}).duplicate(true)
+	if guard.is_empty():
+		return {}
+	if not guard.has("max_guard_meter"):
+		guard["max_guard_meter"] = 100.0
+	if not guard.has("direct_break_threshold"):
+		guard["direct_break_threshold"] = 75.0
+	if not guard.has("guard_meter_damage_multiplier"):
+		guard["guard_meter_damage_multiplier"] = 1.0
+	if not guard.has("stamina_damage_multiplier"):
+		guard["stamina_damage_multiplier"] = 1.0
+	return guard
 
 
 static func get_parry_feedback(item_id: String) -> Dictionary:

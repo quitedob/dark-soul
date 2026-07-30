@@ -1,0 +1,193 @@
+[gd_resource type="Resource" script_class="MovesetData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/attack_data.gd" id="1_wirty"]
+[ext_resource type="Script" path="res://scripts/combat/data/charge_profile.gd" id="2_8ulu7"]
+[ext_resource type="Script" path="res://scripts/combat/data/moveset_data.gd" id="3_i7osk"]
+
+[sub_resource type="Resource" id="Resource_jnn1k"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_backstep"
+display_name_key = &"reliquary_guard_backstep"
+tags = Array[StringName]([&"melee", &"light", &"backstep", &"two_handed"])
+windup_seconds = 0.22579200000000002
+active_seconds = 0.14784
+recovery_seconds = 0.34085999999999994
+dodge_cancel_seconds = 0.136344
+stamina_cost = 29.7
+damage = 28.6
+poise_damage = 20.8
+guard_power = 35.88
+authored_displacement = Vector3(0, 0, 2.0059998)
+poise_modifier_active = 0.135
+
+[sub_resource type="Resource" id="Resource_meq5d"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_charge_1"
+display_name_key = &"reliquary_guard_charge_1"
+tags = Array[StringName]([&"melee", &"heavy", &"charged", &"two_handed"])
+windup_seconds = 0.6496000000000001
+active_seconds = 0.231
+recovery_seconds = 0.713
+dodge_cancel_seconds = 0.2852
+stamina_cost = 60.0
+damage = 49.4
+poise_damage = 44.2
+guard_power = 64.87
+authored_displacement = Vector3(0, 0, 3.304)
+poise_modifier_active = 0.27337500000000003
+
+[sub_resource type="Resource" id="Resource_2r626"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_charge_3"
+display_name_key = &"reliquary_guard_charge_3"
+tags = Array[StringName]([&"melee", &"heavy", &"charged", &"two_handed"])
+windup_seconds = 0.5521600000000001
+active_seconds = 0.231
+recovery_seconds = 0.713
+dodge_cancel_seconds = 0.2852
+stamina_cost = 87.0
+damage = 76.57
+poise_damage = 68.51
+guard_power = 100.54849999999999
+authored_displacement = Vector3(0, 0, 4.2952)
+poise_modifier_active = 0.493375
+
+[sub_resource type="Resource" id="Resource_mnuip"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_charge_2"
+display_name_key = &"reliquary_guard_charge_2"
+tags = Array[StringName]([&"melee", &"heavy", &"charged", &"two_handed"])
+windup_seconds = 0.597632
+active_seconds = 0.231
+recovery_seconds = 0.713
+dodge_cancel_seconds = 0.2852
+stamina_cost = 73.2
+damage = 63.232
+poise_damage = 56.57600000000001
+guard_power = 83.0336
+authored_displacement = Vector3(0, 0, 3.7996)
+poise_modifier_active = 0.39337500000000003
+
+[sub_resource type="Resource" id="Resource_a4n6f"]
+script = ExtResource("2_8ulu7")
+tier_one_attack = SubResource("Resource_meq5d")
+tier_two_attack = SubResource("Resource_mnuip")
+tier_three_attack = SubResource("Resource_2r626")
+
+[sub_resource type="Resource" id="Resource_u8hyc"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_falling"
+display_name_key = &"reliquary_guard_falling"
+tags = Array[StringName]([&"melee", &"heavy", &"falling", &"plunge", &"two_handed"])
+windup_seconds = 0.22736
+active_seconds = 1.35
+recovery_seconds = 0.6773499999999999
+dodge_cancel_seconds = 0.27093999999999996
+stamina_cost = 70.8
+damage = 66.69
+poise_damage = 59.67000000000001
+guard_power = 87.5745
+authored_displacement = Vector3(0, 0, 0.39648)
+launch_velocity_y = -12.0
+poise_modifier_active = 0.2025
+hitbox_radius = 1.05
+hitbox_height = 2.55
+hitbox_offset = Vector3(0, -0.1, -0.3)
+hitbox_until_land = true
+
+[sub_resource type="Resource" id="Resource_fjhk1"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_jump"
+display_name_key = &"reliquary_guard_jump"
+tags = Array[StringName]([&"melee", &"light", &"jump", &"two_handed"])
+windup_seconds = 0.22579200000000002
+active_seconds = 0.1932
+recovery_seconds = 0.3933
+dodge_cancel_seconds = 0.15732000000000002
+stamina_cost = 33.0
+damage = 31.460000000000004
+poise_damage = 22.880000000000003
+guard_power = 39.468
+authored_displacement = Vector3(0, 0, 0.826)
+poise_modifier_active = 0.135
+hitbox_radius = 0.95
+hitbox_height = 1.55
+hitbox_offset = Vector3(0, 1.05, 0)
+hitbox_socket = &"weapon_tip"
+
+[sub_resource type="Resource" id="Resource_l0061"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_heavy"
+display_name_key = &"reliquary_guard_heavy"
+tags = Array[StringName]([&"melee", &"heavy", &"two_handed"])
+windup_seconds = 0.6496000000000001
+active_seconds = 0.231
+recovery_seconds = 0.713
+dodge_cancel_seconds = 0.2852
+stamina_cost = 60.0
+damage = 49.4
+poise_damage = 44.2
+guard_power = 64.87
+authored_displacement = Vector3(0, 0, 3.304)
+poise_modifier_active = 0.2025
+
+[sub_resource type="Resource" id="Resource_k0smw"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_light"
+display_name_key = &"reliquary_guard_light"
+tags = Array[StringName]([&"melee", &"light", &"two_handed"])
+windup_seconds = 0.31360000000000005
+active_seconds = 0.168
+recovery_seconds = 0.43699999999999994
+dodge_cancel_seconds = 0.17479999999999998
+stamina_cost = 33.0
+damage = 28.6
+poise_damage = 20.8
+guard_power = 35.88
+authored_displacement = Vector3(0, 0, 2.36)
+poise_modifier_active = 0.135
+
+[sub_resource type="Resource" id="Resource_75gft"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_roll"
+display_name_key = &"reliquary_guard_roll"
+tags = Array[StringName]([&"melee", &"light", &"roll", &"two_handed"])
+windup_seconds = 0.21324800000000005
+active_seconds = 0.15456
+recovery_seconds = 0.35833999999999994
+dodge_cancel_seconds = 0.143336
+stamina_cost = 31.349999999999998
+damage = 30.316000000000003
+poise_damage = 22.048000000000002
+guard_power = 38.0328
+authored_displacement = Vector3(0, 0, 2.9499998)
+poise_modifier_active = 0.135
+
+[sub_resource type="Resource" id="Resource_upxwi"]
+script = ExtResource("1_wirty")
+action_id = &"reliquary_guard_sprint"
+display_name_key = &"reliquary_guard_sprint"
+tags = Array[StringName]([&"melee", &"light", &"sprint", &"two_handed"])
+windup_seconds = 0.25715200000000005
+active_seconds = 0.168
+recovery_seconds = 0.38455999999999996
+dodge_cancel_seconds = 0.153824
+stamina_cost = 35.64
+damage = 32.032000000000004
+poise_damage = 23.296000000000003
+guard_power = 40.18560000000001
+authored_displacement = Vector3(0, 0, 3.6579998)
+poise_modifier_active = 0.135
+
+[resource]
+script = ExtResource("3_i7osk")
+moveset_id = &"reliquary_guard_two_handed_moveset"
+grip_mode = &"two_handed"
+neutral_light = SubResource("Resource_k0smw")
+neutral_heavy = SubResource("Resource_l0061")
+charged_heavy = SubResource("Resource_a4n6f")
+sprint_attack = SubResource("Resource_upxwi")
+roll_attack = SubResource("Resource_75gft")
+backstep_attack = SubResource("Resource_jnn1k")
+jump_attack = SubResource("Resource_fjhk1")
+falling_attack = SubResource("Resource_u8hyc")

@@ -74,6 +74,15 @@ Assert-LastExitCode "Godot context attack contracts"
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/grip_charge_contract_test.gd"
 Assert-LastExitCode "Godot grip/charge contracts"
 
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/guard_execution_contract_test.gd"
+Assert-LastExitCode "Godot guard/execution contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/combat_polish_contract_test.gd"
+Assert-LastExitCode "Godot combat polish contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/boss_weakpoint_contract_test.gd"
+Assert-LastExitCode "Godot boss weak-point contracts"
+
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/lock_on_contract_test.gd"
 Assert-LastExitCode "Godot lock-on contracts"
 

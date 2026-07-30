@@ -49,6 +49,12 @@ static func create(style: CombatStyleData, grip_mode: StringName = &"one_handed"
 
 
 static func create_weapon(style: CombatStyleData) -> WeaponData:
+	# 优先加载 authored Reliquary 等武器资源
+	var authored_path := "res://resources/weapons/%s_weapon.tres" % String(style.style_id)
+	if ResourceLoader.exists(authored_path):
+		var authored := load(authored_path)
+		if authored is WeaponData and authored.validate().is_empty():
+			return authored
 	var weapon := WeaponData.new()
 	weapon.weapon_id = style.style_id
 	weapon.weapon_class_id = style.style_id
@@ -58,13 +64,35 @@ static func create_weapon(style: CombatStyleData) -> WeaponData:
 	weapon.supports_paired = flags["paired"]
 	weapon.default_grip = flags["default"]
 	weapon.critical_multiplier = float(flags["crit"])
+	weapon.supports_backstab = true
+	weapon.supports_riposte = true
 	if weapon.supports_one_handed:
 		weapon.one_hand_moveset = create(style, &"one_handed")
 	if weapon.supports_two_handed:
 		weapon.two_hand_moveset = create(style, &"two_handed")
 	if weapon.supports_paired:
 		weapon.paired_moveset = create(style, &"paired")
+	weapon.default_weapon_art = _style_weapon_art(style)
 	return weapon
+
+
+static func _style_weapon_art(style: CombatStyleData) -> WeaponArtData:
+	match style.style_id:
+		&"reliquary_guard":
+			return WeaponArtData.make(&"pierce_thrust", &"reliquary_pierce")
+		&"twin_colossi":
+			var art := WeaponArtData.make(&"colossal_leap", &"twin_colossal_leap")
+			art.entry_attack = _leap(style)
+			return art
+		&"crescent_pair":
+			var art := WeaponArtData.make(&"crescent_leap", &"crescent_leap")
+			art.entry_attack = _leap(style)
+			return art
+		&"veilcraft":
+			return WeaponArtData.make(&"arcane_barrage", &"veil_barrage")
+		&"ember_rite":
+			return WeaponArtData.make(&"divine_smite", &"ember_smite")
+	return null
 
 
 static func _style_grip_flags(style_id: StringName) -> Dictionary:
@@ -152,6 +180,8 @@ static func _charged_tier(
 	attack.authored_displacement = Vector3(0.0, 0.0, heavy_base.authored_displacement.z * lunge_mul)
 	attack.guard_power = attack.damage + attack.poise_damage * 0.35
 	attack.poise_modifier_active = minf(heavy_base.poise_modifier_active * float(g["wam"]) + extra_wam, 1.5)
+	# 蓄力对 Boss Execution Break 额外贡献
+	attack.execution_break_damage = maxf(heavy_base.poise_damage * 0.45 * damage_mul, 8.0)
 	if &"charged" not in attack.tags:
 		attack.tags.append(&"charged")
 	if &"heavy" not in attack.tags:
@@ -167,6 +197,9 @@ static func _attack(style: CombatStyleData, heavy: bool, g: Dictionary) -> Attac
 	attack.active_seconds = (style.active_heavy if heavy else style.active_light) * float(g["active"])
 	attack.recovery_seconds = (style.recovery_heavy if heavy else style.recovery_light) * float(g["recovery"])
 	attack.stamina_cost = (style.stamina_heavy if heavy else style.stamina_light) * float(g["stamina"])
+	# 法术近战走 Focus；体力可保持 0
+	if style.style_id == &"veilcraft" or style.style_id == &"ember_rite":
+		attack.focus_cost = 18.0 if heavy else 10.0
 	attack.damage = (style.damage_heavy if heavy else style.damage_light) * float(g["damage"])
 	attack.poise_damage = (style.stagger_heavy if heavy else style.stagger_light) * float(g["poise"])
 	attack.guard_power = attack.damage + attack.poise_damage * 0.35
@@ -174,6 +207,14 @@ static func _attack(style: CombatStyleData, heavy: bool, g: Dictionary) -> Attac
 	attack.authored_displacement = Vector3(0.0, 0.0, lunge)
 	attack.poise_modifier_active = (style.wam_heavy if heavy else style.wam_light) * float(g["wam"])
 	attack.tags = [&"melee", &"heavy" if heavy else &"light"]
+	attack.execution_break_damage = attack.poise_damage * (0.55 if heavy else 0.25)
+	# Twin：零闪避取消；Crescent：宽取消窗；其余 recovery 尾 40%
+	if style.style_id == &"twin_colossi":
+		attack.dodge_cancel_seconds = -1.0
+	elif style.style_id == &"crescent_pair":
+		attack.dodge_cancel_seconds = attack.recovery_seconds * 0.65
+	else:
+		attack.dodge_cancel_seconds = attack.recovery_seconds * 0.4
 	_set_hitbox(attack, 1.25, 1.45, Vector3(0.0, 1.0, -1.0))
 	return attack
 
@@ -192,6 +233,7 @@ static func _leap(style: CombatStyleData) -> AttackData:
 	leap.authored_displacement = Vector3(0.0, 0.0, style.leap_lunge)
 	leap.launch_velocity_y = style.leap_velocity_y
 	leap.poise_modifier_active = style.wam_leap
+	leap.execution_break_damage = style.leap_stagger * 0.7
 	leap.tags = [&"melee", &"heavy", &"leap", &"weapon_art"]
 	return leap
 
@@ -233,11 +275,17 @@ static func _derive(
 	attack.damage = maxf(base.damage * damage_mul, 8.0 if base.damage <= 0.0 else base.damage * damage_mul)
 	attack.poise_damage = maxf(base.poise_damage * damage_mul, 6.0 if base.poise_damage <= 0.0 else base.poise_damage * damage_mul)
 	attack.stamina_cost = maxf(base.stamina_cost * stamina_mul, 10.0 if base.stamina_cost <= 0.0 else base.stamina_cost * stamina_mul)
+	attack.focus_cost = base.focus_cost
 	attack.guard_power = attack.damage + attack.poise_damage * 0.35
 	attack.authored_displacement = Vector3(0.0, 0.0, base.authored_displacement.z * lunge_mul)
 	attack.launch_velocity_y = launch_y
 	attack.poise_modifier_active = base.poise_modifier_active
 	attack.tags = tags.duplicate()
+	# 派生招继承取消窗比例
+	if base.dodge_cancel_seconds >= 0.0:
+		attack.dodge_cancel_seconds = attack.recovery_seconds * 0.4
+	else:
+		attack.dodge_cancel_seconds = -1.0
 	attack.hitbox_radius = base.hitbox_radius
 	attack.hitbox_height = base.hitbox_height
 	attack.hitbox_offset = base.hitbox_offset

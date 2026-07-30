@@ -82,18 +82,35 @@ IDLE -> CHASE -> WINDUP -> ACTIVE -> RECOVERY -> CHASE
 CHASE -> RETURN -> IDLE
 ANY_DAMAGEABLE -> STAGGER -> CHASE
 ANY_DAMAGEABLE -> DEAD -> RESET -> IDLE
-Boss (Cinder Guardian): Phase 1 → Phase 2 at ≤50% HP (faster windups, higher damage, visual/audio transition)
+Boss (`boss_giant_gate`): content-driven phases from `Chapter1Content.boss().phases` (phase 2 at ≤60% HP when authored); HUD shows localized boss display name.
 ```
 
 Gameplay timers determine current damage windows and invulnerability. Procedural poses visualize those states but do not decide whether a hit is valid. The player scene currently has no `AnimationTree`; root motion, paired executions, and grabs remain target architecture.
 
 ## Combat Data Ownership
 
-- `CombatStyleData` and five `.tres` files currently own ordinary light/heavy values.
-- Compatibility `STYLE_TIMING` data still owns leap, dodge, and action-armor behavior; this split ownership is tracked as A-02 partial work.
+- `CombatStyleData` and five `.tres` files own ordinary light/heavy, leap, dodge, and action-armor values (A-01/A-02 done).
+- Spell cast config is owned by `PlayerCombatData.SPELL_CONFIG`; player-local duplicate dict removed (A-04 minimal).
+- Spell-style melee (Veilcraft/Ember) spends `AttackData.focus_cost` via `_commit_attack`.
+- Standing poise uses continuous `poise_health` via `PoiseResolver` (WAM=0 still absorbs hits).
 - `HandEquipment` owns current hand action IDs plus guard/parry dictionaries.
-- `CombatArea` owns the normalized ordinary-hit boundary and one-hit-per-swing deduplication.
-- Future `AttackData`, `MovesetData`, `GuardProfile`, `ExecutionProfile`, and `GrabProfile` ownership is defined in [Attack and Moveset Data Schema](systems/attack-moveset-data-schema.md).
+- `CombatArea` owns the normalized ordinary-hit boundary and one-hit-per-swing deduplication; heavy feedback prefers `is_heavy`/tags.
+- Future richer `WeaponArtData` / `GuardProfile` ownership is defined in [Attack and Moveset Data Schema](systems/attack-moveset-data-schema.md).
+
+## Focus Resource
+
+Alongside stamina, the player has a Focus pool (`max_focus` / `focus`). Cast spells and spell-style melee consume Focus; locomotion regenerates it slowly. Canonical cast costs live in `scripts/data/player_combat_data.gd`. Full reference: [Focus Resource System](systems/focus-resource.md).
+
+## Script Layout
+
+| Path | Role |
+|------|------|
+| `scripts/player/` | Player FSM and helpers |
+| `scripts/combat/` | Guard/Poise/HitStop/LockOn, moveset schema, chapter factories |
+| `scripts/data/` | Chapter content, combat styles, equipment dictionaries |
+| `scripts/core/` | Save, settings, localization, input, safe placement |
+| `scripts/world/` | Campaign runtime, module behaviors, level builder |
+| `scripts/ui/` / `scripts/app/` | HUD helpers, host bridge |
 
 ## Data Flow
 

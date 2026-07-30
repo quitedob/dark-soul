@@ -3,6 +3,12 @@ extends CharacterBody3D
 signal health_changed(current, maximum)
 signal defeated(enemy, reward, is_guardian)
 signal engagement_changed(enemy, is_guardian, engaged)
+signal execution_break_changed(current, maximum)
+signal story_threshold_reached(story_flag: StringName, health_ratio: float)
+signal grab_started(target)
+signal grab_ended(target)
+signal weak_point_exposed(enemy)
+signal story_resolution_entered(enemy)
 
 enum State {
 	IDLE,
@@ -11,8 +17,14 @@ enum State {
 	ACTIVE,
 	RECOVERY,
 	STAGGER,
-	RETURN,
+	PARRY_VULNERABLE,
+	GUARD_BROKEN,
+	WEAK_POINT_EXPOSED,
+	GRAB_WINDUP,
+	GRAB_ACTIVE,
+	GRAB_RECOVERY,
 	DEAD,
+	RETURN,
 }
 
 enum EnemyType {
@@ -25,7 +37,12 @@ const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
 const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
 const ChapterEnemyFactory = preload("res://scripts/combat/enemy_factory.gd")
+const BossCatalog = preload("res://scripts/combat/data/boss_execution_catalog.gd")
+const GrabProfileScript = preload("res://scripts/combat/data/grab_profile.gd")
+const GrabPairedDirectorScript = preload("res://scripts/combat/grab_paired_director.gd")
 const AI_DECISION_INTERVAL := 0.1
+const WEAK_POINT_EXPOSE_DEFAULT := 3.2
+const GRAB_CHANCE := 0.22
 
 var world_node: Node
 var target_node: Node3D
@@ -52,6 +69,24 @@ var poise_limit := 24.0
 var poise := 0.0
 var poise_reset_time := 0.0
 var stagger_duration := 0.48
+var supports_backstab := true
+var supports_riposte := true
+var _execution_claimer: Node = null
+var _execution_claim_time := 0.0
+const PARRY_VULN_SECONDS := 2.0
+const GUARD_BROKEN_SECONDS := 2.2
+const HEAVY_GUARD_BREAK_POWER := 40.0
+var boss_break_profile = null
+var max_execution_break := 100.0
+var execution_break := 0.0
+var _grab_profile = null
+var _grab_area: Area3D = null
+var _grab_shape: CollisionShape3D = null
+var _grab_target: Node3D = null
+var _grab_damage_applied := false
+var _grab_director = null
+var _story_resolution := false
+
 
 var state: State = State.IDLE
 var state_time := 0.0
@@ -64,6 +99,10 @@ var _phase_two_played := false
 var _heal_speed_id := 0
 const PHASE_TWO_THRESHOLD := 0.5
 const PHASE_THREE_THRESHOLD := 0.25
+# 内容驱动阶段：threshold<0 表示用默认常量；attacks 按阶段索引
+var _content_phase_two_threshold := -1.0
+var _content_phase_three_threshold := -1.0
+var _content_phase_attacks: Dictionary = {}
 var attack_windup := 0.55
 var attack_active := 0.18
 var attack_recovery := 0.70
@@ -110,6 +149,9 @@ func setup(world, target, audio, spawn_position, is_guardian = false, new_type: 
 		enemy_type = new_type
 	configured = true
 	_visuals_built_key = ""
+	if guardian and boss_break_profile == null:
+		content_id = "boss_giant_gate" if content_id.is_empty() else content_id
+		_setup_boss_break_profile()
 	if is_inside_tree():
 		_ensure_nodes()
 		_apply_tuning()
@@ -121,7 +163,43 @@ func setup_from_content(world, target, audio, spawn_position, content: Dictionar
 	chapter_content = content.duplicate(true)
 	content_id = String(content.get("id", ""))
 	_attack_profile = Dictionary(content.get("attack", {}))
+	_parse_boss_phases(content)
 	setup(world, target, audio, spawn_position, is_guardian, EnemyType.HOLLOW_SENTINEL)
+	if is_guardian:
+		_setup_boss_break_profile()
+
+
+func _setup_boss_break_profile() -> void:
+	boss_break_profile = BossCatalog.profile_for_boss_id(content_id)
+	if boss_break_profile == null:
+		boss_break_profile = BossCatalog.make_giant_gate()
+	max_execution_break = float(boss_break_profile.max_execution_break)
+	execution_break = 0.0
+	supports_backstab = false
+	supports_riposte = false
+	_grab_profile = GrabProfileScript.make_boss_default() if bool(boss_break_profile.grab_enabled) else null
+	execution_break_changed.emit(execution_break, max_execution_break)
+
+
+func _parse_boss_phases(content: Dictionary) -> void:
+	# 解析 ChapterContent.boss().phases 为阈值与招式表
+	_content_phase_two_threshold = -1.0
+	_content_phase_three_threshold = -1.0
+	_content_phase_attacks.clear()
+	var phases = content.get("phases", {})
+	if not phases is Dictionary or phases.is_empty():
+		return
+	for key in phases.keys():
+		var phase_num := int(key)
+		var phase_data: Dictionary = phases[key]
+		if phase_data.is_empty():
+			continue
+		_content_phase_attacks[phase_num] = phase_data.get("attacks", [])
+		var threshold := float(phase_data.get("threshold", -1.0))
+		if phase_num == 2 and threshold >= 0.0:
+			_content_phase_two_threshold = threshold
+		elif phase_num == 3 and threshold >= 0.0:
+			_content_phase_three_threshold = threshold
 
 
 func _ready() -> void:
@@ -138,11 +216,25 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	# HitStop：冻本实体 AI/状态推进，重力与滑动保留
+	if _visual_frozen:
+		if not is_on_floor():
+			velocity.y -= gravity * delta
+		else:
+			velocity.y = minf(velocity.y, 0.0)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		return
 	if poise_reset_time > 0.0:
 		poise_reset_time -= delta
 		if poise_reset_time <= 0.0:
 			poise = 0.0
 	state_time = maxf(state_time - delta, 0.0)
+	if _execution_claim_time > 0.0:
+		_execution_claim_time = maxf(_execution_claim_time - delta, 0.0)
+		if _execution_claim_time <= 0.0:
+			_release_execution_claim()
 	navigation_refresh -= delta
 	if navigation_refresh <= 0.0:
 		_refresh_decision_cache()
@@ -159,12 +251,16 @@ func reset_enemy() -> void:
 	_ensure_nodes()
 	_apply_tuning()
 	combat_area.end_swing()
+	_release_execution_claim()
 	_set_engaged(false)
 	state = State.IDLE
 	state_time = 0.0
 	state_duration = 0.0
 	health = max_health
 	poise = 0.0
+	execution_break = 0.0
+	execution_break_changed.emit(execution_break, max_execution_break)
+	_end_grab()
 	poise_reset_time = 0.0
 	attack_index = 0
 	_phase = 1
@@ -191,16 +287,37 @@ func reset_enemy() -> void:
 
 
 func receive_hit(damage, stagger, hit_direction, source) -> void:
+	receive_hit_payload({
+		"damage": damage,
+		"stagger": stagger,
+		"poise": stagger,
+		"direction": hit_direction,
+		"source": source,
+		"execution_break_damage": maxf(float(stagger), 0.0) * 0.35,
+		"tags": [],
+		"blockable": true,
+		"parryable": true,
+	})
+
+
+func receive_hit_payload(payload: Dictionary) -> void:
 	if state == State.DEAD:
 		return
-	var incoming_damage := maxf(float(damage), 0.0)
-	var incoming_stagger := maxf(float(stagger), 0.0)
+	# 处决占用期间不受普通命中打断
+	if _execution_claimer != null and is_instance_valid(_execution_claimer):
+		return
+	if state in [State.GRAB_WINDUP, State.GRAB_ACTIVE]:
+		return
+	var incoming_damage := maxf(float(payload.get("damage", 0.0)), 0.0)
+	var incoming_stagger := maxf(float(payload.get("stagger", payload.get("poise", 0.0))), 0.0)
+	var guard_power := incoming_damage + incoming_stagger * 0.35
+	var source = payload.get("source")
 	health = maxf(health - incoming_damage, 0.0)
 	health_changed.emit(health, max_health)
 	_play_audio("hurt", -8.0, 0.82 if guardian else 1.0)
-	if guardian and not _phase_transition_played and get_health_ratio() <= PHASE_TWO_THRESHOLD:
+	if guardian and not _phase_transition_played and get_health_ratio() <= _phase_two_cut():
 		_trigger_phase_transition()
-	if guardian and not _phase_two_played and get_health_ratio() <= PHASE_THREE_THRESHOLD:
+	if guardian and not _phase_two_played and get_health_ratio() <= _phase_three_cut():
 		_trigger_phase_transition()
 	if health <= 0.0:
 		_die()
@@ -209,17 +326,54 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 		target_node = source
 		navigation_refresh = 0.0
 	_set_engaged(true)
+	_apply_execution_break_from_payload(payload)
 	poise += incoming_stagger
 	poise_reset_time = 1.6
 	var direction := Vector3.ZERO
+	var hit_direction = payload.get("direction", Vector3.ZERO)
 	if hit_direction is Vector3:
 		direction = hit_direction
 	direction.y = 0.0
 	if direction.length_squared() > 0.001:
 		knockback_velocity = direction.normalized() * (1.8 if guardian else 3.0)
+	if state == State.WEAK_POINT_EXPOSED:
+		return
+	if (
+		not guardian
+		and supports_riposte
+		and poise >= poise_limit
+		and guard_power >= HEAVY_GUARD_BREAK_POWER
+	):
+		poise = 0.0
+		_change_state(State.GUARD_BROKEN, GUARD_BROKEN_SECONDS)
+		return
 	if poise >= poise_limit:
 		poise = 0.0
 		_change_state(State.STAGGER, stagger_duration)
+
+
+func _apply_execution_break_from_payload(payload: Dictionary) -> void:
+	if not guardian or boss_break_profile == null:
+		return
+	if state == State.WEAK_POINT_EXPOSED:
+		return
+	var amount := maxf(float(payload.get("execution_break_damage", 0.0)), 0.0)
+	if amount <= 0.0:
+		amount = maxf(float(payload.get("stagger", payload.get("poise", 0.0))), 0.0) * 0.3
+	var tags = payload.get("tags", [])
+	if tags is Array:
+		if &"charged" in tags or "charged" in tags:
+			amount *= float(boss_break_profile.charged_break_bonus)
+		if &"leap" in tags or "leap" in tags:
+			amount *= float(boss_break_profile.leap_break_bonus)
+		if &"weak_point" in tags or "weak_point" in tags:
+			amount *= 1.8
+	execution_break = minf(execution_break + amount, max_execution_break)
+	execution_break_changed.emit(execution_break, max_execution_break)
+	if execution_break >= max_execution_break - 0.001:
+		execution_break = 0.0
+		execution_break_changed.emit(execution_break, max_execution_break)
+		_change_state(State.WEAK_POINT_EXPOSED, float(boss_break_profile.expose_seconds))
 
 
 func receive_parry(source: Node = null) -> void:
@@ -231,8 +385,98 @@ func receive_parry(source: Node = null) -> void:
 	velocity = Vector3.ZERO
 	knockback_velocity = Vector3.ZERO
 	poise = 0.0
+	_release_execution_claim()
 	_play_audio("hurt", -5.0, 0.68 if guardian else 0.82)
-	_change_state(State.STAGGER, 1.05 if guardian else 1.35)
+	if guardian or not supports_riposte:
+		_change_state(State.STAGGER, 1.05 if guardian else 1.35)
+	else:
+		_change_state(State.PARRY_VULNERABLE, PARRY_VULN_SECONDS)
+
+
+func is_execution_candidate(kind: StringName) -> bool:
+	if state == State.DEAD:
+		return false
+	if _execution_claimer != null and is_instance_valid(_execution_claimer):
+		return false
+	match kind:
+		&"weak_point":
+			return guardian and state == State.WEAK_POINT_EXPOSED
+		&"parry":
+			return (not guardian) and supports_riposte and state == State.PARRY_VULNERABLE
+		&"guard_break":
+			return (not guardian) and supports_riposte and state == State.GUARD_BROKEN
+		&"back":
+			return (not guardian) and supports_backstab and state not in [
+				State.DEAD, State.WINDUP, State.ACTIVE, State.PARRY_VULNERABLE,
+				State.GUARD_BROKEN, State.WEAK_POINT_EXPOSED, State.GRAB_WINDUP, State.GRAB_ACTIVE
+			]
+	return false
+
+
+func get_boss_break_profile():
+	return boss_break_profile
+
+
+func try_claim_execution(claimer: Node, duration: float = 2.8) -> bool:
+	if claimer == null or not is_instance_valid(claimer):
+		return false
+	if _execution_claimer != null and is_instance_valid(_execution_claimer) and _execution_claimer != claimer:
+		return false
+	_execution_claimer = claimer
+	_execution_claim_time = duration
+	velocity = Vector3.ZERO
+	knockback_velocity = Vector3.ZERO
+	return true
+
+
+func release_execution_claim(claimer: Node = null) -> void:
+	if claimer != null and _execution_claimer != claimer:
+		return
+	_release_execution_claim()
+
+
+func apply_execution_damage(amount: float, allow_lethal: bool = true) -> void:
+	if state == State.DEAD:
+		return
+	var dmg := maxf(amount, 0.0)
+	var floor_ratio := 0.05
+	if boss_break_profile != null:
+		floor_ratio = float(boss_break_profile.story_floor_ratio)
+	var floor_hp := maxf(max_health * floor_ratio, 1.0)
+	if not allow_lethal or (guardian and boss_break_profile != null and not bool(boss_break_profile.allow_lethal_on_execution)):
+		health = maxf(health - dmg, floor_hp)
+		if health <= floor_hp + 0.01:
+			story_threshold_reached.emit(
+				boss_break_profile.story_flag if boss_break_profile != null else &"story",
+				get_health_ratio()
+			)
+	else:
+		health = maxf(health - dmg, 0.0)
+	health_changed.emit(health, max_health)
+	_play_audio("hurt", -4.0, 0.7)
+	if health <= 0.0:
+		_die()
+	elif state == State.WEAK_POINT_EXPOSED:
+		_change_state(State.STAGGER, 0.85)
+
+
+func get_execution_anchor(anchor: StringName) -> Vector3:
+	if boss_break_profile != null and (
+		anchor == boss_break_profile.weak_point_anchor
+		or anchor in [&"furnace_core", &"chest_eye", &"tail_root", &"fusion_core", &"star_core"]
+	):
+		var local: Vector3 = boss_break_profile.weak_point_offset
+		return global_position + global_transform.basis * local
+	match anchor:
+		&"back":
+			return global_position - (-global_transform.basis.z) * 0.55 + Vector3.UP * 1.05
+		_:
+			return global_position + (-global_transform.basis.z) * 0.35 + Vector3.UP * 1.15
+
+
+func _release_execution_claim() -> void:
+	_execution_claimer = null
+	_execution_claim_time = 0.0
 
 
 func on_player_healing() -> void:
@@ -330,6 +574,41 @@ func _update_state(delta: float) -> void:
 					if has_target and not _target_is_in_sanctuary()
 					else State.RETURN
 				)
+		State.PARRY_VULNERABLE, State.GUARD_BROKEN:
+			# 易处决窗：定身等待处决或超时恢复
+			_slow_horizontal(delta, acceleration * 2.0)
+			knockback_velocity = knockback_velocity.move_toward(Vector3.ZERO, 10.0 * delta)
+			if state_time <= 0.0:
+				_change_state(
+					State.CHASE
+					if has_target and not _target_is_in_sanctuary()
+					else State.RETURN
+				)
+		State.WEAK_POINT_EXPOSED:
+			_slow_horizontal(delta, acceleration * 2.4)
+			knockback_velocity = Vector3.ZERO
+			if state_time <= 0.0:
+				_change_state(State.CHASE if has_target else State.RETURN)
+		State.GRAB_WINDUP:
+			_slow_horizontal(delta, acceleration * 1.5)
+			if has_target:
+				_face_point(target_position, delta * 8.0)
+			_update_grab_area_pose()
+			if state_time <= 0.0:
+				if _try_resolve_grab_capture():
+					_change_state(State.GRAB_ACTIVE, float(_grab_profile.hold_seconds) if _grab_profile else 1.4)
+				else:
+					_change_state(State.GRAB_RECOVERY, float(_grab_profile.recovery_on_miss_seconds) if _grab_profile else 1.1)
+		State.GRAB_ACTIVE:
+			_slow_horizontal(delta, acceleration * 3.0)
+			_update_grab_hold(delta)
+			if state_time <= 0.0:
+				_end_grab()
+				_change_state(State.RECOVERY, 0.55)
+		State.GRAB_RECOVERY:
+			_slow_horizontal(delta, acceleration)
+			if state_time <= 0.0:
+				_change_state(State.CHASE if has_target else State.RETURN)
 		State.RETURN:
 			_set_engaged(false)
 			var home_offset := spawn_origin - global_position
@@ -399,8 +678,97 @@ func _safe_navigation_direction(target_position: Vector3) -> Vector3:
 
 
 func _start_attack() -> void:
+	# Boss 近距概率进入独立抓投前摇（不走 CombatArea）
+	if (
+		guardian
+		and _grab_profile != null
+		and _cached_distance_to_target <= 2.4
+		and state == State.CHASE
+		and randf() < GRAB_CHANCE
+	):
+		_begin_grab_telegraph()
+		return
 	_select_attack_profile()
 	_change_state(State.WINDUP, attack_windup)
+
+
+func _begin_grab_telegraph() -> void:
+	_ensure_grab_area()
+	_grab_damage_applied = false
+	_grab_target = null
+	if _grab_area != null:
+		_grab_area.monitoring = true
+	_change_state(State.GRAB_WINDUP, float(_grab_profile.telegraph_seconds))
+
+
+func _ensure_grab_area() -> void:
+	if _grab_area != null:
+		return
+	_grab_area = Area3D.new()
+	_grab_area.name = "GrabCapture"
+	_grab_area.collision_layer = 0
+	_grab_area.collision_mask = 2  # player layer
+	_grab_area.monitoring = false
+	_grab_area.monitorable = false
+	add_child(_grab_area)
+	_grab_shape = CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = float(_grab_profile.capture_radius) if _grab_profile else 1.4
+	_grab_shape.shape = sphere
+	_grab_area.add_child(_grab_shape)
+
+
+func _update_grab_area_pose() -> void:
+	if _grab_area == null:
+		return
+	var forward := -global_transform.basis.z
+	_grab_area.position = Vector3(0, 1.1, 0) + forward * 1.1
+
+
+func _try_resolve_grab_capture() -> bool:
+	if _grab_area == null or target_node == null or not is_instance_valid(target_node):
+		return false
+	_update_grab_area_pose()
+	for body in _grab_area.get_overlapping_bodies():
+		if body == target_node or (body is Node3D and body.is_in_group("player")):
+			_grab_target = body
+			grab_started.emit(_grab_target)
+			if _grab_target.has_method("begin_grabbed"):
+				_grab_target.begin_grabbed(self, float(_grab_profile.hold_seconds) if _grab_profile else 1.4)
+			return true
+	# 距离兜底：前摇结束仍贴近则抓取
+	if _horizontal_distance(global_position, target_node.global_position) <= float(_grab_profile.capture_radius) + 0.35:
+		_grab_target = target_node
+		grab_started.emit(_grab_target)
+		if _grab_target.has_method("begin_grabbed"):
+			_grab_target.begin_grabbed(self, float(_grab_profile.hold_seconds) if _grab_profile else 1.4)
+		return true
+	return false
+
+
+func _update_grab_hold(_delta: float) -> void:
+	if _grab_target == null or not is_instance_valid(_grab_target):
+		return
+	var hold_point := global_position + (-global_transform.basis.z) * 1.05 + Vector3.UP * 1.15
+	_grab_target.global_position = _grab_target.global_position.lerp(hold_point, 0.35)
+	if not _grab_damage_applied and _grab_profile != null:
+		var elapsed := state_duration - state_time if state_duration > 0.0 else 0.0
+		if elapsed >= float(_grab_profile.damage_event_seconds):
+			_grab_damage_applied = true
+			var dir := (_grab_target.global_position - global_position).normalized()
+			if _grab_target.has_method("receive_hit"):
+				_grab_target.receive_hit(float(_grab_profile.grab_damage), 28.0, dir, self)
+
+
+func _end_grab() -> void:
+	if _grab_area != null:
+		_grab_area.monitoring = false
+	if _grab_target != null and is_instance_valid(_grab_target):
+		if _grab_target.has_method("end_grabbed"):
+			_grab_target.end_grabbed(self)
+		grab_ended.emit(_grab_target)
+	_grab_target = null
+	_grab_damage_applied = false
 
 
 func _select_attack_profile() -> void:
@@ -427,7 +795,10 @@ func _select_attack_profile() -> void:
 		attack_is_low_sweep = distance_to_target <= attack_range * 0.85
 	else:
 		attack_index += 1
-		if distance_to_target < 2.0:
+		# 优先消费章节 Boss 招式表
+		if not _content_phase_attacks.is_empty():
+			_apply_content_phase_attack()
+		elif distance_to_target < 2.0:
 			_apply_close_range_attack()
 		elif distance_to_target > 3.5:
 			_apply_long_range_attack()
@@ -440,12 +811,43 @@ func _select_attack_profile() -> void:
 	telegraph_material.emission = Color(1.0, 0.12, 0.02) if attack_heavy else Color(1.0, 0.02, 0.01)
 
 
+func _phase_two_cut() -> float:
+	return _content_phase_two_threshold if _content_phase_two_threshold >= 0.0 else PHASE_TWO_THRESHOLD
+
+
+func _phase_three_cut() -> float:
+	# 仅两阶段 Boss：第三段阈值压到不可达
+	if not _content_phase_attacks.is_empty() and not _content_phase_attacks.has(3):
+		return -1.0
+	return _content_phase_three_threshold if _content_phase_three_threshold >= 0.0 else PHASE_THREE_THRESHOLD
+
+
 func _current_phase() -> int:
-	if get_health_ratio() <= PHASE_THREE_THRESHOLD:
+	var three_cut := _phase_three_cut()
+	if three_cut >= 0.0 and get_health_ratio() <= three_cut:
 		return 3
-	if get_health_ratio() <= PHASE_TWO_THRESHOLD:
+	if get_health_ratio() <= _phase_two_cut():
 		return 2
 	return 1
+
+
+func _apply_content_phase_attack() -> void:
+	# 按当前阶段循环 ChapterContent 招式
+	var phase := _current_phase()
+	var attacks: Array = _content_phase_attacks.get(phase, [])
+	if attacks.is_empty():
+		attacks = _content_phase_attacks.get(1, [])
+	if attacks.is_empty():
+		_apply_mid_range_attack()
+		return
+	var profile: Dictionary = attacks[(attack_index - 1) % attacks.size()]
+	attack_windup = float(profile.get("windup", 0.6))
+	attack_active = float(profile.get("active", 0.2))
+	attack_recovery = float(profile.get("recovery", 0.7))
+	attack_damage = float(profile.get("damage", 20.0))
+	attack_stagger = float(profile.get("stagger", 24.0))
+	attack_lunge = float(profile.get("lunge", 1.4))
+	attack_heavy = bool(profile.get("heavy", false))
 
 
 func _apply_close_range_attack() -> void:
@@ -553,12 +955,13 @@ func _trigger_phase_transition() -> void:
 
 
 func _change_state(new_state: State, duration: float = 0.0) -> void:
-	if state == State.ACTIVE and new_state != State.ACTIVE:
+	if combat_area != null and state == State.ACTIVE and new_state != State.ACTIVE:
 		combat_area.end_swing()
 	state = new_state
 	state_time = duration
 	state_duration = duration
-	telegraph_mesh.visible = state == State.WINDUP
+	if telegraph_mesh != null:
+		telegraph_mesh.visible = state == State.WINDUP
 	match state:
 		State.WINDUP:
 			_play_audio("heavy" if attack_heavy else "swing", -6.0, 0.82 if guardian else 1.0)
@@ -566,17 +969,26 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 			var tags: Array = ["melee", "heavy" if attack_heavy else "light"]
 			if attack_is_low_sweep:
 				tags.append("low_sweep")
-			combat_area.begin_swing(attack_damage, attack_stagger, {
-				"action_id": "enemy_low_sweep" if attack_is_low_sweep else "enemy_swing",
-				"tags": tags,
-				"blockable": true,
-				"parryable": true,
-				"guard_damage": attack_damage + attack_stagger * 0.25,
-			})
-		State.STAGGER:
-			combat_area.end_swing()
+			if combat_area != null:
+				combat_area.begin_swing(attack_damage, attack_stagger, {
+					"action_id": "enemy_low_sweep" if attack_is_low_sweep else "enemy_swing",
+					"tags": tags,
+					"blockable": true,
+					"parryable": true,
+					"guard_damage": attack_damage + attack_stagger * 0.25,
+				})
+		State.STAGGER, State.PARRY_VULNERABLE, State.GUARD_BROKEN, State.WEAK_POINT_EXPOSED:
+			if combat_area != null:
+				combat_area.end_swing()
+		State.GRAB_WINDUP, State.GRAB_ACTIVE, State.GRAB_RECOVERY:
+			if combat_area != null:
+				combat_area.end_swing()
+			if state != State.GRAB_ACTIVE:
+				_end_grab()
 		State.DEAD:
-			combat_area.end_swing()
+			if combat_area != null:
+				combat_area.end_swing()
+			_end_grab()
 	_update_state_visuals()
 
 
@@ -671,6 +1083,8 @@ func _update_telegraph() -> void:
 func _update_state_visuals() -> void:
 	if _visual_frozen or state == State.DEAD:
 		return
+	if body_material == null or weapon_material == null:
+		return
 	# 仅刷新材质色，避免每状态重建网格
 	_ensure_visual_palette()
 	match state:
@@ -681,6 +1095,20 @@ func _update_state_visuals() -> void:
 			weapon_pivot.rotation.z = 0.9
 		State.STAGGER:
 			body_material.albedo_color = Color(0.9, 0.84, 0.7)
+		State.PARRY_VULNERABLE:
+			body_material.albedo_color = Color(0.95, 0.55, 0.35)
+			weapon_material.albedo_color = Color(1.0, 0.85, 0.4)
+		State.GUARD_BROKEN:
+			body_material.albedo_color = Color(0.75, 0.55, 0.85)
+			weapon_material.albedo_color = Color(0.9, 0.5, 1.0)
+		State.WEAK_POINT_EXPOSED:
+			body_material.albedo_color = Color(1.0, 0.45, 0.15)
+			weapon_material.albedo_color = Color(1.0, 0.85, 0.25)
+			weapon_material.emission_enabled = true
+			weapon_material.emission = Color(1.0, 0.55, 0.1)
+			weapon_material.emission_energy_multiplier = 3.5
+		State.GRAB_WINDUP, State.GRAB_ACTIVE:
+			weapon_material.albedo_color = Color(0.95, 0.2, 0.35)
 
 
 func set_visual_frozen(frozen: bool) -> void:

@@ -1,5 +1,7 @@
 # Research Report — Original Soulslike Vertical Slice
 
+> **Historical note (2026-07-30):** This report was written during the initial prototype phase (2026-07-29). For current implementation state, see [`devlog.md`](devlog.md), [`tasks-master.md`](tasks-master.md), and the post-audit research documents. Design principles and Godot API mappings below remain valid; concrete feature claims may be stale.
+
 Accessed: **2026-07-29**
 
 ## Scope and Method

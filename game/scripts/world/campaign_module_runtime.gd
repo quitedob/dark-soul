@@ -44,6 +44,8 @@ func activate(level_root: Node3D) -> void:
 				_wire_damage_zone(module as Node3D)
 			&"arena_seal":
 				_wire_arena_seal(module as Node3D)
+			&"switch_offering":
+				_wire_switch_offering(module as Node3D)
 
 
 func clear() -> void:
@@ -177,16 +179,132 @@ func _wire_damage_zone(module: Node3D) -> void:
 
 
 func _wire_arena_seal(module: Node3D) -> void:
-	# Boss 场触发仅打标记，具体封印留待 Boss 切片
+	# 进场后升起封场墙；Boss 击败后由 release_arena_seals 降下
 	var trigger := module.get_node_or_null("ArenaTrigger") as Area3D
+	var seal := module.get_node_or_null("ArenaSeal") as StaticBody3D
+	if seal != null:
+		_set_static_colliders_enabled(seal, false)
+		seal.visible = false
+		seal.set_meta("arena_sealed", false)
 	if trigger == null:
 		return
 	trigger.monitoring = true
 	trigger.collision_mask = 2
+	var sealed := {"active": false}
 	trigger.body_entered.connect(func(body: Node3D) -> void:
-		if body == _player:
-			_notify(LocalizationScript.text("THE SEAL STIRS"), 1.5)
+		if sealed["active"] or body != _player:
+			return
+		sealed["active"] = true
+		if seal != null and is_instance_valid(seal):
+			_set_static_colliders_enabled(seal, true)
+			seal.visible = true
+			seal.set_meta("arena_sealed", true)
+		_notify(LocalizationScript.text("THE SEAL LOCKS"), 1.5)
+		_play("rest", -6.0, 0.7)
 	)
+
+
+func _wire_switch_offering(module: Node3D) -> void:
+	# 供物台：交互达标后解除 TargetMarker 处屏障
+	var activator := module.get_node_or_null("Activator") as Area3D
+	var marker := module.get_node_or_null("TargetMarker") as Marker3D
+	if activator == null:
+		return
+	var required := int(module.get_meta("required_count", 1))
+	var barrier := StaticBody3D.new()
+	barrier.name = "OfferingBarrier"
+	barrier.collision_layer = 1
+	var barrier_shape := CollisionShape3D.new()
+	var barrier_box := BoxShape3D.new()
+	barrier_box.size = Vector3(3.0, 3.0, 0.5)
+	barrier_shape.shape = barrier_box
+	barrier_shape.position = marker.position if marker != null else Vector3(0.0, 1.5, -4.0)
+	barrier.add_child(barrier_shape)
+	module.add_child(barrier)
+	_wired.append(barrier)
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var interact: Area3D = ExitScript.new()
+	interact.name = "OfferingInteract"
+	interact.collision_layer = 8
+	interact.collision_mask = 0
+	interact.monitoring = false
+	interact.monitorable = true
+	interact.add_to_group("interactable")
+	interact.prompt_text = LocalizationScript.text("Offer the relic")
+	var progress := {"count": 0}
+	interact.world_callback = func(_a: Node, _p: Node) -> void:
+		if progress["count"] >= required:
+			return
+		progress["count"] += 1
+		if progress["count"] < required:
+			_notify(LocalizationScript.text("OFFERING %d / %d") % [progress["count"], required], 1.2)
+			return
+		_set_static_colliders_enabled(barrier, false)
+		barrier.visible = false
+		_notify(LocalizationScript.text("THE PATH ACCEPTS THE OFFERING"), 1.8)
+		_play("rest", -5.0, 1.1)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(2.0, 2.0, 2.0)
+	shape.shape = box
+	shape.position.y = 1.0
+	interact.add_child(shape)
+	module.add_child(interact)
+	_wired.append(interact)
+
+
+func release_arena_seals() -> void:
+	# Boss 胜后降下所有封场墙
+	if _level_root == null:
+		return
+	var modules := _level_root.get_node_or_null("Modules")
+	if modules == null:
+		return
+	for module in modules.get_children():
+		if StringName(module.get_meta("module_id", &"")) != &"arena_seal":
+			continue
+		var seal := module.get_node_or_null("ArenaSeal") as StaticBody3D
+		if seal == null:
+			continue
+		_set_static_colliders_enabled(seal, false)
+		seal.visible = false
+		seal.set_meta("arena_sealed", false)
+	_notify(LocalizationScript.text("THE SEAL BREAKS"), 1.4)
+
+
+func spawn_victory_exit(level_root: Node3D) -> void:
+	# Boss 关无 gate_exit 时生成通往下一关的出口交互
+	if level_root == null:
+		return
+	if level_root.find_child("GateExitInteract", true, false) != null:
+		return
+	if level_root.find_child("VictoryExitInteract", true, false) != null:
+		return
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var interact: Area3D = ExitScript.new()
+	interact.name = "VictoryExitInteract"
+	interact.collision_layer = 8
+	interact.collision_mask = 0
+	interact.monitoring = false
+	interact.monitorable = true
+	interact.add_to_group("interactable")
+	interact.set_meta("campaign_exit", true)
+	interact.prompt_text = LocalizationScript.text("Advance to the next ruin")
+	interact.world_callback = Callable(self, "_on_exit_interact")
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(3.2, 3.0, 2.4)
+	shape.shape = box
+	shape.position = Vector3(0.0, 1.2, -22.0)
+	interact.add_child(shape)
+	level_root.add_child(interact)
+	_wired.append(interact)
+
+
+func _set_static_colliders_enabled(body: StaticBody3D, enabled: bool) -> void:
+	for child in body.get_children():
+		if child is CollisionShape3D:
+			(child as CollisionShape3D).disabled = not enabled
 
 
 func tick_hazards(delta: float) -> void:

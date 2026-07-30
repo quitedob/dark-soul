@@ -78,6 +78,9 @@ func begin_swing(new_damage: float, new_stagger: float, metadata: Dictionary = {
 	if metadata.has("hitbox_offset") and metadata["hitbox_offset"] is Vector3:
 		offset = metadata["hitbox_offset"] as Vector3
 	apply_hitbox_profile(radius, height, offset)
+	var tags: Array = metadata.get("tags", []).duplicate()
+	# 优先用标签/显式标记判定重击，伤害阈值仅作回退
+	var is_heavy := bool(metadata.get("is_heavy", false)) or (&"heavy" in tags) or ("heavy" in tags)
 	hit_payload = {
 		"damage": damage,
 		"stagger": stagger,
@@ -88,7 +91,8 @@ func begin_swing(new_damage: float, new_stagger: float, metadata: Dictionary = {
 		"hand": String(metadata.get("hand", "right")),
 		"item_id": String(metadata.get("item_id", "")),
 		"action_id": String(metadata.get("action_id", "legacy_swing")),
-		"tags": metadata.get("tags", []).duplicate(),
+		"tags": tags,
+		"is_heavy": is_heavy,
 		"blockable": bool(metadata.get("blockable", true)),
 		"parryable": bool(metadata.get("parryable", true)),
 	}
@@ -263,4 +267,7 @@ func _on_body_entered(body: Node3D) -> void:
 			hit_direction,
 			source
 		)
-	hit_landed.emit(body, float(payload["damage"]) >= 30.0)
+	var is_heavy := bool(payload.get("is_heavy", false))
+	if not is_heavy:
+		is_heavy = float(payload["damage"]) >= 30.0
+	hit_landed.emit(body, is_heavy)

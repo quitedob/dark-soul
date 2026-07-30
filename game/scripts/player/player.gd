@@ -10,6 +10,9 @@ signal combat_style_changed(style_id, display_name)
 signal hands_changed(right_hand_item, left_hand_item, action_labels)
 signal healing_started()
 signal grip_changed(grip_mode: int, grip_name: String)
+signal guard_meter_changed(current, maximum)
+signal hit_landed(target, is_heavy)
+signal charge_progress_changed(ratio: float, tier: int)
 
 enum State {
 	LOCOMOTION,
@@ -24,6 +27,11 @@ enum State {
 	CAST,
 	CHARGE_HEAVY,
 	STAGGER,
+	GUARD_BROKEN,
+	EXECUTE_WINDUP,
+	EXECUTE_ACTIVE,
+	EXECUTE_RECOVERY,
+	GRABBED,
 	DEAD,
 }
 
@@ -56,6 +64,9 @@ const PlayerSpellsScript = preload("res://scripts/combat/player_spells.gd")
 const PlayerVisualsScript = preload("res://scripts/core/player_visuals.gd")
 const SafePlacement = preload("res://scripts/core/safe_placement.gd")
 const CompatibilityMovesetFactory = preload("res://scripts/combat/data/compatibility_moveset_factory.gd")
+const ExecutionSolverScript = preload("res://scripts/combat/execution_solver.gd")
+const ExecutionProfileScript = preload("res://scripts/combat/data/execution_profile.gd")
+const PlayerAnimationBridgeScript = preload("res://scripts/combat/player_animation_bridge.gd")
 const STYLE_RESOURCES := {
 	CombatStyle.RELIQUARY_GUARD: preload("res://resources/combat_styles/reliquary_guard.tres"),
 	CombatStyle.TWIN_COLOSSI: preload("res://resources/combat_styles/twin_colossi.tres"),
@@ -72,48 +83,7 @@ const STYLE_NAMES := [
 	"EMBER RITE",
 ]
 
-# ── Spell / Incantation tuning ──────────────────────────────────────────
-	# NOTE: Canonical data now lives in PlayerCombatData (data/player_combat_data.gd).
-	# These const dicts are kept for backward compat; prefer CombatData.SPELL_CONFIG / STYLE_TIMING.
-# Balanced for Soulslike feel: basic spells affordable, powerful spells costly.
-# Range = speed × lifetime (effective distance before projectile expires).
-const SPELL_CONFIG := {
-	"veil_bolt": {
-		"focus_cost": 14.0, "cast_time": 0.58, "damage": 26.0, "stagger": 16.0,
-		"proj_speed": 18.0, "proj_lifetime": 2.0,   # range ≈ 36 units
-		"spell_type": "veil_bolt", "homing": false, "homing_strength": 0.0,
-	},
-	"seal_burst": {
-		"focus_cost": 22.0, "cast_time": 0.72, "damage": 36.0, "stagger": 26.0,
-		"proj_speed": 10.0, "proj_lifetime": 1.6,   # range ≈ 16 units — close-range burst
-		"spell_type": "seal_burst", "homing": true, "homing_strength": 3.5,
-	},
-	"bow_quick_shot": {
-		"focus_cost": 0.0, "cast_time": 0.38, "damage": 18.0, "stagger": 8.0,
-		"proj_speed": 20.0, "proj_lifetime": 1.8,   # range ≈ 36 units
-		"spell_type": "bow_quick_shot", "homing": false, "homing_strength": 0.0,
-	},
-	"bow_power_shot": {
-		"focus_cost": 0.0, "cast_time": 0.56, "damage": 32.0, "stagger": 22.0,
-		"proj_speed": 14.0, "proj_lifetime": 2.4,   # range ≈ 33.6 units
-		"spell_type": "bow_power_shot", "homing": false, "homing_strength": 0.0,
-	},
-	"ember_rite": {
-		"focus_cost": 25.0, "cast_time": 0.82, "heal": 28.0, "aoe_damage": 22.0,
-		"aoe_stagger": 20.0, "aoe_range": 6.0,
-	},
-	# Weapon art projectiles
-	"arcane_barrage": {
-		"focus_cost": 20.0, "cast_time": 0.0, "damage": 12.0, "stagger": 6.0,
-		"proj_speed": 16.0, "proj_lifetime": 1.5,   # range ≈ 24 units
-		"spell_type": "arcane_barrage", "homing": true, "homing_strength": 2.8,
-	},
-	"divine_smite": {
-		"focus_cost": 22.0, "cast_time": 0.0, "damage": 34.0, "stagger": 24.0,
-		"proj_speed": 12.0, "proj_lifetime": 2.0,
-		"spell_type": "default", "homing": true, "homing_strength": 1.8,
-	},
-}
+# 法术数据权威源：CombatData.SPELL_CONFIG（data/player_combat_data.gd）
 
 var world_node: Node
 var audio_node: Node
@@ -168,6 +138,16 @@ var combat_style: CombatStyle = CombatStyle.RELIQUARY_GUARD
 var right_hand_item := "guardian_sword"
 var left_hand_item := "reliquary_shield"
 var guard_active := false
+var max_guard_meter := 100.0
+var guard_meter := 100.0
+var _guard_meter_regen_delay := 0.0
+const GUARD_METER_REGEN_PER_SEC := 28.0
+const GUARD_BROKEN_DURATION := 1.6
+var _execution_target: Node3D = null
+var _execution_profile = null
+var _execution_damage_applied := false
+var _execution_kind: StringName = &""
+var _anim_bridge = null  # PlayerAnimationBridge
 var attack_hand := "right"
 var attack_action_id := "sword_light"
 var _leap_is_curved := false
@@ -272,6 +252,8 @@ func _ready() -> void:
 	_visuals = PlayerVisualsScript.new()
 	_visuals.setup(self)
 	_visuals.build_nodes()
+	_anim_bridge = PlayerAnimationBridgeScript.new()
+	_anim_bridge.setup(self)
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_emit_stats()
@@ -288,17 +270,23 @@ func _physics_process(delta: float) -> void:
 	_update_gamepad_camera(delta)
 	_update_camera_rig(delta)
 	if state != State.DEAD:
-		_handle_action_input()
-		_update_state(delta)
-		_update_stamina(delta)
-		_update_poise(delta)
-		_update_context_windows(delta)
+		# HitStop：冻本实体输入与状态推进，世界/重力继续
+		if not _visual_frozen:
+			_handle_action_input()
+			_update_state(delta)
+			_update_stamina(delta)
+			_update_poise(delta)
+			_update_context_windows(delta)
 		_was_on_floor = is_on_floor()
 		_previous_vertical_velocity = velocity.y
 		if not is_on_floor():
 			velocity.y -= gravity * delta
 		elif velocity.y <= 0.0:
 			velocity.y = 0.0
+		# 冻结时清水平意图，避免攻击位移继续滑行
+		if _visual_frozen:
+			velocity.x = 0.0
+			velocity.z = 0.0
 		move_and_slide()
 		_update_landing_and_safe_transform()
 		_check_void_recovery()
@@ -439,31 +427,46 @@ func receive_hit_payload(payload: Dictionary) -> void:
 		_change_state(State.LOCOMOTION)
 		return
 
-	var guard_profile: Dictionary = HandEquipmentScript.get_item(left_hand_item).get("guard", {})
+	var guard_profile: Dictionary = HandEquipmentScript.get_guard_profile(left_hand_item)
+	if not guard_profile.is_empty():
+		max_guard_meter = float(guard_profile.get("max_guard_meter", 100.0))
 	var guard_result := GuardResolverScript.resolve(
 		payload,
-		guard_active,
+		guard_active and state != State.GUARD_BROKEN,
 		-global_transform.basis.z,
 		stamina,
-		guard_profile
+		guard_profile,
+		guard_meter
 	)
 	var incoming_damage := float(guard_result["damage"])
 	var incoming_stagger := float(guard_result["stagger"])
 	var guarded := bool(guard_result["guarded"])
 	if guarded:
+		guard_meter = float(guard_result.get("guard_meter_remaining", guard_meter))
+		_guard_meter_regen_delay = 1.4
+		guard_meter_changed.emit(guard_meter, max_guard_meter)
 		_spend_stamina(float(guard_result["stamina_cost"]), 1.0 if guard_result["guard_broken"] else 0.65)
 		if bool(guard_result["guard_broken"]):
 			guard_active = false
 			_show_message("GUARD BROKEN", 0.8)
-	var poise_result := {"holds": false, "reduced_damage": 0.0}
+			_change_state(State.GUARD_BROKEN, GUARD_BROKEN_DURATION)
+			health = maxf(health - incoming_damage, 0.0)
+			_emit_stats()
+			_play_audio("hurt", -4.0, 1.0)
+			if health <= 0.0:
+				_die()
+			return
+	var poise_result := {"holds": true, "reduced_damage": 0.0, "settled_poise": poise_health}
 	if not guarded:
+		# 传入当前储备；结算结果直接写回，避免二次扣减
 		poise_result = PoiseResolverScript.resolve(
+			poise_health,
 			base_poise_health,
 			_wam_active,
 			armor_pdr,
 			float(payload.get("poise", payload.get("stagger", 0.0)))
 		)
-		poise_health = maxf(poise_health - float(poise_result["reduced_damage"]), 0.0)
+		poise_health = maxf(float(poise_result["settled_poise"]), 0.0)
 		_poise_delay_timer = poise_regen_delay
 		poise_changed.emit(poise_health, max_poise_health)
 	health = maxf(health - incoming_damage, 0.0)
@@ -476,11 +479,11 @@ func receive_hit_payload(payload: Dictionary) -> void:
 	direction.y = 0.0
 	knockback_velocity = direction.normalized() * 3.5 if direction.length_squared() > 0.001 else Vector3.ZERO
 	if incoming_stagger > 0.0:
-		if bool(poise_result["holds"]) and poise_health > 0.0:
+		if bool(poise_result["holds"]):
 			_show_message("POISE HOLDS", 0.45)
 			return
-		if _wam_active > 0.0:
-			_show_message("POISE BROKEN", 0.65)
+		# 韧性打空：硬直并清空储备
+		_show_message("POISE BROKEN" if _wam_active > 0.0 else "STAGGER", 0.65)
 		poise_health = 0.0
 		poise_changed.emit(poise_health, max_poise_health)
 		_change_state(State.STAGGER, clampf(0.28 + incoming_stagger * 0.006, 0.28, 0.68))
@@ -581,6 +584,8 @@ func is_targetable() -> bool:
 
 func _handle_action_input() -> void:
 	_update_guard_active()
+	if state == State.GRABBED:
+		return
 	if Input.is_action_just_pressed("lock_on"):
 		_toggle_lock_on()
 	if Input.is_action_just_pressed("interact") and interaction_target != null and is_instance_valid(interaction_target) and interaction_target.has_method("interact"):
@@ -596,6 +601,13 @@ func _handle_action_input() -> void:
 	if state == State.CHARGE_HEAVY:
 		if not _is_heavy_held() or state_time <= 0.0:
 			_release_heavy_charge()
+		return
+	# recovery 尾段闪避取消窗：立即闪避，不走 buffer
+	if state == State.ATTACK_RECOVERY and _current_attack != null \
+			and _current_attack.dodge_cancel_seconds >= 0.0 \
+			and state_time <= _current_attack.dodge_cancel_seconds \
+			and Input.is_action_just_pressed("dodge"):
+		_try_dodge()
 		return
 	if state != State.LOCOMOTION:
 		if not _can_buffer_in_current_state():
@@ -620,6 +632,8 @@ func _handle_action_input() -> void:
 	elif _action_just_pressed(&"right_secondary", [&"heavy_attack", &"heavy_attack_alt"]):
 		_execute_hand_action("right", "secondary")
 	elif _action_just_pressed(&"right_primary", [&"light_attack", &"light_attack_alt"]):
+		if _try_execution():
+			return
 		_execute_hand_action("right", "primary")
 	elif _action_just_pressed(&"left_primary", [&"guard"]):
 		_execute_hand_action("left", "primary")
@@ -769,7 +783,7 @@ func _update_state(delta: float) -> void:
 			_face_lock_target(delta)
 			_charge_time += delta
 			_spend_stamina(CHARGE_STAMINA_DRAIN * delta, 0.2, false)
-			# 超时或精力不足强制释放
+			_emit_charge_progress()
 			var moveset := _current_moveset()
 			var profile: ChargeProfile = moveset.charged_heavy if moveset != null else null
 			var max_hold := profile.tier_three_seconds + 0.25 if profile != null else CHARGE_MAX_HOLD
@@ -781,6 +795,29 @@ func _update_state(delta: float) -> void:
 			knockback_velocity = knockback_velocity.move_toward(Vector3.ZERO, 9.0 * delta)
 			if state_time <= 0.0:
 				_change_state(State.LOCOMOTION)
+		State.GUARD_BROKEN:
+			guard_active = false
+			_slow_horizontal(delta, acceleration * 1.6)
+			if state_time <= 0.0:
+				_change_state(State.LOCOMOTION)
+		State.EXECUTE_WINDUP:
+			_align_execution_pose(delta)
+			if state_time <= 0.0 and _execution_profile != null:
+				_change_state(State.EXECUTE_ACTIVE, _execution_profile.active_seconds)
+		State.EXECUTE_ACTIVE:
+			_align_execution_pose(delta)
+			_update_execution_damage_event()
+			if state_time <= 0.0 and _execution_profile != null:
+				_change_state(State.EXECUTE_RECOVERY, _execution_profile.recovery_seconds)
+		State.EXECUTE_RECOVERY:
+			_slow_horizontal(delta, acceleration * 1.2)
+			if state_time <= 0.0:
+				_finish_execution()
+				_change_state(State.LOCOMOTION)
+		State.GRABBED:
+			velocity = Vector3.ZERO
+			if state_time <= 0.0:
+				_change_state(State.STAGGER, 0.35)
 
 
 func _update_locomotion(delta: float) -> void:
@@ -802,6 +839,117 @@ func _update_locomotion(delta: float) -> void:
 		_face_lock_target(delta)
 	elif direction.length_squared() > 0.001:
 		_face_direction(direction, delta * 10.0)
+	if _anim_bridge != null and _anim_bridge.enabled and state == State.LOCOMOTION:
+		_anim_bridge.travel_locomotion(direction.length_squared() > 0.01)
+
+
+func _try_execution() -> bool:
+	# 处决优先于中立轻击；需地面且可玩武器
+	if state != State.LOCOMOTION or not is_on_floor():
+		return false
+	if world_node == null or not world_node.has_method("get_target_candidates"):
+		return false
+	var weapon := _current_weapon()
+	var prefer_back := weapon != null and weapon.supports_backstab and (
+		HandEquipmentScript.get_weapon_type(right_hand_item) == &"dagger"
+		or HandEquipmentScript.get_weapon_type(left_hand_item) == &"dagger"
+	)
+	var found: Dictionary = ExecutionSolverScript.find_candidate(
+		self, world_node.get_target_candidates(), prefer_back
+	)
+	if found.is_empty():
+		return false
+	var target: Node3D = found.get("target")
+	var profile = found.get("profile")
+	var kind: StringName = found.get("kind", &"")
+	if target == null or profile == null:
+		return false
+	if weapon != null:
+		if kind == &"back" and not weapon.supports_backstab:
+			return false
+		if kind != &"back" and not weapon.supports_riposte:
+			return false
+	if not target.has_method("try_claim_execution"):
+		return false
+	if not target.try_claim_execution(self, profile.claim_seconds):
+		return false
+	_execution_target = target
+	_execution_profile = profile
+	_execution_kind = kind
+	_execution_damage_applied = false
+	guard_active = false
+	var tip := "BACKSTAB" if kind == &"back" else ("WEAK POINT" if kind == &"weak_point" else "RIPOSTE")
+	_show_combat_tip(tip, 0.55)
+	_play_audio("heavy", -5.0, 0.85)
+	_change_state(State.EXECUTE_WINDUP, profile.windup_seconds)
+	return true
+
+
+func begin_grabbed(grabber: Node, duration: float = 1.4) -> void:
+	# 被抓：短时锁定，不可格挡/闪避
+	if state == State.DEAD:
+		return
+	guard_active = false
+	_finish_execution()
+	_change_state(State.GRABBED, maxf(duration, 0.4))
+
+
+func end_grabbed(_grabber: Node = null) -> void:
+	if state == State.GRABBED:
+		_change_state(State.STAGGER, 0.4)
+
+
+func _align_execution_pose(delta: float) -> void:
+	if _execution_target == null or not is_instance_valid(_execution_target):
+		return
+	var anchor := Vector3.UP * 1.1
+	if _execution_target.has_method("get_execution_anchor") and _execution_profile != null:
+		anchor = _execution_target.get_execution_anchor(_execution_profile.required_anchor)
+	var desired := anchor
+	# 攻击者站在锚点略外侧
+	var offset_dir := global_position - _execution_target.global_position
+	offset_dir.y = 0.0
+	if offset_dir.length_squared() < 0.001:
+		offset_dir = -_execution_target.global_transform.basis.z
+	desired = anchor + offset_dir.normalized() * 0.15
+	global_position = global_position.lerp(desired, clampf(12.0 * delta, 0.0, 1.0))
+	var face := _execution_target.global_position - global_position
+	face.y = 0.0
+	if face.length_squared() > 0.001:
+		_face_direction(face.normalized(), delta * 14.0)
+	velocity = Vector3.ZERO
+
+
+func _update_execution_damage_event() -> void:
+	if _execution_damage_applied or _execution_profile == null:
+		return
+	if _execution_target == null or not is_instance_valid(_execution_target):
+		return
+	var elapsed := 0.0
+	if state_duration > 0.0:
+		elapsed = state_duration - state_time
+	if elapsed < _execution_profile.damage_event_seconds:
+		return
+	_execution_damage_applied = true
+	var weapon := _current_weapon()
+	var crit := weapon.critical_multiplier if weapon != null else 1.0
+	var base := 28.0
+	if _current_moveset() != null and _current_moveset().neutral_light != null:
+		base = _current_moveset().neutral_light.damage
+	var amount: float = base * float(crit) * float(_execution_profile.critical_multiplier)
+	if _execution_target.has_method("apply_execution_damage"):
+		_execution_target.apply_execution_damage(amount, _execution_profile.allow_lethal_damage)
+	elif _execution_target.has_method("receive_hit"):
+		_execution_target.receive_hit(amount, 0.0, -global_transform.basis.z, self)
+
+
+func _finish_execution() -> void:
+	if _execution_target != null and is_instance_valid(_execution_target) and _execution_target.has_method("release_execution_claim"):
+		_execution_target.release_execution_claim(self)
+	_execution_target = null
+	_execution_profile = null
+	_execution_kind = &""
+	_execution_damage_applied = false
 
 
 func _try_attack(heavy: bool, hand := "right", action_id := "") -> void:
@@ -833,9 +981,17 @@ func _commit_attack(
 			_current_attack.action_id = StringName(action_id)
 	_current_attack.hand = StringName(hand)
 	attack_cost = _current_attack.stamina_cost
+	var focus_cost := _current_attack.focus_cost
 	if stamina < attack_cost:
 		_show_message("NOT ENOUGH STAMINA", 0.8)
 		return
+	# 法术近战等：扣 Focus（对齐施法路径）
+	if focus_cost > 0.0:
+		if focus < focus_cost:
+			_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
+			return
+		focus = maxf(focus - focus_cost, 0.0)
+		_emit_focus()
 	attack_heavy = heavy or _attack_has_tag(_current_attack, &"heavy")
 	attack_hand = hand
 	attack_action_id = String(_current_attack.action_id)
@@ -846,6 +1002,8 @@ func _commit_attack(
 	if not is_on_floor() and _current_attack.launch_velocity_y < 0.0:
 		velocity.y = minf(velocity.y, _current_attack.launch_velocity_y)
 	_announce_context_attack(_current_attack)
+	if _anim_bridge != null and _anim_bridge.enabled and not attack_heavy and is_on_floor():
+		_anim_bridge.travel_light_attack()
 	_change_state(State.ATTACK_WINDUP, _current_attack.windup_seconds)
 
 
@@ -873,6 +1031,20 @@ func _action_pressed(action: StringName, aliases: Array[StringName]) -> bool:
 	return false
 
 
+func _emit_charge_progress() -> void:
+	var moveset := _current_moveset()
+	var profile: ChargeProfile = moveset.charged_heavy if moveset != null else null
+	var max_hold := profile.tier_three_seconds if profile != null else 1.4
+	var ratio := clampf(_charge_time / maxf(max_hold, 0.01), 0.0, 1.0)
+	var tier := 1
+	if profile != null:
+		if _charge_time >= profile.tier_three_seconds:
+			tier = 3
+		elif _charge_time >= profile.tier_two_seconds:
+			tier = 2
+	charge_progress_changed.emit(ratio, tier)
+
+
 func _start_heavy_charge(hand := "right", action_id := "") -> void:
 	if state != State.LOCOMOTION:
 		return
@@ -881,12 +1053,14 @@ func _start_heavy_charge(hand := "right", action_id := "") -> void:
 	_charge_action_id = action_id
 	guard_active = false
 	_show_combat_tip("CHARGING", 0.35)
+	charge_progress_changed.emit(0.0, 1)
 	_change_state(State.CHARGE_HEAVY, CHARGE_MAX_HOLD)
 
 
 func _release_heavy_charge() -> void:
 	if state != State.CHARGE_HEAVY:
 		return
+	charge_progress_changed.emit(0.0, 0)
 	var hold := _charge_time
 	var hand := _charge_hand
 	var action_id := _charge_action_id
@@ -915,22 +1089,27 @@ func _release_heavy_charge() -> void:
 
 
 func _update_attack_active_motion(delta: float) -> void:
-	# 跳攻/下落攻以 hitbox 判定为主：位移只服务轨迹，不靠冲刺“蹭到”
+	# 跳攻/下落攻以 hitbox 判定为主；直剑轻击优先 root motion
 	var forward := -global_transform.basis.z
 	var is_jump := _current_attack != null and _attack_has_tag(_current_attack, &"jump")
 	var is_falling := _current_attack != null and (
 		_current_attack.hitbox_until_land or _attack_has_tag(_current_attack, &"falling")
 	)
 	if is_falling:
-		# 下落：压低水平速度，保持向下；命中靠脚下垂向胶囊
 		velocity.x = move_toward(velocity.x, 0.0, acceleration * 1.4 * delta)
 		velocity.z = move_toward(velocity.z, 0.0, acceleration * 1.4 * delta)
 		if _current_attack != null:
 			velocity.y = minf(velocity.y, _current_attack.launch_velocity_y)
 		return
+	if _anim_bridge != null and _anim_bridge.enabled and not is_jump and not attack_heavy:
+		var rm: Vector3 = _anim_bridge.consume_root_motion()
+		if rm.length_squared() > 0.00001:
+			var world_rm := global_transform.basis * rm
+			velocity.x = world_rm.x / maxf(delta, 0.0001)
+			velocity.z = world_rm.z / maxf(delta, 0.0001)
+			return
 	var lunge := _current_attack.authored_displacement.z if _current_attack != null else _style_value(&"lunge", attack_heavy)
 	if is_jump:
-		# 跳攻：轻量前带，前方偏下 hitbox 负责命中
 		lunge *= 0.55
 	velocity.x = forward.x * lunge
 	velocity.z = forward.z * lunge
@@ -1164,8 +1343,8 @@ func _action_just_pressed(action: StringName, aliases: Array[StringName]) -> boo
 
 
 func _update_guard_active() -> void:
-	# 双持失去副手格挡能力
-	if grip_mode == GripMode.TWO_HANDED:
+	# 双持 / 破防失去副手格挡能力
+	if grip_mode == GripMode.TWO_HANDED or state == State.GUARD_BROKEN:
 		guard_active = false
 		return
 	var left_definition := HandEquipmentScript.get_item(left_hand_item)
@@ -1177,11 +1356,37 @@ func _update_guard_active() -> void:
 		and left_action in ["shield_guard", "spell_shield"]
 		and (semantic_pressed or legacy_pressed)
 	)
+	_sync_guard_meter_cap()
+
+
+func _sync_guard_meter_cap() -> void:
+	var guard_profile: Dictionary = HandEquipmentScript.get_guard_profile(left_hand_item)
+	if guard_profile.is_empty():
+		return
+	var next_max := float(guard_profile.get("max_guard_meter", 100.0))
+	if not is_equal_approx(next_max, max_guard_meter):
+		max_guard_meter = next_max
+		guard_meter = minf(guard_meter, max_guard_meter)
+		guard_meter_changed.emit(guard_meter, max_guard_meter)
+
+
+func _update_guard_meter(delta: float) -> void:
+	if state == State.GUARD_BROKEN or guard_active:
+		return
+	if _guard_meter_regen_delay > 0.0:
+		_guard_meter_regen_delay = maxf(_guard_meter_regen_delay - delta, 0.0)
+		return
+	if guard_meter >= max_guard_meter:
+		return
+	var previous := guard_meter
+	guard_meter = minf(guard_meter + GUARD_METER_REGEN_PER_SEC * delta, max_guard_meter)
+	if not is_equal_approx(previous, guard_meter):
+		guard_meter_changed.emit(guard_meter, max_guard_meter)
 
 
 func set_guard_active(active: bool) -> void:
-	var guard_profile: Dictionary = HandEquipmentScript.get_item(left_hand_item).get("guard", {})
-	guard_active = active and not guard_profile.is_empty()
+	var guard_profile: Dictionary = HandEquipmentScript.get_guard_profile(left_hand_item)
+	guard_active = active and not guard_profile.is_empty() and state != State.GUARD_BROKEN
 
 
 func _execute_hand_action(hand: String, slot: String) -> void:
@@ -1233,18 +1438,41 @@ func _execute_hand_action(hand: String, slot: String) -> void:
 
 
 func _try_style_skill() -> void:
-	## Weapon arts (战技) — unique per combat style.
+	## 兵器诀：优先 WeaponData.default_weapon_art，缺省再按风格回退
+	var weapon := _current_weapon()
+	if weapon != null and weapon.default_weapon_art != null:
+		_execute_weapon_art(weapon.default_weapon_art)
+		return
 	match combat_style:
 		CombatStyle.RELIQUARY_GUARD:
-			_try_pierce_thrust()             # 破甲突刺 — armor-piercing lunge
+			_try_pierce_thrust()
 		CombatStyle.TWIN_COLOSSI:
-			_try_leap_attack(false)          # Colossal Leap (unchanged)
+			_try_leap_attack(false)
 		CombatStyle.CRESCENT_PAIR:
-			_try_leap_attack(true)           # Crescent Leap (unchanged)
+			_try_leap_attack(true)
 		CombatStyle.VEILCRAFT:
-			_try_arcane_barrage()            # 秘法弹幕 — 5 seeking bolts
+			_try_arcane_barrage()
 		CombatStyle.EMBER_RITE:
-			_try_divine_smite()              # 神圣惩戒 — seeking holy bolt
+			_try_divine_smite()
+
+
+func _execute_weapon_art(art: WeaponArtData) -> void:
+	if art == null:
+		return
+	match art.art_kind:
+		&"pierce_thrust":
+			_try_pierce_thrust()
+		&"colossal_leap":
+			_try_leap_attack(false)
+		&"crescent_leap":
+			_try_leap_attack(true)
+		&"arcane_barrage":
+			_try_arcane_barrage()
+		&"divine_smite":
+			_try_divine_smite()
+		_:
+			if art.entry_attack != null and &"leap" in art.entry_attack.tags:
+				_try_leap_attack(combat_style == CombatStyle.CRESCENT_PAIR)
 
 
 func _try_parry() -> void:
@@ -1396,6 +1624,10 @@ func _try_dodge() -> void:
 
 
 func _change_state(new_state: State, duration: float = 0.0) -> void:
+	var was_executing := state in [State.EXECUTE_WINDUP, State.EXECUTE_ACTIVE, State.EXECUTE_RECOVERY]
+	var still_executing := new_state in [State.EXECUTE_WINDUP, State.EXECUTE_ACTIVE, State.EXECUTE_RECOVERY]
+	if was_executing and not still_executing:
+		_finish_execution()
 	if state in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE] \
 			and new_state not in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE]:
 		combat_area.end_swing()
@@ -1422,7 +1654,9 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 		_play_audio("heavy" if not _leap_is_curved else "swing", -4.5, 0.9 if not _leap_is_curved else 1.2)
 	elif state == State.PARRY:
 		_play_audio("swing", -9.0, 1.45)
-	elif state == State.STAGGER or state == State.DEAD:
+	elif state == State.STAGGER or state == State.GUARD_BROKEN or state == State.DEAD or state == State.GRABBED:
+		combat_area.end_swing()
+	elif state == State.EXECUTE_WINDUP:
 		combat_area.end_swing()
 
 
@@ -1454,6 +1688,7 @@ func _attack_metadata() -> Dictionary:
 		"grip_mode": String(_grip_key()),
 		"guard_damage": attack_damage + attack_stagger * 0.35,
 		"tags": ["melee", "heavy" if attack_heavy else "light"] + (["unblockable"] if is_unblockable else []),
+		"is_heavy": attack_heavy,
 		"blockable": not is_unblockable,
 		"parryable": attack_action_id != "shield_bash" and not is_unblockable,
 	}
@@ -1487,7 +1722,8 @@ func _is_guarding_hit(hit_direction: Variant) -> bool:
 		guard_active,
 		-global_transform.basis.z,
 		stamina,
-		HandEquipmentScript.get_item(left_hand_item).get("guard", {})
+		HandEquipmentScript.get_guard_profile(left_hand_item),
+		guard_meter
 	)
 	return bool(result["guarded"])
 
@@ -1503,6 +1739,7 @@ func _update_poise(delta: float) -> void:
 
 
 func _update_stamina(delta: float) -> void:
+	_update_guard_meter(delta)
 	if state == State.LOCOMOTION:
 		if stamina_delay > 0.0:
 			stamina_delay -= delta

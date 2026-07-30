@@ -77,6 +77,19 @@ static func bosses() -> Array[Dictionary]:
 
 
 static func _modules_for(level: Dictionary) -> Array[StringName]:
+	# 第一章关卡显式模块表，覆盖拓扑推断
+	var level_id := StringName(level.get("id", &""))
+	match level_id:
+		&"level_01_01":
+			return [&"fragile_floor", &"gate_exit"]
+		&"level_01_02":
+			return [&"hazard", &"gate_exit"]
+		&"level_01_03":
+			return [&"switch_offering", &"gate_exit"]
+		&"level_01_04":
+			return [&"hazard", &"poison_fire_zone", &"fragile_floor", &"switch_offering", &"gate_exit"]
+		&"level_01_05":
+			return [&"arena_seal"]
 	var modules: Array[StringName] = []
 	var topology := StringName(level.get("topology", &""))
 	var kind := StringName(level.get("kind", &""))

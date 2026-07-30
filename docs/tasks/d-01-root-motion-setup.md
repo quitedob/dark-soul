@@ -1,11 +1,13 @@
 ﻿# D-01 — AnimationTree Root Motion Integration
 
 **Priority:** P1 (critical)
-**Status:** ⬜ PENDING
+**Status:** 🟡 IN PROGRESS (straight-sword AnimationTree + placeholder Skeleton root-motion POC shipped; not final authored animation)
 **Effort:** L (week)
 **Depends On:** None
 **Blocks:** D-02, D-03, D-04, D-05
 **Source:** Audit document §3 "动画与根运动集成"; `research-dark-souls-mechanics-deep.md` §8
+
+> **POC note:** `PlayerAnimationBridge` builds a minimal Root/Hips skeleton and Physics-callback AnimationTree. Gameplay timers still own hit windows; root motion drives light-attack displacement with `authored_displacement` fallback. Placeholder bones are not the final art pipeline.
 
 ---
 

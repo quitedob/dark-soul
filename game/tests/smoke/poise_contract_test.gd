@@ -19,15 +19,21 @@ func _init() -> void:
 
 
 func _test_poise_math() -> void:
-	var heavy := PoiseResolverScript.resolve(100.0, 0.35, 0.30, 20.0)
-	var light := PoiseResolverScript.resolve(100.0, 0.0, 0.05, 20.0)
-	var heavy_armor := PoiseResolverScript.resolve(100.0, 0.35, 0.30, 40.0)
-	var light_armor := PoiseResolverScript.resolve(100.0, 0.35, 0.05, 40.0)
+	# resolve(current, base, wam, pdr, incoming)
+	var heavy := PoiseResolverScript.resolve(100.0, 100.0, 0.35, 0.30, 20.0)
+	var standing := PoiseResolverScript.resolve(100.0, 100.0, 0.0, 0.05, 20.0)
+	var depleted := PoiseResolverScript.resolve(5.0, 100.0, 0.0, 0.05, 20.0)
+	var heavy_armor := PoiseResolverScript.resolve(100.0, 100.0, 0.35, 0.30, 40.0)
+	var light_armor := PoiseResolverScript.resolve(100.0, 100.0, 0.35, 0.05, 40.0)
 	_expect(bool(heavy["holds"]), "Twin Colossi heavy WAM did not hold a light hit.")
-	_expect(not bool(light["holds"]), "Zero-WAM style incorrectly held a hit.")
+	_expect(bool(standing["holds"]), "Full standing poise incorrectly staggered on a light hit.")
+	_expect(not bool(depleted["holds"]), "Depleted standing poise failed to break.")
 	_expect(float(heavy_armor["reduced_damage"]) < float(light_armor["reduced_damage"]), "Heavy armor did not reduce poise damage.")
-	var broken := PoiseResolverScript.resolve(100.0, 0.35, 0.30, 60.0)
-	_expect(not bool(broken["holds"]), "Sufficient poise damage did not break heavy hyper armor.")
+	# 低储备时动作护甲抬高容量，可扛一次轻击
+	var wam_boost := PoiseResolverScript.resolve(10.0, 100.0, 0.35, 0.30, 20.0)
+	_expect(bool(wam_boost["holds"]), "Action armor did not boost capacity over low reserve.")
+	var broken := PoiseResolverScript.resolve(10.0, 100.0, 0.35, 0.30, 60.0)
+	_expect(not bool(broken["holds"]), "Sufficient poise damage did not break action armor.")
 
 
 func _test_player_regen_gate() -> void:

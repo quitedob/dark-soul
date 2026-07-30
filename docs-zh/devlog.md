@@ -1,5 +1,38 @@
 ﻿# 烬谷 (Ashen Hollow) 开发日志
 
+## 2026-07-30 — A/B/C/D 全量修复切片
+
+### 范围
+
+完成计划中的 A→B→C→D：站立韧性、法术近战 Focus、实体 HitStop、删除重复 SPELL_CONFIG、闪避取消接线、第一章竖切片收口、文档对齐。
+
+### 战斗 (A/B)
+
+- `PoiseResolver` 使用 `current_poise`；站立储备可扛击，不再要求 WAM>0
+- 五行/天祝近战写入 `focus_cost`（10/18），`_commit_attack` 扣 Focus
+- HitStop 冻玩家/敌人状态与水平速度；世界继续；重击用 tags/`is_heavy`
+- 删除 `player.gd` 重复 `SPELL_CONFIG`；工厂设置 `dodge_cancel_seconds`（刑天重击=-1）
+
+### 第一章 (C)
+
+- `01_01`–`01_05` 遭遇与精英；`01_05` 仅 Boss
+- Boss 阶段读 `Chapter1Content.boss().phases`（二阶段 60%）；HUD 显示守炉灵·巨阙
+- Ch.1 模块表 + `arena_seal` / `switch_offering`；胜后出口通向 `level_02_01`
+- 读档按 `checkpoint_id` 回到祠堂重生点
+- 合约：`ASHEN_POISE_CONTRACTS_OK`、`ASHEN_CHAPTER1_SLICE_CONTRACTS_OK`、`ASHEN_DEATH_LOOP_CONTRACTS_OK`
+
+### 文档 (D)
+
+- 更新 `architecture.md`、`validation.md`、`research.md` 横幅、`tasks-master.md`、`combat-expansion-roadmap.md`
+
+### 续作顺序
+
+1. 手玩第一章封场 → Boss → 胜后出口
+2. 可选：E-02 分阶段 WAM；E-08 `GUARD_BROKEN`
+3. 其余章节 H-04 模块行为
+
+---
+
 ## 2026-07-30 — 战斗提示模式（默认关）+ 持握 / 蓄力 / 跳劈设定入档
 
 ### 范围

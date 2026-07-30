@@ -49,24 +49,24 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 |----|------|----------|--------|--------|---------|--------|
 | A-01 | Extract typed `CombatStyleData` resources with Inspector-serializable timing, economy, leap, defense, and presentation fields | P1 | ✅ DONE | M | — | [tasks/a-01-combat-style-data.md](tasks/a-01-combat-style-data.md) |
 | A-02 | Finish migration from legacy `STYLE_TIMING`: leap, dodge, and action armor must stop reading compatibility dictionaries | P0 | ✅ DONE | M | A-01 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-1--single-combat-data-owner) |
-| A-03 | Implement `AttackData`, `ChargeProfile`, `MovesetData`, `WeaponData`, and schema validation | P1 | ⬜ PENDING | L | A-02 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md) |
-| A-04 | Data-driven spell configuration: remove duplicate `SPELL_CONFIG` ownership and retain one authoritative resource path | P2 | ⬜ PENDING | M | A-02 | — |
+| A-03 | Implement `AttackData`, `ChargeProfile`, `MovesetData`, `WeaponData`, and schema validation | P1 | ✅ DONE | L | A-02 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md) |
+| A-04 | Data-driven spell configuration: remove duplicate `SPELL_CONFIG` ownership and retain one authoritative resource path | P2 | ✅ DONE | M | A-02 | — |
 | A-05 | Add `class_name` registration and combat Resource schema verification to validation pipeline | P1 | ⬜ PENDING | S | A-03 | — |
-| A-06 | Implement `WeaponArtData`, migrate all five compatibility skills, and remove style `match` dispatch | P2 | ⬜ PENDING | L | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-7--weapon-arts) |
+| A-06 | Implement `WeaponArtData`, migrate all five compatibility skills, and remove style `match` dispatch | P2 | ✅ DONE | L | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-7--weapon-arts) |
 | A-07 | Migrate `HandEquipment` dictionaries to `WeaponData` / `GuardProfile` Resource references | P2 | ⬜ PENDING | L | A-03, E-07 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#weapondata) |
 
 ---
 
 ## Dimension B: Combat Frame Data & Feel Differentiation
 
-> **Goal:** Each combat style and future weapon class must feel physically distinct through authored timing, stamina, movement, stance, and tactical trade-offs. **Current state:** five `CombatStyleData` resources drive ordinary light/heavy attacks, while compatibility dictionaries still own leap, dodge, and action-armor behavior. The target moveset contract is defined in `systems/attack-moveset-data-schema.md`.
+> **Goal:** Each combat style and future weapon class must feel physically distinct through authored timing, stamina, movement, stance, and tactical trade-offs. **Current state:** five `CombatStyleData` resources drive light/heavy/leap/dodge/WAM; `CompatibilityMovesetFactory` synthesizes `MovesetData` including dodge-cancel and Focus melee costs.
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
 | B-01 | **Per-style stamina cost differentiation** — Twin Colossi heavy costs 65 stamina and all loadouts use the target economy | P0 | ✅ DONE | S | — | [tasks/b-01-stamina-differentiation.md](tasks/b-01-stamina-differentiation.md) |
 | B-02 | Verify and tune differentiated frame data matrix (Windup/Active/Recovery) for all 5 styles against the compatibility baseline | P1 | 🟡 PARTIAL | M | B-01 | — |
 | B-03 | Input buffering: verify 150ms window works correctly; add buffer queue visualization for debug mode | P2 | ⬜ PENDING | S | — | — |
-| B-04 | Implement attack cancel windows — Crescent Pair post-recovery dodge cancel; Twin Colossi zero cancel | P2 | ⬜ PENDING | M | B-02 | — |
+| B-04 | Implement attack cancel windows — Crescent Pair post-recovery dodge cancel; Twin Colossi zero cancel | P2 | ✅ DONE | M | B-02 | — |
 | B-05 | Heavy attack charge mechanic using discrete authored charge tiers | P2 | ✅ DONE | L | A-03, B-02 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
 | B-06 | Running, rolling, and backstep attack contexts per supported moveset | P2 | ✅ DONE | L | A-03, B-04 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
 | B-07 | Implement one-handed, two-handed, and paired grip modes with distinct movesets and no direct critical-damage doubling | P2 | ✅ DONE | XL | A-03 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#单持双持与成对持握) |
@@ -86,11 +86,11 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 
 ## Dimension C: Hit-Stop & Audio-Visual Feedback
 
-> **Goal:** Replace global `Engine.time_scale` hit-stop with local animation freeze; implement trauma-based screen shake; add audio low-pass filtering on heavy impacts. **Current state:** Basic hit-stop via `Engine.time_scale = 0.02` exists but is architecturally incorrect (freezes physics ticks, breaks timers).
+> **Goal:** Replace global `Engine.time_scale` hit-stop with actor-local freezes; implement trauma-based screen shake; add audio low-pass filtering on heavy impacts. **Current state:** Local HitStop freezes entity state/input/horizontal motion while world/UI continue; trauma shake shipped (C-02).
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
-| C-01 | Replace global time-scale hit-stop with actor-local procedural visual freezes while physics, UI, and AI continue | P0 | ✅ DONE | M | — | [tasks/c-01-local-hitstop.md](tasks/c-01-local-hitstop.md) |
+| C-01 | Replace global time-scale hit-stop with actor-local freezes (entity state/input paused; world physics/UI continue) | P0 | ✅ DONE | M | — | [tasks/c-01-local-hitstop.md](tasks/c-01-local-hitstop.md) |
 | C-02 | FastNoiseLite trauma shake with exponential decay, intensity scaling, and reduced-motion disablement | P1 | ✅ DONE | M | C-01 | [tasks/c-02-trauma-shake.md](tasks/c-02-trauma-shake.md) |
 | C-03 | Weapon-weight-based trauma injection: light 0.3, heavy 0.8, explosion 1.0 | P1 | ⬜ PENDING | S | C-02 | — |
 | C-04 | Add audio low-pass filter ducking on heavy hit impacts via `procedural_audio.gd` | P3 | ⬜ PENDING | S | — | — |
@@ -104,13 +104,13 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
-| D-01 | Set up `AnimationTree` with `AnimationNodeStateMachinePlayback` for player — root bone track extraction | P1 | ⬜ PENDING | L | — | [tasks/d-01-root-motion-setup.md](tasks/d-01-root-motion-setup.md) |
+| D-01 | Set up `AnimationTree` with `AnimationNodeStateMachinePlayback` for player — root bone track extraction | P1 | 🟡 PARTIAL | L | — | [tasks/d-01-root-motion-setup.md](tasks/d-01-root-motion-setup.md) |
 | D-02 | Implement `get_root_motion_position()` / `get_root_motion_rotation()` integration in `_physics_process` | P1 | ⬜ PENDING | M | D-01 | — |
 | D-03 | Lock-on strafe BlendSpace2D — blend walk/run animations with lateral movement during lock-on | P2 | ⬜ PENDING | L | D-01 | — |
-| D-04 | Force `Process Callback = Physics` on AnimationTree to prevent frame-rate-dependent root motion drift (Godot issues #53752, #65199) | P1 | ⬜ PENDING | S | D-01 | — |
+| D-04 | Force `Process Callback = Physics` on AnimationTree to prevent frame-rate-dependent root motion drift (Godot issues #53752, #65199) | P1 | ✅ DONE | S | D-01 | — |
 | D-05 | Heavy weapon (Twin Colossi) leap attack animation with root motion — forward lunge driven by animation data | P2 | ⬜ PENDING | L | D-02 | — |
 | D-06 | Paired execution animation framework: anchor alignment, exclusive claim, event-point damage, cancellation recovery | P1 | ⬜ PENDING | L | A-03, D-01, E-09 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
-| D-07 | Grab paired-animation framework using independent capture shapes and `GRAB_INITIATOR` / `GRABBED` states | P3 | ⬜ PENDING | L | D-06 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#grabprofile) |
+| D-07 | Grab paired-animation framework using independent capture shapes and `GRAB_INITIATOR` / `GRABBED` states | P3 | 🟡 PARTIAL | L | D-06 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#grabprofile) |
 
 ---
 
@@ -120,16 +120,16 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
-| E-01 | **Implement continuous Poise** — current resolver, reserve, armor reduction, WAM, regen, feedback, and HUD are integrated; per-`AttackData` phase ownership remains | P1 | 🟡 PARTIAL | L | A-03, B-01 | [tasks/e-01-poise-system.md](tasks/e-01-poise-system.md) |
+| E-01 | **Implement continuous Poise** — standing reserve + WAM capacity via `PoiseResolver`; per-`AttackData` phase ownership remains | P1 | 🟡 PARTIAL | L | A-03, B-01 | [tasks/e-01-poise-system.md](tasks/e-01-poise-system.md) |
 | E-02 | Migrate heavy-action protection from binary `hyper_armor` to authored phase modifiers | P1 | ⬜ PENDING | M | E-01 | — |
-| E-03 | Poise break: when reserve reaches zero, force `STAGGER`; otherwise apply HP and impact feedback without interrupting | P1 | ⬜ PENDING | M | E-01 | — |
+| E-03 | Poise break: when reserve reaches zero, force `STAGGER`; otherwise apply HP and impact feedback without interrupting | P1 | ✅ DONE | M | E-01 | — |
 | E-04 | **Parry window differentiation by tool** — medium shield, buckler, dagger, and fist profiles | P2 | ✅ DONE | M | — | [tasks/e-04-parry-windows.md](tasks/e-04-parry-windows.md) |
 | E-05 | Verify the actual per-action stamina recovery delays and freeze behavior during non-LOCOMOTION states; do not assume one universal 1.5s value | P2 | 🟡 PARTIAL | S | — | — |
 | E-06 | Guard stability differentiation by shield weight class | P3 | ⬜ PENDING | M | — | — |
-| E-07 | Add `GuardProfile`, Guard Meter, edge-angle stamina factor, and direct impact break threshold | P1 | ⬜ PENDING | M | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-3--guard-meter-and-guard-break) |
-| E-08 | Add independent `GUARD_BROKEN`, `PARRY_VULNERABLE`, and `WEAK_POINT_EXPOSED` states | P1 | ⬜ PENDING | M | E-01, E-07 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#目标状态模型) |
-| E-09 | Implement human front execution and backstab eligibility, anchors, exclusive claims, and critical damage events | P1 | ⬜ PENDING | L | E-08, A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
-| E-10 | Implement separate Boss Execution Break meters and five boss-specific weak-point execution contracts | P2 | ⬜ PENDING | XL | E-09, G-06 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#非人型与-boss-弱点处决) |
+| E-07 | Add `GuardProfile`, Guard Meter, edge-angle stamina factor, and direct impact break threshold | P1 | ✅ DONE | M | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-3--guard-meter-and-guard-break) |
+| E-08 | Add independent `GUARD_BROKEN`, `PARRY_VULNERABLE`, and `WEAK_POINT_EXPOSED` states | P1 | ✅ DONE | M | E-01, E-07 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#目标状态模型) |
+| E-09 | Implement human front execution and backstab eligibility, anchors, exclusive claims, and critical damage events | P1 | ✅ DONE | L | E-08, A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
+| E-10 | Implement separate Boss Execution Break meters and five boss-specific weak-point execution contracts | P2 | ✅ DONE | XL | E-09, G-06 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#非人型与-boss-弱点处决) |
 
 ---
 
@@ -173,8 +173,8 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | H-03 | Canonical campaign builder consumes deterministic seeds, module metadata, encounter IDs, and checkpoint IDs | P1 | ✅ DONE | L | H-02 | — |
 | H-04 | Compose ten reusable module families into all 28 generated levels; behavior polish remains chapter-scoped | P1 | 🟡 PARTIAL | XL | H-03 | — |
 | H-05 | Implement shortcut spatial-folding topology: one-way doors,升降梯 activation that connects back to Ember Shrine | P2 | ⬜ PENDING | L | H-04 | — |
-| H-06 | Death loop verification: Lost Echo placement accuracy, enemy reset integrity, shrine respawn position | P2 | 🟡 PARTIAL | M | — | — |
-| H-07 | Chapter 1 tutorial level (1-1) full playable integration as vertical slice demo | P1 | 🟡 PARTIAL | XL | H-04 | — |
+| H-06 | Death loop verification: Lost Echo placement accuracy, enemy reset integrity, shrine respawn position | P2 | ✅ DONE | M | — | — |
+| H-07 | Chapter 1 tutorial level (1-1) full playable integration as vertical slice demo | P1 | ✅ DONE | XL | H-04 | — |
 
 ---
 
@@ -200,22 +200,22 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 
 ## Dimension J: Documentation Governance & Technical Reference
 
-> **Goal:** Rewrite stale docs; create missing technical references; establish documentation as single source of truth. **Current state:** 4 docs stale (controls.md HIGH, architecture.md MEDIUM, validation.md MEDIUM, research.md LOW). 6 docs missing. 8 cross-references broken (fixed).
+> **Goal:** Rewrite stale docs; create missing technical references; establish documentation as single source of truth. **Current state:** J-01–J-12 complete as of 2026-07-30 (topic refs under `systems/`).
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
 | J-01 | **Rewrite `controls.md`** — verified keyboard/mouse, controller, touch, resource, and five-loadout reference | P0 | ✅ DONE | M | — | [tasks/j-01-controls-rewrite.md](tasks/j-01-controls-rewrite.md) |
-| J-02 | **Update `architecture.md`** — add scripts/ subdirectories, data classes, host bridge, title/pause/death/victory UI flow, Focus resource system | P1 | ⬜ PENDING | M | — | — |
-| J-03 | **Fix `validation.md`** — fix script glob (`scripts/**/*.gd`), align project paths, add contract test commands, update controller limitation, add content registry test | P1 | ⬜ PENDING | S | — | — |
-| J-04 | Add banner to `research.md` noting it predates handoff state; point to devlog and post-audit research docs | P3 | ⬜ PENDING | S | — | — |
+| J-02 | **Update `architecture.md`** — add scripts/ subdirectories, data classes, host bridge, title/pause/death/victory UI flow, Focus resource system | P1 | ✅ DONE | M | — | — |
+| J-03 | **Fix `validation.md`** — fix script glob (`scripts/**/*.gd`), align project paths, add contract test commands, update controller limitation, add content registry test | P1 | ✅ DONE | S | — | — |
+| J-04 | Add banner to `research.md` noting it predates handoff state; point to devlog and post-audit research docs | P3 | ✅ DONE | S | — | — |
 | J-05 | **Maintain Combat System Reference** — current compatibility behavior plus the target execution/guard/poise/moveset/weapon-art contract | P1 | ✅ DONE | L | B-02 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md) |
-| J-06 | Write Build & Export Guide — `tools/build.ps1`, export preset config, per-platform caveats, smoke-test commands, Web CAPABILITIES注意事项 | P2 | ⬜ PENDING | S | — | — |
-| J-07 | Write Focus Resource System reference — max pool, regen rules, per-style costs, Focus economy design | P2 | ⬜ PENDING | S | — | — |
-| J-08 | Write Save/Persistence Design — save format, schema versioning, migration path, `user://` layout | P2 | ⬜ PENDING | S | — | — |
-| J-09 | Write Audio System Reference — procedural audio API, 6-voice pool, available cues, headless detection, adding new sounds | P3 | ⬜ PENDING | S | — | — |
-| J-10 | Write Enemy AI Specification — detection radii, leash limits, sanctuary disengagement, navigation fallback, per-type tuning table | P3 | ⬜ PENDING | M | — | — |
-| J-11 | Update `00-master-index.md` — add links to all new task files, task specs, and updated references | P2 | 🟡 PARTIAL | S | — | — |
-| J-12 | Maintain `attack-moveset-data-schema.md` and validate code/resources against the documented ownership rules | P1 | ✅ DONE | M | A-03 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md) |
+| J-06 | Write Build & Export Guide — `tools/build.ps1`, export preset config, per-platform caveats, smoke-test commands, Web CAPABILITIES注意事项 | P2 | ✅ DONE | S | — | [systems/build-export-guide.md](systems/build-export-guide.md) |
+| J-07 | Write Focus Resource System reference — max pool, regen rules, per-style costs, Focus economy design | P2 | ✅ DONE | S | — | [systems/focus-resource.md](systems/focus-resource.md) |
+| J-08 | Write Save/Persistence Design — save format, schema versioning, migration path, `user://` layout | P2 | ✅ DONE | S | — | [systems/save-persistence.md](systems/save-persistence.md) |
+| J-09 | Write Audio System Reference — procedural audio API, 6-voice pool, available cues, headless detection, adding new sounds | P3 | ✅ DONE | S | — | [systems/audio-system.md](systems/audio-system.md) |
+| J-10 | Write Enemy AI Specification — detection radii, leash limits, sanctuary disengagement, navigation fallback, per-type tuning table | P3 | ✅ DONE | M | — | [systems/enemy-ai.md](systems/enemy-ai.md) |
+| J-11 | Update `00-master-index.md` — add links to all new task files, task specs, and updated references | P2 | ✅ DONE | S | — | [00-master-index.md](00-master-index.md) |
+| J-12 | Maintain `attack-moveset-data-schema.md` and validate code/resources against the documented ownership rules | P1 | ✅ DONE | M | A-03 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#runtime-validation-audit-j-12--2026-07-30) |
 
 ---
 

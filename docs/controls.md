@@ -21,7 +21,7 @@ The game uses semantic right-hand and left-hand actions. Their exact behavior ch
 
 | Semantic action | Mouse | Keyboard | Meaning |
 |---|---|---|---|
-| Right primary | Left mouse | `J` | Light attack, quick shot, heal, or bolt |
+| Right primary | Left mouse | `J` | Light attack; **riposte/backstab/weak-point** when an execution candidate is in range |
 | Right secondary | Right mouse | `K` | Heavy attack (tap) or charged heavy (hold/release); power shot / stronger spell |
 | Left primary | — | `C` | Guard, off-hand attack, or spell shield (disabled while two-handing) |
 | Left secondary | — | `R` | Parry, off-hand heavy, or utility action |
@@ -140,7 +140,7 @@ Additional parry-capable equipment uses its own data profile: the Jade Buckler h
 
 ## Planned Combat Inputs
 
-The target combat system still has hold-to-charge heavies and grip modes as **runtime** features. Execution / grab systems remain roadmap items. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md) and [Combat Expansion Roadmap](tasks/combat-expansion-roadmap.md).
+The combat system includes hold-to-charge heavies, grip modes, human executions, **Boss Execution Break / weak-point executions**, and a **Boss grab telegraph** vertical slice. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md).
 
 ## Resources
 

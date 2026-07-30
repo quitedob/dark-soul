@@ -1,5 +1,7 @@
 # 研究报告 — 原始魂系垂直切片 (Research Report — Original Soulslike Vertical Slice)
 
+> **历史说明（2026-07-30）：** 本报告写于初始原型阶段（2026-07-29）。当前实现状态请见 [`devlog.md`](devlog.md)、[`../docs/tasks-master.md`](../docs/tasks-master.md) 与后续审计研究文档。下列设计原则与 Godot API 映射仍有效；具体功能声明可能过时。
+
 访问日期: **2026-07-29**
 
 ## 范围与方法 (Scope and Method)

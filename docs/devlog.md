@@ -1,5 +1,105 @@
 ﻿# Ashen Hollow Development Log
 
+## 2026-07-30 — Boss Weak-Point Executions + Grab Framework
+
+### Scope
+
+Ship E-10 Boss Execution Break for all five main bosses, weak-point executions with story HP floors, and a GrabProfile capture path that does not use ordinary CombatArea hits.
+
+### Runtime
+
+- `BossExecutionBreakProfile` + `BossExecutionCatalog` (巨阙/刑天/九尾/玄霄/烛阴)
+- Guardian accumulates `execution_break` from hit payloads (charged/leap bonus); full meter → `WEAK_POINT_EXPOSED`
+- Player light attack prefers weak-point execution; damage respects `story_floor_ratio` (九尾 30%, others 10%)
+- `GrabProfile` + independent grab Area3D; player `GRABBED` state; miss recovery window
+- HUD boss tooltip shows Break meter; story threshold HUD message
+- Contract: `ASHEN_BOSS_WEAKPOINT_CONTRACTS_OK`
+
+---
+
+## 2026-07-30 — Combat Finish Wave 3→2→1
+
+### Scope
+
+Closed the planned combat gap pack: humanoid Guard Meter / executions, polish (cancel / weapon arts / charge HUD / Reliquary `.tres`), and straight-sword AnimationTree root-motion POC.
+
+### Wave 3 — Guard & Executions
+
+- `GuardResolver` meter + direct break + stamina break reasons
+- Player `GUARD_BROKEN` + `guard_meter`; enemy `PARRY_VULNERABLE` / `GUARD_BROKEN` + exclusive claim
+- `ExecutionProfile` + `ExecutionSolver`; riposte / backstab with event-point damage
+- Contract: `ASHEN_GUARD_EXECUTION_CONTRACTS_OK`
+
+### Wave 2 — Details
+
+- Twin zero dodge-cancel; Crescent wide cancel window
+- Five styles `WeaponArtData` on `WeaponData.default_weapon_art`
+- Charge progress HUD bar; Reliquary authored `resources/weapons|movesets`
+- Contract: `ASHEN_COMBAT_POLISH_CONTRACTS_OK`
+
+### Wave 1 — Animation POC
+
+- `PlayerAnimationBridge`: placeholder Skeleton + AnimationTree (Physics callback)
+- Light attack prefers `get_root_motion_position()`, falls back to `authored_displacement`
+- Placeholder bones ≠ final art pipeline
+
+---
+
+## 2026-07-30 — J-06…J-12 Documentation Completeness
+
+### Scope
+
+Ship remaining Dimension J topic references and index/schema validation that were still PENDING after the A/B/C/D combat slice.
+
+### Added
+
+- [systems/build-export-guide.md](systems/build-export-guide.md) (J-06)
+- [systems/focus-resource.md](systems/focus-resource.md) (J-07)
+- [systems/save-persistence.md](systems/save-persistence.md) (J-08)
+- [systems/audio-system.md](systems/audio-system.md) (J-09)
+- [systems/enemy-ai.md](systems/enemy-ai.md) (J-10)
+- [00-master-index.md](00-master-index.md) links refreshed (J-11)
+- [attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md) runtime validation audit (J-12)
+
+### Status
+
+`tasks-master.md` Dimension J → J-01…J-12 all ✅ DONE.
+
+---
+
+## 2026-07-30 — A/B/C/D Full Fix Slice
+
+### Scope
+
+Ship the planned A→B→C→D pass: standing poise, spell-melee Focus cost, entity HitStop freeze, dead `SPELL_CONFIG` removal, dodge-cancel wiring, Chapter 1 vertical slice closure, and docs sync.
+
+### Combat (A/B)
+
+- `PoiseResolver` now takes `current_poise`; standing reserve absorbs hits without requiring WAM>0
+- Veilcraft/Ember melee writes `focus_cost` (10/18) and `_commit_attack` spends Focus
+- HitStop freezes player/enemy state + horizontal motion; world continues; heavy uses tags/`is_heavy`
+- Removed duplicate `SPELL_CONFIG` from `player.gd`; factory sets `dodge_cancel_seconds` (Twin Colossi heavy = -1)
+
+### Chapter 1 (C)
+
+- Encounters for `01_01`–`01_05` + elites; boss-only `01_05`
+- Boss phases from `Chapter1Content.boss().phases` (phase-2 @ 0.6); HUD uses 守炉灵·巨阙
+- Ch.1 module table + `arena_seal` / `switch_offering` runtime; victory exit to `level_02_01`
+- Checkpoint reload restores shrine respawn via `checkpoint_id`
+- Contracts: `ASHEN_POISE_CONTRACTS_OK`, `ASHEN_CHAPTER1_SLICE_CONTRACTS_OK`, `ASHEN_DEATH_LOOP_CONTRACTS_OK`
+
+### Docs (D)
+
+- Updated `architecture.md`, `validation.md`, `research.md` banner, `tasks-master.md`, `combat-expansion-roadmap.md`
+
+### Resume order
+
+1. Playtest Chapter 1 seal → boss → victory exit
+2. Optional: E-02 phase WAM on windup/recovery; E-08 `GUARD_BROKEN`
+3. Remaining H-04 modules for chapters 2–5
+
+---
+
 ## 2026-07-30 — Combat Tip Mode (default off) + Grip / Charge / Jump-Slash Spec
 
 ### Scope

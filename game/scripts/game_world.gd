@@ -197,6 +197,8 @@ func _create_systems() -> void:
 	player.lock_target_changed.connect(hud.set_lock_target)
 	player.combat_style_changed.connect(hud.set_combat_style)
 	player.hands_changed.connect(hud.set_hands)
+	if player.has_signal("charge_progress_changed"):
+		player.charge_progress_changed.connect(hud.update_charge_progress)
 	player.healing_started.connect(_on_player_healing)
 	add_child(player)
 	player.combat_area.hit_landed.connect(_on_player_hit_landed)
@@ -312,21 +314,59 @@ func _spawn_chapter_encounters() -> void:
 		return
 	match level_id:
 		&"level_01_01":
-			# 苏醒之庭：敌人放在中后场，避免出生点圣所内立刻仇恨
+			# 苏醒之庭：2× 失魂
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -14.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(3.2, 0.95, -17.5), roster[0])
-			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -21.0), roster[1])
 		&"level_01_02":
-			_spawn_content_enemy(origin + Vector3(-2.5, 0.95, -5.0), roster[1])
-			_spawn_content_enemy(origin + Vector3(2.5, 0.95, -8.0), roster[0])
-			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -12.0), roster[2])
+			# 守门廊：3× 失魂 + 1× 庙卫
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -5.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -8.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -11.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -15.0), roster[1])
+		&"level_01_03":
+			# 明镜殿：3× 失魂 + 2× 镜影 + 精英
+			_spawn_content_enemy(origin + Vector3(-4.0, 0.95, -5.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(4.0, 0.95, -7.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -10.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -13.0), roster[2])
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -15.0), roster[2])
+			var elite_03 := _chapter1_elite_for(level_id)
+			if not elite_03.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -18.0), elite_03)
+		&"level_01_04":
+			# 炼丹房：2× 庙卫 + 1× 炉渣 + 精英
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), roster[1])
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), roster[1])
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), roster[3])
+			var elite_04 := _chapter1_elite_for(level_id)
+			if not elite_04.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_04)
 		&"level_01_05":
-			_spawn_content_enemy(origin + Vector3(-4.0, 0.95, -6.0), roster[1])
-			_spawn_content_enemy(origin + Vector3(4.0, 0.95, -10.0), roster[3])
+			# 内廷：仅 Boss
 			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter1ContentScript.boss(), true)
 		_:
 			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
+
+
+func _chapter1_elite_for(level_id: StringName) -> Dictionary:
+	# 按 appears_in 取精英并补齐战斗字段
+	for elite in Chapter1ContentScript.elites():
+		if String(elite.get("appears_in", "")) != String(level_id):
+			continue
+		var payload: Dictionary = elite.duplicate(true)
+		if not payload.has("attack"):
+			payload["attack"] = {
+				"windup": 0.7, "active": 0.22, "recovery": 0.85,
+				"damage": 26.0, "stagger": 32.0, "lunge": 1.6,
+			}
+		payload["disengage_range"] = float(payload.get("disengage_range", 22.0))
+		payload["leash_range"] = float(payload.get("leash_range", 18.0))
+		payload["stagger_duration"] = float(payload.get("stagger_duration", 0.42))
+		payload["weapon_color"] = String(payload.get("weapon_color", "6a6040"))
+		payload["eye_emission"] = String(payload.get("eye_emission", "ffcc44"))
+		return payload
+	return {}
 
 
 func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guardian := false):
@@ -342,12 +382,20 @@ func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guard
 	enemy.name = String(payload.get("id", "ChapterEnemy"))
 	enemy.position = spawn_position
 	enemy.setup_from_content(self, player, audio, spawn_position, payload, is_guardian)
-	enemy.defeated.connect(_on_enemy_defeated)
-	enemy.engagement_changed.connect(_on_enemy_engagement_changed)
-	enemy.health_changed.connect(_on_guardian_health_changed.bind(enemy))
+	_wire_enemy_signals(enemy)
 	add_child(enemy)
 	enemies.append(enemy)
 	return enemy
+
+
+func _wire_enemy_signals(enemy) -> void:
+	enemy.defeated.connect(_on_enemy_defeated)
+	enemy.engagement_changed.connect(_on_enemy_engagement_changed)
+	enemy.health_changed.connect(_on_guardian_health_changed.bind(enemy))
+	if enemy.has_signal("execution_break_changed"):
+		enemy.execution_break_changed.connect(_on_execution_break_changed.bind(enemy))
+	if enemy.has_signal("story_threshold_reached"):
+		enemy.story_threshold_reached.connect(_on_boss_story_threshold)
 
 
 func _on_campaign_exit_requested(from_level_id: StringName) -> void:
@@ -386,9 +434,7 @@ func _spawn_enemy(spawn_position: Vector3, is_guardian: bool, enemy_type = -1):
 		enemy.setup(self, player, audio, spawn_position, is_guardian, type_arg)
 	else:
 		enemy.setup(self, player, audio, spawn_position, is_guardian)
-	enemy.defeated.connect(_on_enemy_defeated)
-	enemy.engagement_changed.connect(_on_enemy_engagement_changed)
-	enemy.health_changed.connect(_on_guardian_health_changed.bind(enemy))
+	_wire_enemy_signals(enemy)
 	add_child(enemy)
 	enemies.append(enemy)
 	return enemy
@@ -526,22 +572,55 @@ func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
 		audio.play_cue("victory", -2.0)
 		run_state.guardian_defeated = true
 		_save_run("guardian_defeated")
+		# Boss 胜后解封并打开通往下一关出口
+		_open_boss_victory_exit()
 	else:
 		hud.show_message(LocalizationScript.text("EMBER CLAIMED  +%d") % reward, 1.2)
+
+
+func _open_boss_victory_exit() -> void:
+	# 解封竞技场并生成通往下一章的出口交互
+	if _module_runtime != null:
+		_module_runtime.release_arena_seals()
+		_module_runtime.spawn_victory_exit(campaign_runtime.current_level if campaign_runtime else null)
+	hud.show_message(LocalizationScript.text("THE SEAL OPENS\nPath to the next ruin"), 2.5)
+
+
+func _boss_display_name(enemy) -> String:
+	# 优先章节内容中文名
+	if enemy != null and is_instance_valid(enemy) and "chapter_content" in enemy:
+		var content: Dictionary = enemy.chapter_content
+		var display := String(content.get("display_name", ""))
+		if not display.is_empty():
+			return display.split(" / ")[0] if " / " in display else display
+	return LocalizationScript.text("CINDER GUARDIAN")
 
 
 func _on_enemy_engagement_changed(enemy, is_guardian: bool, engaged: bool) -> void:
 	if not is_guardian:
 		return
 	if engaged and enemy.is_targetable():
-		hud.show_boss(LocalizationScript.text("CINDER GUARDIAN"), enemy.health, enemy.max_health)
+		hud.show_boss(_boss_display_name(enemy), enemy.health, enemy.max_health)
 	else:
 		hud.hide_boss()
 
 
 func _on_guardian_health_changed(current: float, maximum: float, enemy) -> void:
 	if enemy == guardian and is_instance_valid(enemy) and enemy.engaged:
-		hud.show_boss(LocalizationScript.text("CINDER GUARDIAN"), current, maximum)
+		hud.show_boss(_boss_display_name(enemy), current, maximum)
+		hud.update_execution_break(float(enemy.execution_break), float(enemy.max_execution_break))
+
+
+func _on_execution_break_changed(current: float, maximum: float, enemy) -> void:
+	if enemy == guardian and is_instance_valid(enemy) and enemy.engaged:
+		hud.update_execution_break(current, maximum)
+
+
+func _on_boss_story_threshold(story_flag: StringName, health_ratio: float) -> void:
+	hud.show_message(
+		LocalizationScript.text("STORY THRESHOLD\n%s  %.0f%%") % [String(story_flag), health_ratio * 100.0],
+		2.4
+	)
 
 
 func get_target_candidates() -> Array[Node]:
@@ -609,6 +688,10 @@ func _apply_run_state(state) -> void:
 		guardian.queue_free()
 		victory = true
 		run_state.guardian_defeated = true
+		_open_boss_victory_exit()
+	# 有已激活祠堂时，重生点回到 checkpoint marker 而非出生点
+	if not String(run_state.checkpoint_id).is_empty():
+		respawn_position = _resolve_respawn_position(_checkpoint_position() + Vector3(0.0, 1.1, 2.0))
 	player.respawn_at(respawn_position)
 	hud.show_message(LocalizationScript.text("THE HOLLOW REMEMBERS"), 1.8)
 

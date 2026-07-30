@@ -1,7 +1,7 @@
 # Audit — Documentation & Codebase Health
 
 **Date:** 2026-07-30
-**Status:** `ACTIVE` — comprehensive scan complete; 4 stale documents identified, 6 missing topics, 3 broken references (fixed 2026-07-30)
+**Status:** `ACTIVE` — 2026-07-30 Dimension J complete (J-01…J-12). Topic refs: build/export, focus, save, audio, enemy AI under `systems/`.
 **See also:** [`research-dark-souls-design.md`](research-dark-souls-design.md) — 12-topic DS design audit, vertical slice checklist, documentation reliability table
 **See also:** [`research-dark-souls-weapons.md`](research-dark-souls-weapons.md) — per-style weapon tuning, documentation staleness assessment
 **See also:** [`research-dark-souls-mechanics-deep.md`](research-dark-souls-mechanics-deep.md) — frame data, poise math, verified-implemented vs pending gaps
@@ -48,7 +48,7 @@ No claim in this report relies on external research or developer interviews. Eve
 | 1 | `game-design.md` | 8 KB | Design spec | ✅ **CURRENT** — updated in commit `7f30d4f` with Vitality Forging, Ember Rite, boss phases, enemy reset |
 | 2 | `architecture.md` | 4 KB | Technical spec | ⚠️ **PARTIALLY RELIABLE** — missing title screen, pause flow, 5 combat styles, scripts/ subdirectories |
 | 3 | `project-structure.md` | 8 KB | Process | ✅ **CURRENT** — reflects repository layout; dependency direction and naming rules intact |
-| 4 | `controls.md` | 4 KB | Reference | 🔴 **STALE** — pre-dates all 5 combat styles, controller, touch, guard, parry; flagged by two research audits |
+| 4 | `controls.md` | 4 KB | Reference | ✅ **CURRENT** — J-01 rewrite covers five styles, controller, touch, resources |
 | 5 | `validation.md` | 4 KB | Process | ⚠️ **PARTIALLY RELIABLE** — script glob misses subdirectories; project path may be outdated; controller claim wrong |
 | 6 | `research.md` | 12 KB | Research | ⚠️ **PARTIALLY RELIABLE** — foundational design advice still sound; predates 5-style system and post-audit fixes |
 | 7 | `devlog.md` | 24 KB | Process | ✅ **CURRENT** — 6 dated entries through 2026-07-30; resume order defined |

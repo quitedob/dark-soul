@@ -61,8 +61,15 @@ func test_active_wam_holds_light_hit_but_zero_wam_staggers() -> void:
 	player._change_state(player.State.ATTACK_ACTIVE, 1.0)
 	player.receive_hit_payload({"damage": 5.0, "stagger": 10.0, "poise": 10.0, "direction": Vector3.BACK, "source": null})
 	assert_eq(player.state, player.State.ATTACK_ACTIVE)
+	# 站立满韧性：轻击扣储备但不硬直
 	player._change_state(player.State.LOCOMOTION)
+	player.poise_health = player.max_poise_health
 	player.receive_hit_payload({"damage": 5.0, "stagger": 10.0, "poise": 10.0, "direction": Vector3.BACK, "source": null})
+	assert_eq(player.state, player.State.LOCOMOTION)
+	assert_lt(player.poise_health, player.max_poise_health)
+	# 站立韧性打空：才进入硬直
+	player.poise_health = 5.0
+	player.receive_hit_payload({"damage": 5.0, "stagger": 10.0, "poise": 20.0, "direction": Vector3.BACK, "source": null})
 	assert_eq(player.state, player.State.STAGGER)
 
 

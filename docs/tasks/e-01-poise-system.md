@@ -1,7 +1,7 @@
 # E-01 — Continuous Poise and Action Armor
 
 **Priority:** P1 (critical)  
-**Status:** 🟡 PARTIAL  
+**Status:** 🟡 PARTIAL — standing reserve + break-on-empty shipped 2026-07-30; per-phase AttackData WAM ownership still open (E-02)  
 **Effort:** L (week)  
 **Depends On:** A-03 (`AttackData`), B-01  
 **Blocks:** E-02, E-03, E-08, E-09, E-10  

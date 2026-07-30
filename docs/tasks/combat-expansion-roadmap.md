@@ -1,6 +1,6 @@
 # Combat Expansion Roadmap — 执行·格挡·韧性·招式·兵器诀
 
-**Status:** ⬜ PLANNED  
+**Status:** 🟡 IN PROGRESS（握持/蓄力/语境攻击已落地；Guard Meter / 独立盾破态 / root motion 仍待）  
 **Scope:** 将当前兼容原型扩展为 `combat-execution-guard-weapon-arts.md` 定义的原创战斗体系。  
 **Non-goal:** 本路线不包含第三方动作资产导入或逐帧复刻。
 
@@ -8,22 +8,22 @@
 
 当前已经存在：
 
-- `CombatStyleData` 与五个 `.tres`。
-- 轻/重攻击三阶段代码计时。
-- `CombatArea` 标准命中 payload 和单次挥击去重。
+- `CombatStyleData` 与五个 `.tres`（含 leap/dodge/WAM）。
+- 轻/重攻击三阶段代码计时 + `AttackData` / `MovesetData` 工厂合成。
+- 单持/双持/成对持握、蓄力档、跑/翻滚/后撤/跳/下落语境攻击。
+- `CombatArea` 标准命中 payload、单次挥击去重、`is_heavy` 标签反馈。
 - `GuardResolver` 的方向、吸收、稳定性和精力破防。
+- 连续站立韧性（`PoiseResolver` + `poise_health`）；动作 WAM 抬高容量。
+- 本地 HitStop（冻实体状态推进，非全局 `time_scale`）。
+- recovery `dodge_cancel_seconds` 接线；刑天重击零取消。
 - 四种装备化弹反窗口。
-- 敌人简化 Poise 累积。
-- 玩家二值 `hyper_armor`。
-- 五种兼容兵器诀/特殊动作。
+- 敌人简化 Poise 累积与章节 Boss 内容阶段表。
 
-当前不存在：
+当前仍缺：
 
-- 通用 `AttackData` / `MovesetData`。
-- 单持/双持/成对持握切换。
-- 蓄力、跑攻、翻滚攻、后撤攻、通用跳攻和下落攻。
 - Guard Meter 与直接冲击击穿。
-- 人型处决、背刺、Boss 弱点处决。
+- 独立 `GUARD_BROKEN` FSM 状态。
+- 人型处决、背刺、Boss 弱点处决完善。
 - 抓投配对状态。
 - AnimationTree/root motion 战斗管线。
 

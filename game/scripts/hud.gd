@@ -37,6 +37,8 @@ var stamina_bar: ProgressBar
 var focus_bar: ProgressBar
 var poise_bar: ProgressBar
 var poise_row: Control
+var charge_bar: ProgressBar
+var charge_row: Control
 var health_value_label: Label
 var stamina_value_label: Label
 var focus_value_label: Label
@@ -176,6 +178,20 @@ func update_poise(current: float, maximum: float) -> void:
 	poise_row.visible = current < maximum - 0.01
 
 
+func update_charge_progress(ratio: float, tier: int) -> void:
+	# 蓄力短条：ratio=0 隐藏
+	if charge_bar == null or charge_row == null:
+		return
+	if ratio <= 0.001:
+		charge_row.visible = false
+		charge_bar.value = 0.0
+		return
+	charge_row.visible = true
+	charge_bar.max_value = 1.0
+	charge_bar.value = clampf(ratio, 0.0, 1.0)
+	charge_bar.tooltip_text = "Charge T%d" % maxi(tier, 1)
+
+
 func set_combat_style(style_id: int, display_name: String) -> void:
 	if style_label != null:
 		if style_id >= 0 and style_id < STYLE_SOURCE_NAMES.size():
@@ -279,6 +295,18 @@ func show_boss(boss_name: String, current: float, maximum: float) -> void:
 		boss_panel.modulate.a = 0.0
 		var reveal := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 		reveal.tween_property(boss_panel, "modulate:a", 1.0, 0.3)
+
+
+func update_execution_break(current: float, maximum: float) -> void:
+	# Boss 处决槽提示挂在 boss bar tooltip
+	if boss_bar == null:
+		return
+	var tip := String(boss_bar.tooltip_text)
+	var base := tip.split(" | ")[0] if " | " in tip else tip
+	if maximum <= 0.0:
+		boss_bar.tooltip_text = base
+		return
+	boss_bar.tooltip_text = "%s | Break %d / %d" % [base, roundi(current), roundi(maximum)]
 
 
 func hide_boss() -> void:
@@ -417,6 +445,8 @@ func _build_top_row() -> HBoxContainer:
 	vitals.add_child(_make_focus_row())
 	poise_row = _make_poise_row()
 	vitals.add_child(poise_row)
+	charge_row = _make_charge_row()
+	vitals.add_child(charge_row)
 
 	var top_spacer := Control.new()
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -475,6 +505,23 @@ func _make_poise_row() -> HBoxContainer:
 	poise_bar = _make_bar(Color("d9903d"), 7.0)
 	poise_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(poise_bar)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(76.0, 0.0)
+	row.add_child(spacer)
+	row.visible = false
+	return row
+
+
+func _make_charge_row() -> HBoxContainer:
+	# 蓄力三档进度条（短）
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 9)
+	var caption_label := _make_label("CHG", 10, COLOR_MUTED)
+	caption_label.custom_minimum_size = Vector2(30.0, 0.0)
+	row.add_child(caption_label)
+	charge_bar = _make_bar(Color("c9a35a"), 7.0)
+	charge_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(charge_bar)
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(76.0, 0.0)
 	row.add_child(spacer)

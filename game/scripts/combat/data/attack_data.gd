@@ -18,6 +18,7 @@ extends Resource
 @export_range(0.0, 1000.0, 0.5) var damage := 20.0
 @export_range(0.0, 500.0, 0.5) var poise_damage := 16.0
 @export_range(0.0, 500.0, 0.5) var guard_power := 24.0
+@export_range(0.0, 500.0, 0.5) var execution_break_damage := 0.0
 @export var blockable := true
 @export var parryable := true
 @export_group("Movement")
@@ -65,7 +66,9 @@ func to_hit_metadata(item_id: String) -> Dictionary:
 		"item_id": item_id,
 		"action_id": String(action_id),
 		"guard_damage": guard_power,
+		"execution_break_damage": execution_break_damage,
 		"tags": tags.duplicate(),
+		"is_heavy": &"heavy" in tags,
 		"blockable": blockable,
 		"parryable": parryable,
 		"hitbox_radius": hitbox_radius,
