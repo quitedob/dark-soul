@@ -65,7 +65,7 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 |----|------|----------|--------|--------|---------|--------|
 | B-01 | **Per-style stamina cost differentiation** — Twin Colossi heavy costs 65 stamina and all loadouts use the target economy | P0 | ✅ DONE | S | — | [tasks/b-01-stamina-differentiation.md](tasks/b-01-stamina-differentiation.md) |
 | B-02 | Verify and tune differentiated frame data matrix (Windup/Active/Recovery) for all 5 styles against the compatibility baseline | P1 | ✅ DONE | M | B-01 | — |
-| B-03 | Input buffering: verify 150ms window works correctly; add buffer queue visualization for debug mode | P2 | ⬜ PENDING | S | — | — |
+| B-03 | Input buffering: verify 150ms window works correctly; add buffer queue visualization for debug mode | P2 | ✅ DONE | S | — | `INPUT_BUFFER_WINDOW=0.15` 单槽覆盖；combat tip / debug build 下 HUD `BUF ACTION ms`；权威：`player.gd` + `hud.set_input_buffer_debug` |
 | B-04 | Implement attack cancel windows — Crescent Pair post-recovery dodge cancel; Twin Colossi zero cancel | P2 | ✅ DONE | M | B-02 | — |
 | B-05 | Heavy attack charge mechanic using discrete authored charge tiers | P2 | ✅ DONE | L | A-03, B-02 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
 | B-06 | Running, rolling, and backstep attack contexts per supported moveset | P2 | ✅ DONE | L | A-03, B-04 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
@@ -136,7 +136,7 @@ Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Ri
 | E-02 | Migrate heavy-action protection from binary `hyper_armor` to authored phase modifiers | P1 | ⬜ PENDING | M | E-01 | — |
 | E-03 | Poise break: when reserve reaches zero, force `STAGGER`; otherwise apply HP and impact feedback without interrupting | P1 | ✅ DONE | M | E-01 | — |
 | E-04 | **Parry window differentiation by tool** — medium shield, buckler, dagger, and fist profiles | P2 | ✅ DONE | M | — | [tasks/e-04-parry-windows.md](tasks/e-04-parry-windows.md) |
-| E-05 | Verify the actual per-action stamina recovery delays and freeze behavior during non-LOCOMOTION states; do not assume one universal 1.5s value | P2 | 🟡 PARTIAL | S | — | — |
+| E-05 | Verify the actual per-action stamina recovery delays and freeze behavior during non-LOCOMOTION states; do not assume one universal 1.5s value | P2 | ✅ DONE | S | — | **无统一 1.5s。** 实际 `_spend_stamina` delay：普攻 0.85；闪避/后撤 0.7；招架 0.45；盾击 0.7；leap/突刺 0.9；格挡受击 0.65 / 破防 1.0；蓄力滴耗 0.2；冲刺滴耗 0.25。Delay **仅在 LOCOMOTION 倒数**（非移动态冻结）。I-04 测例已按行为契约、不假设 1.5s |
 | E-06 | Guard stability differentiation by shield weight class | P3 | ⬜ PENDING | M | — | — |
 | E-07 | Add `GuardProfile`, Guard Meter, edge-angle stamina factor, and direct impact break threshold | P1 | ✅ DONE | M | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-3--guard-meter-and-guard-break) |
 | E-08 | Add independent `GUARD_BROKEN`, `PARRY_VULNERABLE`, and `WEAK_POINT_EXPOSED` states | P1 | ✅ DONE | M | E-01, E-07 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#目标状态模型) |
@@ -147,15 +147,15 @@ Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Ri
 
 ## Dimension F: Camera Control & Target Lock-On
 
-> **Goal:** SpringArm3D collision avoidance; screen-space dot-product target scoring; quaternion slerp smooth tracking; target cycling. **Current state:** SpringArm mask verified (F-01 DONE); lock-on with distance-based selection and cycling implemented. Dot-product scoring and slerp tracking need verification.
+> **Goal:** SpringArm3D collision avoidance; screen-space dot-product target scoring; quaternion slerp smooth tracking; target cycling. **Current state:** SpringArm mask=`1`（F-01）；F-02 打分已落地；F-03 slerp / F-04 双向循环 / F-05 断锁回正已完成。
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
-| F-01 | Verify SpringArm3D collision mask is correctly configured for all level geometry layers | P2 | ✅ DONE | S | — | `collision_mask=1`（仅静态世界 Layer1）；排除玩家(2)/敌人(4)/交互物(8)。关卡几何均 layer=1。权威：`player.gd` `_configure_spring_arm_collision()` |
+| F-01 | Verify SpringArm3D collision mask is correctly configured for all level geometry layers | P2 | ✅ DONE | S | — | `spring_arm.collision_mask = 1`（仅静态世界 Layer1）；禁止 `set_collision_mask_value`。权威：`player.gd` `_configure_spring_arm_collision()` |
 | F-02 | Screen-space/FOV lock-on scoring with deterministic angle cycling and pure solver contracts | P2 | ✅ DONE | M | — | [tasks/f-02-lockon-scoring.md](tasks/f-02-lockon-scoring.md) |
-| F-03 | Quaternion slerp smooth tracking: replace any `look_at()` calls with `slerp` interpolation for lock-on rotation | P2 | ⬜ PENDING | S | F-02 | — |
-| F-04 | Target cycling: verify clockwise/anticlockwise cycling by screen angle; add input for cycle direction | P3 | 🟡 PARTIAL | S | F-02 | — |
-| F-05 | Lock-on break distance verification and camera recovery behavior | P3 | ⬜ PENDING | S | — | — |
+| F-03 | Quaternion slerp smooth tracking: replace any `look_at()` calls with `slerp` interpolation for lock-on rotation | P2 | ✅ DONE | S | F-02 | `_update_camera_rig` 用 `Quaternion.slerp`（`LOCK_ON_CAMERA_SLERP`）；无 `look_at()`；锁敌时禁用自由环绕 |
+| F-04 | Target cycling: verify clockwise/anticlockwise cycling by screen angle; add input for cycle direction | P3 | ✅ DONE | S | F-02 | Q/中键顺时针；`[` / `]` = `cycle_lock_left` / `cycle_lock_right` 按 `screen_angle` 双向循环 |
+| F-05 | Lock-on break distance verification and camera recovery behavior | P3 | ✅ DONE | S | — | 断锁距离=`LOCK_ON_BREAK_DISTANCE`(22)；断锁后 0.5s 偏航对齐角色 + 俯仰回 `-0.18`；鼠标/摇杆可打断回正 |
 
 ---
 
