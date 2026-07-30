@@ -55,7 +55,9 @@ var engaged := false
 var attack_index := 0
 var _phase := 1
 var _phase_transition_played := false
+var _phase_two_played := false
 const PHASE_TWO_THRESHOLD := 0.5
+const PHASE_THREE_THRESHOLD := 0.25
 var attack_windup := 0.55
 var attack_active := 0.18
 var attack_recovery := 0.70
@@ -149,6 +151,7 @@ func reset_enemy() -> void:
 	attack_index = 0
 	_phase = 1
 	_phase_transition_played = false
+	_phase_two_played = false
 	navigation_refresh = 0.0
 	_cached_has_target = false
 	_cached_target_position = global_position
@@ -177,6 +180,8 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 	health_changed.emit(health, max_health)
 	_play_audio("hurt", -8.0, 0.82 if guardian else 1.0)
 	if guardian and not _phase_transition_played and _current_phase() == 2:
+		_trigger_phase_transition()
+	if guardian and not _phase_two_played and _current_phase() == 3:
 		_trigger_phase_transition()
 	if health <= 0.0:
 		_die()
@@ -409,6 +414,8 @@ func _select_attack_profile() -> void:
 
 
 func _current_phase() -> int:
+	if get_health_ratio() <= PHASE_THREE_THRESHOLD:
+		return 3
 	if get_health_ratio() <= PHASE_TWO_THRESHOLD:
 		return 2
 	return 1
@@ -417,61 +424,99 @@ func _current_phase() -> int:
 func _apply_close_range_attack() -> void:
 	var phase := _current_phase()
 	attack_heavy = false
-	if phase == 2 and attack_index % 3 == 0:
+	if phase >= 2 and attack_index % 3 == 0:
 		attack_heavy = true
-		attack_windup = 0.55
-		attack_active = 0.20
-		attack_recovery = 0.48
-		attack_damage = 24.0
-		attack_stagger = 28.0
-		attack_lunge = 1.3
+		if phase == 3:
+			attack_windup = 0.45; attack_active = 0.18; attack_recovery = 0.40
+			attack_damage = 28.0; attack_stagger = 34.0; attack_lunge = 1.5
+		else:
+			attack_windup = 0.55; attack_active = 0.20; attack_recovery = 0.48
+			attack_damage = 24.0; attack_stagger = 28.0; attack_lunge = 1.3
 		return
-	attack_windup = 0.48 if phase == 1 else 0.38
-	attack_active = 0.16 if phase == 1 else 0.14
-	attack_recovery = 0.52 if phase == 1 else 0.40
-	attack_damage = 18.0 if phase == 1 else 22.0
-	attack_stagger = 22.0 if phase == 1 else 26.0
-	attack_lunge = 1.1 if phase == 1 else 1.3
+	if phase == 3:
+		attack_windup = 0.32; attack_active = 0.12; attack_recovery = 0.34
+		attack_damage = 26.0; attack_stagger = 30.0; attack_lunge = 1.4
+	elif phase == 2:
+		attack_windup = 0.38; attack_active = 0.14; attack_recovery = 0.40
+		attack_damage = 22.0; attack_stagger = 26.0; attack_lunge = 1.3
+	else:
+		attack_windup = 0.48; attack_active = 0.16; attack_recovery = 0.52
+		attack_damage = 18.0; attack_stagger = 22.0; attack_lunge = 1.1
 
 
 func _apply_mid_range_attack() -> void:
 	var phase := _current_phase()
 	attack_heavy = attack_index % 2 == 1
 	if attack_heavy:
-		attack_windup = 1.18 if phase == 1 else 0.95
-		attack_active = 0.34 if phase == 1 else 0.30
-		attack_recovery = 1.08 if phase == 1 else 0.82
-		attack_damage = 34.0 if phase == 1 else 38.0
-		attack_stagger = 42.0 if phase == 1 else 46.0
-		attack_lunge = 2.1 if phase == 1 else 2.4
+		if phase == 3:
+			attack_windup = 0.78; attack_active = 0.26; attack_recovery = 0.68
+			attack_damage = 44.0; attack_stagger = 52.0; attack_lunge = 2.6
+		elif phase == 2:
+			attack_windup = 0.95; attack_active = 0.30; attack_recovery = 0.82
+			attack_damage = 38.0; attack_stagger = 46.0; attack_lunge = 2.4
+		else:
+			attack_windup = 1.18; attack_active = 0.34; attack_recovery = 1.08
+			attack_damage = 34.0; attack_stagger = 42.0; attack_lunge = 2.1
 	else:
-		attack_windup = 0.72 if phase == 1 else 0.58
-		attack_active = 0.22 if phase == 1 else 0.18
-		attack_recovery = 0.78 if phase == 1 else 0.56
-		attack_damage = 24.0 if phase == 1 else 28.0
-		attack_stagger = 30.0 if phase == 1 else 34.0
-		attack_lunge = 1.65 if phase == 1 else 1.9
+		if phase == 3:
+			attack_windup = 0.48; attack_active = 0.16; attack_recovery = 0.46
+			attack_damage = 32.0; attack_stagger = 40.0; attack_lunge = 2.1
+		elif phase == 2:
+			attack_windup = 0.58; attack_active = 0.18; attack_recovery = 0.56
+			attack_damage = 28.0; attack_stagger = 34.0; attack_lunge = 1.9
+		else:
+			attack_windup = 0.72; attack_active = 0.22; attack_recovery = 0.78
+			attack_damage = 24.0; attack_stagger = 30.0; attack_lunge = 1.65
 
 
 func _apply_long_range_attack() -> void:
 	var phase := _current_phase()
 	attack_heavy = true
-	attack_windup = 1.35 if phase == 1 else 1.08
-	attack_active = 0.38
-	attack_recovery = 1.25 if phase == 1 else 0.95
-	attack_damage = 40.0 if phase == 1 else 46.0
-	attack_stagger = 48.0 if phase == 1 else 52.0
-	attack_lunge = 3.2 if phase == 1 else 3.8
+	if phase == 3:
+		attack_windup = 0.88; attack_active = 0.38; attack_recovery = 0.78
+		attack_damage = 54.0; attack_stagger = 58.0; attack_lunge = 4.2
+	elif phase == 2:
+		attack_windup = 1.08; attack_active = 0.38; attack_recovery = 0.95
+		attack_damage = 46.0; attack_stagger = 52.0; attack_lunge = 3.8
+	else:
+		attack_windup = 1.35; attack_active = 0.38; attack_recovery = 1.25
+		attack_damage = 40.0; attack_stagger = 48.0; attack_lunge = 3.2
 
 
 func _trigger_phase_transition() -> void:
-	_phase_transition_played = true
-	_phase = 2
-	weapon_material.albedo_color = Color(1.0, 0.35, 0.08)
-	weapon_material.emission_enabled = true
-	weapon_material.emission = Color(1.0, 0.2, 0.04)
-	weapon_material.emission_energy_multiplier = 2.5
-	_play_audio("heavy", -3.0, 0.55)
+	var new_phase := _current_phase()
+	if new_phase == 2:
+		_phase_transition_played = true
+		_phase = 2
+		# Phase 2: weapon ignites in fiery orange
+		weapon_material.albedo_color = Color(1.0, 0.35, 0.08)
+		weapon_material.emission_enabled = true
+		weapon_material.emission = Color(1.0, 0.2, 0.04)
+		weapon_material.emission_energy_multiplier = 2.5
+		_play_audio("heavy", -3.0, 0.55)
+		# Ground slam AoE — burst of damage on phase transition
+		if world_node != null and world_node.has_method("get_target_candidates"):
+			for candidate in world_node.get_target_candidates():
+				if candidate is Node3D and _horizontal_distance(global_position, candidate.global_position) <= 4.5:
+					var dir: Vector3 = (candidate.global_position - global_position).normalized()
+					candidate.receive_hit(22.0, 28.0, dir, self)
+	elif new_phase == 3:
+		_phase_two_played = true
+		_phase = 3
+		# Phase 3: weapon burns white-hot, body glows with ember cracks
+		weapon_material.albedo_color = Color(1.0, 0.7, 0.3)
+		weapon_material.emission = Color(1.0, 0.5, 0.1)
+		weapon_material.emission_energy_multiplier = 4.5
+		body_material.emission_enabled = true
+		body_material.emission = Color(1.0, 0.25, 0.05)
+		body_material.emission_energy_multiplier = 1.5
+		_play_audio("death", -2.0, 0.45)
+		# Larger ground slam AoE in phase 3 transition
+		if world_node != null and world_node.has_method("get_target_candidates"):
+			for candidate in world_node.get_target_candidates():
+				if candidate is Node3D and _horizontal_distance(global_position, candidate.global_position) <= 6.0:
+					var dir: Vector3 = (candidate.global_position - global_position).normalized()
+					candidate.receive_hit(30.0, 38.0, dir, self)
 	velocity = Vector3.ZERO
 	knockback_velocity = Vector3.ZERO
 	if state in [State.CHASE, State.WINDUP, State.ACTIVE, State.RECOVERY]:

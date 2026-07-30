@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:ashen_hollow_app/src/bridge/game_bridge.dart';
 import 'package:ashen_hollow_app/src/host/game_host_client.dart';
 import 'package:ashen_hollow_app/src/model/game_save_v1.dart';
+import 'package:ashen_hollow_app/src/model/game_save_v2.dart';
 import 'package:ashen_hollow_app/src/model/game_settings_v1.dart';
 import 'package:ashen_hollow_web_host/ashen_hollow_web_host.dart';
 import 'package:flutter/foundation.dart';
@@ -13,10 +14,10 @@ class GameHostController extends ChangeNotifier {
   GameHostController({
     required GameHostClient host,
     GameSettingsV1 settings = const GameSettingsV1(),
-    GameSaveV1 save = const GameSaveV1(),
+    Object save = const GameSaveV1(),
   }) : _host = host,
        _settings = settings,
-       _save = save {
+       _save = _normalizeSave(save) {
     _eventSubscription = _host.events.listen(
       _onHostEvent,
       onError: (Object error, StackTrace stackTrace) {
@@ -27,12 +28,24 @@ class GameHostController extends ChangeNotifier {
 
   static const String defaultGameSource = 'resource://rawfile/game/index.html';
 
+  static GameSaveV2 _normalizeSave(Object save) {
+    return switch (save) {
+      GameSaveV1 legacy => GameSaveV2.fromV1(legacy),
+      GameSaveV2 canonical => canonical,
+      _ => throw ArgumentError.value(
+        save,
+        'save',
+        'must be a GameSaveV1 or GameSaveV2',
+      ),
+    };
+  }
+
   final GameHostClient _host;
   late final StreamSubscription<WebHostEvent> _eventSubscription;
   GameHostState _state = GameHostState.launcher;
   GameHostState _settingsReturnState = GameHostState.launcher;
   GameSettingsV1 _settings;
-  GameSaveV1 _save;
+  GameSaveV2 _save;
   String? _errorMessage;
   int _requestSequence = 0;
   bool _viewAttached = false;
@@ -43,7 +56,7 @@ class GameHostController extends ChangeNotifier {
 
   GameHostState get state => _state;
   GameSettingsV1 get settings => _settings;
-  GameSaveV1 get save => _save;
+  GameSaveV2 get save => _save;
   String? get errorMessage => _errorMessage;
   bool get hasActiveGame =>
       _state == GameHostState.loading ||
@@ -193,7 +206,7 @@ class GameHostController extends ChangeNotifier {
           if (rawSave is! Map<String, Object?>) {
             throw const FormatException('save.changed requires a save object.');
           }
-          _save = GameSaveV1.fromJson(rawSave);
+          _save = GameSaveV2.fromAnyJson(rawSave);
           notifyListeners();
           return;
         case GameBridgeTypes.error:

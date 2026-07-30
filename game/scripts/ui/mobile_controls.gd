@@ -23,6 +23,7 @@ var _stick_knob: Panel
 var _camera_zone: Control
 var _action_cluster: Control
 var _utility_cluster: Control
+var _hand_buttons: Dictionary = {}
 
 
 func _ready() -> void:
@@ -115,8 +116,10 @@ func _build_controls() -> void:
 	_action_cluster.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_action_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_action_cluster)
-	_add_action_button(_action_cluster, "LIGHT", &"light_attack", Vector2.ZERO)
-	_add_action_button(_action_cluster, "HEAVY", &"heavy_attack", Vector2.ZERO)
+	_add_hand_button("R1", &"right_primary")
+	_add_hand_button("R2", &"right_secondary")
+	_add_hand_button("L1", &"left_primary")
+	_add_hand_button("L2", &"left_secondary")
 	var dash := _make_button("DODGE\nSPRINT")
 	dash.name = "DodgeSprint"
 	dash.button_down.connect(_on_dash_down)
@@ -130,9 +133,6 @@ func _build_controls() -> void:
 	add_child(_utility_cluster)
 	_add_action_button(_utility_cluster, "LOCK", &"lock_on", Vector2.ZERO)
 	_add_action_button(_utility_cluster, "USE", &"interact", Vector2.ZERO)
-	_add_action_button(_utility_cluster, "GUARD", &"guard", Vector2.ZERO)
-	_add_action_button(_utility_cluster, "STYLE", &"cycle_style", Vector2.ZERO)
-	_add_action_button(_utility_cluster, "SKILL", &"special_attack", Vector2.ZERO)
 	var pause := _make_button("II")
 	pause.name = "Pause"
 	pause.pressed.connect(_on_pause_pressed)
@@ -142,20 +142,19 @@ func _build_controls() -> void:
 func _layout_action_buttons() -> void:
 	if _action_cluster == null:
 		return
-	var button_size := Vector2(72.0, 64.0) * _ui_scale
-	var gap := 10.0 * _ui_scale
-	var cluster_size := Vector2(button_size.x * 2.0 + gap, button_size.y * 2.0 + gap)
+	var button_size := Vector2(68.0, 58.0) * _ui_scale
+	var gap := 8.0 * _ui_scale
+	var cluster_size := Vector2(button_size.x * 3.0 + gap * 2.0, button_size.y * 2.0 + gap)
 	_action_cluster.size = cluster_size
 	_action_cluster.offset_right = -18.0 * _ui_scale
 	_action_cluster.offset_bottom = -18.0 * _ui_scale
 	_action_cluster.offset_left = _action_cluster.offset_right - cluster_size.x
 	_action_cluster.offset_top = _action_cluster.offset_bottom - cluster_size.y
-	var light := _action_cluster.get_node("LIGHT") as Button
-	var heavy := _action_cluster.get_node("HEAVY") as Button
-	var dash := _action_cluster.get_node("DodgeSprint") as Button
-	_set_button_rect(light, Vector2(button_size.x + gap, 0.0), button_size)
-	_set_button_rect(heavy, Vector2(0.0, button_size.y + gap), button_size)
-	_set_button_rect(dash, Vector2(button_size.x + gap, button_size.y + gap), button_size)
+	_set_button_rect(_hand_buttons["R1"], Vector2((button_size.x + gap) * 2.0, 0.0), button_size)
+	_set_button_rect(_hand_buttons["R2"], Vector2(button_size.x + gap, 0.0), button_size)
+	_set_button_rect(_hand_buttons["L1"], Vector2((button_size.x + gap) * 2.0, button_size.y + gap), button_size)
+	_set_button_rect(_hand_buttons["L2"], Vector2(button_size.x + gap, button_size.y + gap), button_size)
+	_set_button_rect(_action_cluster.get_node("DodgeSprint") as Button, Vector2.ZERO, button_size)
 
 
 func _layout_utility_buttons() -> void:
@@ -163,7 +162,7 @@ func _layout_utility_buttons() -> void:
 		return
 	var button_size := Vector2(58.0, 50.0) * _ui_scale
 	var gap := 8.0 * _ui_scale
-	var cluster_size := Vector2(button_size.x * 3.0 + gap * 2.0, button_size.y * 2.0 + gap)
+	var cluster_size := Vector2(button_size.x * 3.0 + gap * 2.0, button_size.y)
 	_utility_cluster.size = cluster_size
 	_utility_cluster.offset_right = -16.0 * _ui_scale
 	_utility_cluster.offset_top = 16.0 * _ui_scale
@@ -172,15 +171,37 @@ func _layout_utility_buttons() -> void:
 	_set_button_rect(_utility_cluster.get_node("LOCK") as Button, Vector2.ZERO, button_size)
 	_set_button_rect(_utility_cluster.get_node("USE") as Button, Vector2(button_size.x + gap, 0.0), button_size)
 	_set_button_rect(_utility_cluster.get_node("Pause") as Button, Vector2((button_size.x + gap) * 2.0, 0.0), button_size)
-	_set_button_rect(_utility_cluster.get_node("GUARD") as Button, Vector2(0.0, button_size.y + gap), button_size)
-	_set_button_rect(_utility_cluster.get_node("STYLE") as Button, Vector2(button_size.x + gap, button_size.y + gap), button_size)
-	_set_button_rect(_utility_cluster.get_node("SKILL") as Button, Vector2((button_size.x + gap) * 2.0, button_size.y + gap), button_size)
 
 
 func _set_button_rect(button: Button, at: Vector2, button_size: Vector2) -> void:
 	button.position = at
 	button.size = Vector2(maxf(button_size.x, MIN_TOUCH_SIZE), maxf(button_size.y, MIN_TOUCH_SIZE))
 	button.add_theme_font_size_override("font_size", maxi(12, roundi(13.0 * _ui_scale)))
+
+
+func _add_hand_button(caption: String, action: StringName) -> void:
+	var button := _make_button(caption)
+	button.name = caption
+	button.button_down.connect(_press_action.bind(action))
+	button.button_up.connect(_release_action.bind(action))
+	_action_cluster.add_child(button)
+	_hand_buttons[caption] = button
+
+
+func set_hand_labels(labels: Dictionary) -> void:
+	var mappings := {
+		"R1": "right_primary",
+		"R2": "right_secondary",
+		"L1": "left_primary",
+		"L2": "left_secondary",
+	}
+	for caption in mappings:
+		var button: Button = _hand_buttons.get(caption)
+		if button == null:
+			continue
+		var action_label := String(labels.get(mappings[caption], caption))
+		button.text = "%s\n%s" % [caption, action_label]
+		button.set_meta("source_text", button.text)
 
 
 func _add_action_button(parent: Control, caption: String, action: StringName, _at: Vector2) -> void:
@@ -332,6 +353,7 @@ func _release_action(action: StringName) -> void:
 func _ensure_actions() -> void:
 	for action in [
 		&"move_left", &"move_right", &"move_forward", &"move_back",
+		&"right_primary", &"right_secondary", &"left_primary", &"left_secondary",
 		&"light_attack", &"heavy_attack", &"dodge", &"sprint",
 		&"lock_on", &"interact", &"pause", &"guard",
 		&"cycle_style", &"special_attack"

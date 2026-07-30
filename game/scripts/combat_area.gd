@@ -6,6 +6,7 @@ var damage := 10.0
 var stagger := 10.0
 var source: Node
 var active := false
+var hit_payload: Dictionary = {}
 var already_hit: Dictionary = {}
 
 
@@ -31,9 +32,23 @@ func configure(new_source: Node, radius: float, height: float = 1.2) -> void:
 	monitoring = false
 
 
-func begin_swing(new_damage: float, new_stagger: float) -> void:
+func begin_swing(new_damage: float, new_stagger: float, metadata: Dictionary = {}) -> void:
 	damage = new_damage
 	stagger = new_stagger
+	hit_payload = {
+		"damage": damage,
+		"stagger": stagger,
+		"poise": stagger,
+		"guard_damage": metadata.get("guard_damage", damage + stagger * 0.25),
+		"direction": Vector3.ZERO,
+		"source": source,
+		"hand": String(metadata.get("hand", "right")),
+		"item_id": String(metadata.get("item_id", "")),
+		"action_id": String(metadata.get("action_id", "legacy_swing")),
+		"tags": metadata.get("tags", []).duplicate(),
+		"blockable": bool(metadata.get("blockable", true)),
+		"parryable": bool(metadata.get("parryable", true)),
+	}
 	already_hit.clear()
 	active = true
 	monitoring = true
@@ -54,5 +69,16 @@ func _on_body_entered(body: Node3D) -> void:
 	var hit_direction := Vector3.ZERO
 	if source is Node3D:
 		hit_direction = (body.global_position - source.global_position).normalized()
-	body.receive_hit(damage, stagger, hit_direction, source)
-	hit_landed.emit(damage >= 30.0)
+	var payload := hit_payload.duplicate(true)
+	payload["direction"] = hit_direction
+	payload["source"] = source
+	if body.has_method("receive_hit_payload"):
+		body.receive_hit_payload(payload)
+	else:
+		body.receive_hit(
+			float(payload["damage"]),
+			float(payload["stagger"]),
+			hit_direction,
+			source
+		)
+	hit_landed.emit(float(payload["damage"]) >= 30.0)

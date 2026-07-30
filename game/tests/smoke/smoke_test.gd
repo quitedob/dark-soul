@@ -33,6 +33,10 @@ static func run(world: Node) -> void:
 			world.get_tree().quit(1)
 			return
 	for required_action in [
+		&"right_primary",
+		&"right_secondary",
+		&"left_primary",
+		&"left_secondary",
 		&"guard",
 		&"parry",
 		&"special_attack",
@@ -43,12 +47,40 @@ static func run(world: Node) -> void:
 			push_error("Smoke test failed: missing action %s" % required_action)
 			world.get_tree().quit(1)
 			return
+	var expected_hands := [
+		{"right_hand": "guardian_sword", "left_hand": "reliquary_shield"},
+		{"right_hand": "xingtian_axe_right", "left_hand": "xingtian_axe_left"},
+		{"right_hand": "marksman_bow", "left_hand": "marksman_dagger"},
+		{"right_hand": "five_elements_seal", "left_hand": "spirit_stone"},
+		{"right_hand": "prayer_beads", "left_hand": "talisman_papers"},
+	]
 	for style_id in range(5):
 		player.set_combat_style(style_id)
 		if int(player.combat_style) != style_id:
 			push_error("Smoke test failed: combat style %d unavailable" % style_id)
 			world.get_tree().quit(1)
 			return
+		var actual_loadout: Dictionary = player.get_hand_loadout()
+		if actual_loadout != expected_hands[style_id]:
+			push_error("Smoke test failed: style %d hand mapping changed" % style_id)
+			world.get_tree().quit(1)
+			return
+
+	var SaveStateScript = load("res://scripts/core/run_state.gd")
+	var hand_state = SaveStateScript.new()
+	hand_state.right_hand = "marksman_bow"
+	hand_state.left_hand = "marksman_dagger"
+	hand_state.combat_style = 0
+	world.call("_apply_run_state", hand_state)
+	if player.right_hand_item != "marksman_bow" or player.left_hand_item != "marksman_dagger":
+		push_error("Smoke test failed: save hand loadout was not applied")
+		world.get_tree().quit(1)
+		return
+	var hand_snapshot: Dictionary = world.call("_snapshot_run_state")
+	if hand_snapshot.get("right_hand") != "marksman_bow" or hand_snapshot.get("left_hand") != "marksman_dagger":
+		push_error("Smoke test failed: save hand loadout was not snapshotted")
+		world.get_tree().quit(1)
+		return
 
 	var LocalizationScript = load("res://scripts/core/localization.gd")
 	if LocalizationScript.text("PARRY", "zh_CN") != "弹反":
@@ -74,10 +106,63 @@ static func run(world: Node) -> void:
 
 	player.call("_change_state", 0)
 	player.set_combat_style(0)
+	player.set_guard_active(true)
+	player.stamina = player.max_stamina
+	var frontal_health: float = player.health
+	player.receive_hit_payload({
+		"damage": 40.0, "stagger": 30.0, "guard_damage": 40.0,
+		"direction": player.global_transform.basis.z, "source": null,
+		"blockable": true, "parryable": true,
+	})
+	if frontal_health - player.health >= 10.0 or player.state == 10:
+		push_error("Smoke test failed: real frontal guard reduction did not resolve")
+		world.get_tree().quit(1)
+		return
+	player.call("_change_state", 0)
+	player.health = frontal_health
+	player.set_guard_active(true)
+	player.receive_hit_payload({
+		"damage": 20.0, "stagger": 0.0, "direction": -player.global_transform.basis.z,
+		"source": null, "blockable": true, "parryable": true,
+	})
+	if frontal_health - player.health < 19.0:
+		push_error("Smoke test failed: rear hit did not bypass real guard")
+		world.get_tree().quit(1)
+		return
+	player.call("_change_state", 0)
+	player.health = frontal_health
+	player.stamina = 1.0
+	player.set_guard_active(true)
+	player.receive_hit_payload({
+		"damage": 20.0, "stagger": 10.0, "guard_damage": 100.0,
+		"direction": player.global_transform.basis.z, "source": null,
+		"blockable": true, "parryable": true,
+	})
+	if player.guard_active or player.state != 10:
+		push_error("Smoke test failed: real guard break did not stagger")
+		world.get_tree().quit(1)
+		return
+
+	player.call("_change_state", 0)
+	player.set_combat_style(0)
+	player.stamina = player.max_stamina
+	player.set_guard_active(true)
+	player.call("_try_shield_bash")
+	if (
+		player.combat_area.hit_payload.get("hand") != "left"
+		or player.combat_area.hit_payload.get("action_id") != "shield_bash"
+		or not is_equal_approx(float(player.combat_area.hit_payload.get("damage", 0.0)), 18.0)
+	):
+		push_error("Smoke test failed: shield bash metadata changed")
+		world.get_tree().quit(1)
+		return
+
+	player.call("_change_state", 0)
+	player.set_combat_style(0)
 	player.stamina = player.max_stamina
 	player.call("_try_guarded_thrust")
 	if player.stamina >= player.max_stamina or not player.combat_area.active:
-		push_error("Smoke test failed: guarded thrust was not committed")
+		push_error("Smoke test failed: shield bash compatibility action was not committed")
 		world.get_tree().quit(1)
 		return
 

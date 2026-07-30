@@ -31,6 +31,8 @@ var lost_echo
 var guardian
 var victory := false
 var materials: Dictionary = {}
+var brazier_lights: Array[OmniLight3D] = []
+var brazier_flicker_phases: Array[float] = []
 var world_environment: WorldEnvironment
 var run_state
 var game_settings
@@ -65,6 +67,18 @@ func _process(delta: float) -> void:
 		return
 	_interaction_refresh = 0.1
 	_update_interaction_target()
+	_update_brazier_flicker(delta)
+
+
+func _update_brazier_flicker(delta: float) -> void:
+	## Dynamic ember light flickering for braziers — adds life and atmosphere.
+	for i in range(brazier_lights.size()):
+		var light := brazier_lights[i]
+		if light == null or not is_instance_valid(light):
+			continue
+		brazier_flicker_phases[i] += delta * (2.2 + float(i) * 0.7)
+		var flicker := 1.0 + sin(brazier_flicker_phases[i]) * 0.12 + sin(brazier_flicker_phases[i] * 3.7) * 0.06
+		light.light_energy = 2.8 * flicker
 
 
 func _update_interaction_target() -> void:
@@ -568,45 +582,69 @@ func _create_environment() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("07101a")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("52708a")
-	environment.ambient_light_energy = 0.32
+	environment.ambient_light_color = Color("526882")
+	environment.ambient_light_energy = 0.28
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.glow_enabled = true
+	environment.glow_intensity = 0.55
+	environment.glow_bloom = 0.25
 	environment.fog_enabled = true
-	environment.fog_light_color = Color("28405a")
-	environment.fog_light_energy = 0.35
-	environment.fog_density = 0.012
+	environment.fog_light_color = Color("26405a")
+	environment.fog_light_energy = 0.42
+	environment.fog_density = 0.010
+	# Adjusted tonemap for deeper blacks and richer highlights
+	environment.adjustment_enabled = true
+	environment.adjustment_contrast = 1.08
+	environment.adjustment_saturation = 0.95
 	world_environment.environment = environment
 	add_child(world_environment)
 
+	# Moonlight — cool blue directional key light
 	var moon := DirectionalLight3D.new()
 	moon.name = "Moonlight"
 	moon.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
-	moon.light_color = Color("9db9d2")
-	moon.light_energy = 1.15
+	moon.light_color = Color("a8c2de")
+	moon.light_energy = 1.05
+	moon.light_indirect_energy = 0.35
 	moon.shadow_enabled = true
+	moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	moon.directional_shadow_split_1 = 0.15
 	add_child(moon)
 
+	# Shrine glow — warm ember light
 	var warm_light := OmniLight3D.new()
 	warm_light.name = "ShrineGlow"
 	warm_light.position = Vector3(0.0, 2.4, 6.0)
-	warm_light.light_color = Color("ff7738")
-	warm_light.light_energy = 5.0
-	warm_light.omni_range = 9.0
+	warm_light.light_color = Color("ff8844")
+	warm_light.light_energy = 5.5
+	warm_light.omni_range = 10.0
+	warm_light.light_indirect_energy = 0.5
 	warm_light.shadow_enabled = true
 	add_child(warm_light)
+
+	# Secondary ambient shrine fill light (softer, wider)
+	var fill_light := OmniLight3D.new()
+	fill_light.name = "ShrineFill"
+	fill_light.position = Vector3(0.0, 1.2, 7.5)
+	fill_light.light_color = Color("ffaa77")
+	fill_light.light_energy = 1.8
+	fill_light.omni_range = 14.0
+	fill_light.light_indirect_energy = 0.25
+	fill_light.shadow_enabled = false
+	add_child(fill_light)
 
 
 func _create_materials() -> void:
 	materials["stone"] = _material(Color("27303a"), 0.92, 0.05)
 	materials["stone_dark"] = _material(Color("121922"), 0.98, 0.02)
 	materials["metal"] = _material(Color("303a43"), 0.46, 0.72)
-	materials["ember"] = _material(Color("ff5a24"), 0.35, 0.0, Color("ff3a12"), 3.2)
+	materials["ember"] = _material(Color("ff6a2e"), 0.28, 0.0, Color("ff4418"), 3.8)
 	materials["moss"] = _material(Color("203a31"), 0.95, 0.0)
 	materials["void"] = _material(Color("05070c"), 1.0, 0.0)
 	materials["rubble"] = _material(Color("1a1f28"), 0.95, 0.03)
 	materials["wood"] = _material(Color("2a1f14"), 0.85, 0.02)
-	materials["ember_vein"] = _material(Color("ff3a12"), 0.4, 0.0, Color("ff5a24"), 2.5)
+	materials["ember_vein"] = _material(Color("ff4418"), 0.35, 0.0, Color("ff6628"), 3.0)
+	materials["ember_glow"] = _material(Color("ff9933"), 0.2, 0.0, Color("ff6600"), 6.0)
 
 
 func _create_level() -> void:
@@ -807,12 +845,12 @@ func _create_ceiling_beams() -> void:
 
 
 func _create_atmospheric_particles() -> void:
-	# Floating ember motes
+	# ── Floating ember motes (main atmospheric) ──
 	var ember_particles := GPUParticles3D.new()
 	ember_particles.name = "EmberParticles"
 	ember_particles.emitting = true
-	ember_particles.amount = 40
-	ember_particles.lifetime = 4.0
+	ember_particles.amount = 50
+	ember_particles.lifetime = 4.5
 	ember_particles.position = Vector3(0, 2.2, -10.0)
 	var ember_box := BoxMesh.new()
 	ember_box.size = Vector3(16.0, 3.5, 30.0)
@@ -821,38 +859,88 @@ func _create_atmospheric_particles() -> void:
 	var ember_mat := ParticleProcessMaterial.new()
 	ember_mat.direction = Vector3(0, 0.5, 0)
 	ember_mat.spread = 35.0
-	ember_mat.initial_velocity_min = 0.3
-	ember_mat.initial_velocity_max = 1.5
-	ember_mat.gravity = Vector3(0, 0.15, 0)
-	ember_mat.scale_min = 0.08
-	ember_mat.scale_max = 0.25
-	ember_mat.color = Color(1.0, 0.4, 0.08, 0.7)
+	ember_mat.initial_velocity_min = 0.2
+	ember_mat.initial_velocity_max = 1.2
+	ember_mat.gravity = Vector3(0, 0.18, 0)
+	ember_mat.scale_min = 0.06
+	ember_mat.scale_max = 0.28
+	ember_mat.color = Color(1.0, 0.35, 0.06, 0.65)
 	ember_particles.process_material = ember_mat
 	add_child(ember_particles)
-	# Fog dust motes
+
+	# ── Shrine ember fall — concentrated near checkpoint ──
+	var shrine_particles := GPUParticles3D.new()
+	shrine_particles.name = "ShrineEmbers"
+	shrine_particles.emitting = true
+	shrine_particles.amount = 20
+	shrine_particles.lifetime = 3.5
+	shrine_particles.position = Vector3(0, 3.0, 6.0)
+	var shrine_ember_mesh := SphereMesh.new()
+	shrine_ember_mesh.radius = 0.04
+	shrine_ember_mesh.height = 0.08
+	shrine_ember_mesh.radial_segments = 6
+	shrine_ember_mesh.rings = 3
+	shrine_ember_mesh.material = materials["ember_glow"]
+	shrine_particles.draw_pass_1 = shrine_ember_mesh
+	var shrine_mat := ParticleProcessMaterial.new()
+	shrine_mat.direction = Vector3(0, 1.5, 0)
+	shrine_mat.spread = 30.0
+	shrine_mat.initial_velocity_min = 0.4
+	shrine_mat.initial_velocity_max = 1.8
+	shrine_mat.gravity = Vector3(0, 0.08, 0)
+	shrine_mat.scale_min = 0.05
+	shrine_mat.scale_max = 0.18
+	shrine_mat.color = Color(1.0, 0.55, 0.15, 0.6)
+	shrine_particles.process_material = shrine_mat
+	add_child(shrine_particles)
+
+	# ── Ambient dust motes ──
 	var dust_particles := GPUParticles3D.new()
 	dust_particles.name = "DustParticles"
 	dust_particles.emitting = true
-	dust_particles.amount = 25
-	dust_particles.lifetime = 6.0
+	dust_particles.amount = 30
+	dust_particles.lifetime = 7.0
 	dust_particles.position = Vector3(0, 1.0, -10.0)
 	var dust_sphere := SphereMesh.new()
 	dust_sphere.radius = 0.02
 	dust_sphere.height = 0.04
-	var dust_mesh_mat := _material(Color(0.5, 0.55, 0.6, 0.4), 0.0, 0.0)
+	var dust_mesh_mat := _material(Color(0.5, 0.55, 0.6, 0.3), 0.0, 0.0)
 	dust_sphere.material = dust_mesh_mat
 	dust_particles.draw_pass_1 = dust_sphere
 	var dust_mat := ParticleProcessMaterial.new()
 	dust_mat.direction = Vector3(0, 0, 0)
 	dust_mat.spread = 180.0
-	dust_mat.initial_velocity_min = 0.05
-	dust_mat.initial_velocity_max = 0.3
-	dust_mat.gravity = Vector3(0, -0.02, 0)
+	dust_mat.initial_velocity_min = 0.04
+	dust_mat.initial_velocity_max = 0.25
+	dust_mat.gravity = Vector3(0, -0.015, 0)
 	dust_mat.scale_min = 0.5
-	dust_mat.scale_max = 1.5
-	dust_mat.color = Color(0.6, 0.65, 0.7, 0.25)
+	dust_mat.scale_max = 1.8
+	dust_mat.color = Color(0.6, 0.65, 0.7, 0.2)
 	dust_particles.process_material = dust_mat
 	add_child(dust_particles)
+
+	# ── Mist patches near the ground ──
+	var mist_particles := GPUParticles3D.new()
+	mist_particles.name = "MistParticles"
+	mist_particles.emitting = true
+	mist_particles.amount = 15
+	mist_particles.lifetime = 8.0
+	mist_particles.position = Vector3(0, 0.3, -8.0)
+	var mist_mesh := QuadMesh.new()
+	mist_mesh.size = Vector2(0.6, 0.3)
+	mist_mesh.material = _material(Color(0.35, 0.4, 0.5, 0.25), 0.0, 0.0, Color.BLACK, 0.0, true)
+	mist_particles.draw_pass_1 = mist_mesh
+	var mist_mat := ParticleProcessMaterial.new()
+	mist_mat.direction = Vector3(0, 0.05, 0)
+	mist_mat.spread = 120.0
+	mist_mat.initial_velocity_min = 0.02
+	mist_mat.initial_velocity_max = 0.15
+	mist_mat.gravity = Vector3(0, -0.02, 0)
+	mist_mat.scale_min = 1.0
+	mist_mat.scale_max = 3.5
+	mist_mat.color = Color(0.5, 0.55, 0.65, 0.12)
+	mist_particles.process_material = mist_mat
+	add_child(mist_particles)
 
 
 func _create_pillar(at: Vector3) -> void:
@@ -936,6 +1024,8 @@ func _create_ember_brazier(at: Vector3) -> void:
 	light.omni_range = 7.0
 	light.shadow_enabled = false
 	brazier.add_child(light)
+	brazier_lights.append(light)
+	brazier_flicker_phases.append(randf() * TAU)
 
 
 func _create_gate(at: Vector3) -> Node3D:

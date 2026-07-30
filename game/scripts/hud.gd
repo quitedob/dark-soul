@@ -98,6 +98,13 @@ func setup(new_player: Node) -> void:
 	var max_focus := _read_number(player, [&"max_focus"], maxf(focus, 1.0))
 	update_focus(focus, max_focus)
 	update_embers(int(_read_number(player, [&"embers", &"souls", &"currency"], 0.0)))
+	if player.has_method("get_hand_loadout") and player.has_method("get_hand_action_labels"):
+		var loadout: Dictionary = player.get_hand_loadout()
+		set_hands(
+			String(loadout.get("right_hand", "")),
+			String(loadout.get("left_hand", "")),
+			player.get_hand_action_labels()
+		)
 
 
 func update_stats(
@@ -158,6 +165,21 @@ func set_combat_style(style_id: int, display_name: String) -> void:
 		if style_id >= 0 and style_id < STYLE_SOURCE_NAMES.size():
 			style_label.set_meta("source_text", STYLE_SOURCE_NAMES[style_id])
 		style_label.text = display_name
+
+
+func set_hands(right_hand_item: String, left_hand_item: String, action_labels: Dictionary) -> void:
+	if style_label != null:
+		style_label.set_meta("source_text", "")
+		style_label.text = "R: %s  |  L: %s\nR1 %s · R2 %s · L1 %s · L2 %s" % [
+			right_hand_item,
+			left_hand_item,
+			action_labels.get("right_primary", "R1"),
+			action_labels.get("right_secondary", "R2"),
+			action_labels.get("left_primary", "L1"),
+			action_labels.get("left_secondary", "L2"),
+		]
+	if mobile_controls != null and mobile_controls.has_method("set_hand_labels"):
+		mobile_controls.set_hand_labels(action_labels)
 
 
 func set_prompt(text: String) -> void:
@@ -625,8 +647,10 @@ func _build_help_overlay() -> void:
 	content.add_child(controls_grid)
 	_add_control_row(controls_grid, "MOVE", "W  A  S  D")
 	_add_control_row(controls_grid, "LOOK", "MOUSE")
-	_add_control_row(controls_grid, "LIGHT ATTACK", "LMB  /  J")
-	_add_control_row(controls_grid, "HEAVY ATTACK", "RMB  /  K")
+	_add_control_row(controls_grid, "RIGHT PRIMARY", "LMB  /  J")
+	_add_control_row(controls_grid, "RIGHT SECONDARY", "RMB  /  K")
+	_add_control_row(controls_grid, "LEFT PRIMARY", "C")
+	_add_control_row(controls_grid, "LEFT SECONDARY", "R")
 	_add_control_row(controls_grid, "DODGE", "SPACE")
 	_add_control_row(controls_grid, "SPRINT", "SHIFT")
 	_add_control_row(controls_grid, "INTERACT", "E")

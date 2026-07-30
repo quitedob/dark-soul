@@ -22,6 +22,41 @@ static func build_into_parent(parent: Node3D, shape_id: String, material: Standa
 		"prayer_beads": _build_prayer_beads(parent, material)
 		"talisman_papers": _build_talisman_papers(parent, material)
 		"spirit_stone": _build_spirit_stone(parent, material)
+		# Chapter 1 unique shapes
+		"guardian_sword_ch1":   _build_sword(parent, material)
+		"temple_shield":        _build_shield_geo(parent, material)
+		"bronze_blade":         _build_bronze_blade(parent, material)
+		"temple_halberd":       _build_temple_halberd(parent, material)
+		"spirit_seal":          _build_spirit_seal(parent, material)
+		"temple_bell":          _build_temple_bell(parent, material)
+		# Chapter 2 unique shapes
+		"ming_glaive":          _build_ming_glaive(parent, material)
+		"blood_axe":            _build_blood_axe(parent, material)
+		"war_bow":              _build_bow(parent, material)
+		"tower_shield":         _build_tower_shield(parent, material)
+		"blood_seal":           _build_blood_seal(parent, material)
+		"war_banner":           _build_war_banner(parent, material)
+		# Chapter 3 unique shapes
+		"jade_sword":           _build_jade_sword(parent, material)
+		"fox_bow":              _build_fox_bow(parent, material)
+		"fox_fan":              _build_fox_fan(parent, material)
+		"blossom_shield":       _build_blossom_shield(parent, material)
+		"jade_seal":            _build_jade_seal(parent, material)
+		"jade_beads":           _build_jade_beads(parent, material)
+		# Chapter 4 unique shapes
+		"celestial_blade":      _build_celestial_blade(parent, material)
+		"celestial_bow":        _build_celestial_bow(parent, material)
+		"immortal_seal":        _build_immortal_seal(parent, material)
+		"book_shield":          _build_book_shield(parent, material)
+		"celestial_beads":      _build_celestial_beads(parent, material)
+		"cloud_talisman":       _build_cloud_talisman(parent, material)
+		# Chapter 5 unique shapes
+		"void_sword":           _build_void_sword(parent, material)
+		"dragon_greatsword":    _build_dragon_greatsword(parent, material)
+		"soul_seal":            _build_soul_seal(parent, material)
+		"void_talisman":        _build_void_talisman(parent, material)
+		"cosmic_beads":         _build_cosmic_beads(parent, material)
+		"ember_shield":         _build_ember_shield(parent, material)
 		_:              _build_default(parent, material)
 
 
@@ -321,3 +356,96 @@ static func _material_variant(base: StandardMaterial3D, color: Color, metallic: 
 	m.metallic = metallic
 	m.roughness = roughness
 	return m
+
+# ── Chapter-specific weapon builders ──────────────────────────────────
+
+static func _build_bronze_blade(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_box(parent, Vector3(0.08, 1.25, 0.05), Vector3(0, 0.95, -0.02), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.30, 0.06, 0.14), Vector3(0, 0.28, 0), Vector3.ZERO, mat)
+
+static func _build_temple_halberd(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.04, 0.05, 1.85, Vector3(0, 0.45, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.03, 0.22, 0.06), Vector3(0, 1.45, 0), Vector3.ZERO, mat)
+
+static func _build_spirit_seal(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.04, 0.05, 1.35, Vector3(0, 0.25, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.16, 0.2, 0.06), Vector3(0, 1.0, 0), Vector3.ZERO, mat)
+
+static func _build_temple_bell(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.06, 0.10, 0.45, Vector3(0, 0.35, 0), Vector3.ZERO, mat)
+	_sphere(parent, 0.06, 0.08, Vector3(0, 0.08, 0), mat)
+
+static func _build_ming_glaive(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.04, 0.05, 1.55, Vector3(0, 0.35, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.05, 0.06, 0.42), Vector3(0, 1.18, 0), Vector3.ZERO, mat)
+
+static func _build_blood_axe(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.05, 0.06, 1.45, Vector3(0, 0.3, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.06, 0.18, 0.35), Vector3(0.1, 1.05, 0.08), Vector3.ZERO, mat)
+
+static func _build_tower_shield(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.55, 0.55, 0.12, Vector3.ZERO, Vector3(PI * 0.5, 0, 0), mat)
+
+static func _build_blood_seal(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.04, 0.05, 1.4, Vector3(0, 0.28, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.15, 0.18, 0.06), Vector3(0, 1.05, 0), Vector3.ZERO, mat)
+
+static func _build_war_banner(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.03, 0.03, 1.2, Vector3(0, 0.5, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.42, 0.01, 0.28), Vector3(0.2, 0.8, 0), Vector3(0, 0.05, 0.08), mat)
+
+static func _build_jade_sword(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_box(parent, Vector3(0.05, 1.3, 0.04), Vector3(0, 1.0, -0.02), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.26, 0.06, 0.1), Vector3(0, 0.3, 0), Vector3.ZERO, mat)
+
+static func _build_fox_bow(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_build_bow(parent, mat)
+
+static func _build_fox_fan(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.03, 0.04, 0.6, Vector3(0, 0.1, 0.05), Vector3.ZERO, mat)
+
+static func _build_blossom_shield(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.42, 0.42, 0.08, Vector3.ZERO, Vector3(PI * 0.5, 0, 0), mat)
+
+static func _build_jade_seal(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_build_spirit_seal(parent, mat)
+
+static func _build_jade_beads(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_build_prayer_beads(parent, mat)
+
+static func _build_celestial_blade(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_box(parent, Vector3(0.07, 1.45, 0.04), Vector3(0, 1.1, -0.02), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.24, 0.06, 0.1), Vector3(0, 0.32, 0), Vector3.ZERO, mat)
+
+static func _build_celestial_bow(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_build_bow(parent, mat)
+
+static func _build_immortal_seal(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.04, 0.05, 1.4, Vector3(0, 0.28, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.15, 0.18, 0.06), Vector3(0, 1.05, 0), Vector3.ZERO, mat)
+
+static func _build_book_shield(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_box(parent, Vector3(0.35, 0.06, 0.45), Vector3.ZERO, Vector3.ZERO, mat)
+
+static func _build_celestial_beads(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_build_prayer_beads(parent, mat)
+
+static func _build_cloud_talisman(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_box(parent, Vector3(0.06, 0.4, 0.01), Vector3(0, -0.05, 0), Vector3.ZERO, mat)
+
+static func _build_void_sword(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_box(parent, Vector3(0.05, 1.3, 0.03), Vector3(0, 0.98, -0.02), Vector3.ZERO, mat)
+
+static func _build_dragon_greatsword(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_box(parent, Vector3(0.14, 2.0, 0.08), Vector3(0, 1.2, -0.02), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.4, 0.12, 0.18), Vector3(0, 0.15, 0), Vector3.ZERO, mat)
+
+static func _build_soul_seal(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_cylinder(parent, 0.04, 0.05, 1.4, Vector3(0, 0.28, 0), Vector3.ZERO, mat)
+	_box(parent, Vector3(0.16, 0.2, 0.06), Vector3(0, 1.05, 0), Vector3.ZERO, mat)
+
+static func _build_cosmic_beads(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_build_prayer_beads(parent, mat)
+
+static func _build_ember_shield(parent: Node3D, mat: StandardMaterial3D) -> void:
+	_build_shield_geo(parent, mat)

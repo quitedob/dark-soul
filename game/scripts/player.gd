@@ -49,6 +49,47 @@ const STYLE_NAMES := [
 	"EMBER RITE",
 ]
 
+# ── Spell / Incantation tuning ──────────────────────────────────────────
+# Balanced for Soulslike feel: basic spells affordable, powerful spells costly.
+# Range = speed × lifetime (effective distance before projectile expires).
+const SPELL_CONFIG := {
+	"veil_bolt": {
+		"focus_cost": 14.0, "cast_time": 0.58, "damage": 26.0, "stagger": 16.0,
+		"proj_speed": 18.0, "proj_lifetime": 2.0,   # range ≈ 36 units
+		"spell_type": "veil_bolt", "homing": false, "homing_strength": 0.0,
+	},
+	"seal_burst": {
+		"focus_cost": 22.0, "cast_time": 0.72, "damage": 36.0, "stagger": 26.0,
+		"proj_speed": 10.0, "proj_lifetime": 1.6,   # range ≈ 16 units — close-range burst
+		"spell_type": "seal_burst", "homing": true, "homing_strength": 3.5,
+	},
+	"bow_quick_shot": {
+		"focus_cost": 0.0, "cast_time": 0.38, "damage": 18.0, "stagger": 8.0,
+		"proj_speed": 20.0, "proj_lifetime": 1.8,   # range ≈ 36 units
+		"spell_type": "bow_quick_shot", "homing": false, "homing_strength": 0.0,
+	},
+	"bow_power_shot": {
+		"focus_cost": 0.0, "cast_time": 0.56, "damage": 32.0, "stagger": 22.0,
+		"proj_speed": 14.0, "proj_lifetime": 2.4,   # range ≈ 33.6 units
+		"spell_type": "bow_power_shot", "homing": false, "homing_strength": 0.0,
+	},
+	"ember_rite": {
+		"focus_cost": 25.0, "cast_time": 0.82, "heal": 28.0, "aoe_damage": 22.0,
+		"aoe_stagger": 20.0, "aoe_range": 6.0,
+	},
+	# Weapon art projectiles
+	"arcane_barrage": {
+		"focus_cost": 20.0, "cast_time": 0.0, "damage": 12.0, "stagger": 6.0,
+		"proj_speed": 16.0, "proj_lifetime": 1.5,   # range ≈ 24 units
+		"spell_type": "arcane_barrage", "homing": true, "homing_strength": 2.8,
+	},
+	"divine_smite": {
+		"focus_cost": 22.0, "cast_time": 0.0, "damage": 34.0, "stagger": 24.0,
+		"proj_speed": 12.0, "proj_lifetime": 2.0,
+		"spell_type": "default", "homing": true, "homing_strength": 1.8,
+	},
+}
+
 const STYLE_TIMING := {
 	CombatStyle.RELIQUARY_GUARD: {
 		"windup_light": 0.28, "windup_heavy": 0.58,
@@ -737,17 +778,17 @@ func _execute_hand_action(hand: String, slot: String) -> void:
 		"colossal_leap":
 			_try_leap_attack(false)
 		"bow_quick_shot":
-			_begin_cast(&"bow_quick_shot", 0.0, 0.42)
+			_begin_cast(&"bow_quick_shot", SPELL_CONFIG["bow_quick_shot"]["focus_cost"], SPELL_CONFIG["bow_quick_shot"]["cast_time"])
 		"bow_power_shot":
-			_begin_cast(&"bow_power_shot", 0.0, 0.62)
+			_begin_cast(&"bow_power_shot", SPELL_CONFIG["bow_power_shot"]["focus_cost"], SPELL_CONFIG["bow_power_shot"]["cast_time"])
 		"dagger_slash":
 			_try_attack(false, "left", action_id)
 		"seal_bolt":
-			_begin_cast(&"veil_bolt", 18.0, 0.66)
+			_begin_cast(&"veil_bolt", SPELL_CONFIG["veil_bolt"]["focus_cost"], SPELL_CONFIG["veil_bolt"]["cast_time"])
 		"seal_burst":
-			_begin_cast(&"seal_burst", 28.0, 0.8)
+			_begin_cast(&"seal_burst", SPELL_CONFIG["seal_burst"]["focus_cost"], SPELL_CONFIG["seal_burst"]["cast_time"])
 		"beads_heal", "ember_rite":
-			_begin_cast(&"ember_rite", 30.0, 0.92)
+			_begin_cast(&"ember_rite", SPELL_CONFIG["ember_rite"]["focus_cost"], SPELL_CONFIG["ember_rite"]["cast_time"])
 		"talisman_strike":
 			_try_attack(false, "left", action_id)
 		"talisman_burst", "stone_pulse":
@@ -755,15 +796,18 @@ func _execute_hand_action(hand: String, slot: String) -> void:
 
 
 func _try_style_skill() -> void:
+	## Weapon arts (战技) — unique per combat style.
 	match combat_style:
 		CombatStyle.RELIQUARY_GUARD:
-			_try_parry()
+			_try_pierce_thrust()             # 破甲突刺 — armor-piercing lunge
 		CombatStyle.TWIN_COLOSSI:
-			_try_leap_attack(false)
+			_try_leap_attack(false)          # Colossal Leap (unchanged)
 		CombatStyle.CRESCENT_PAIR:
-			_try_leap_attack(true)
-		CombatStyle.VEILCRAFT, CombatStyle.EMBER_RITE:
-			_try_cast_for_style()
+			_try_leap_attack(true)           # Crescent Leap (unchanged)
+		CombatStyle.VEILCRAFT:
+			_try_arcane_barrage()            # 秘法弹幕 — 5 seeking bolts
+		CombatStyle.EMBER_RITE:
+			_try_divine_smite()              # 神圣惩戒 — seeking holy bolt
 
 
 func _try_parry() -> void:
@@ -823,12 +867,57 @@ func _try_leap_attack(curved_pair: bool) -> void:
 	_change_state(State.LEAP_WINDUP, profile["leap_windup"])
 
 
+func _try_pierce_thrust() -> void:
+	## 破甲突刺 — Reliquary Guard weapon art.
+	## A powerful forward lunge that pierces armor (unblockable, high stagger).
+	var cost := 26.0
+	if stamina < cost:
+		_show_message(LocalizationScript.text("NOT ENOUGH STAMINA"), 0.8)
+		return
+	attack_damage = 36.0
+	attack_stagger = 48.0
+	attack_heavy = true
+	attack_hand = "right"
+	attack_action_id = "pierce_thrust"
+	_spend_stamina(cost, 0.9)
+	_show_message("PIERCE THRUST", 0.65)
+	_change_state(State.GUARD_THRUST, 0.42)
+
+
+func _try_arcane_barrage() -> void:
+	## 秘法弹幕 — Veilcraft weapon art.
+	## Fires 5 seeking arcane bolts in a spread pattern.
+	var cfg: Dictionary = SPELL_CONFIG["arcane_barrage"]
+	if focus < cfg["focus_cost"]:
+		_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
+		return
+	focus = maxf(focus - cfg["focus_cost"], 0.0)
+	_emit_focus()
+	_pending_cast = &"arcane_barrage"
+	_cast_resolved = false
+	_change_state(State.CAST, 0.55)
+
+
+func _try_divine_smite() -> void:
+	## 神圣惩戒 — Ember Rite weapon art.
+	## Fires a slow, seeking golden bolt of divine energy.
+	var cfg: Dictionary = SPELL_CONFIG["divine_smite"]
+	if focus < cfg["focus_cost"]:
+		_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
+		return
+	focus = maxf(focus - cfg["focus_cost"], 0.0)
+	_emit_focus()
+	_pending_cast = &"divine_smite"
+	_cast_resolved = false
+	_change_state(State.CAST, 0.68)
+
+
 func _try_cast_for_style() -> void:
 	match combat_style:
 		CombatStyle.VEILCRAFT:
-			_begin_cast(&"veil_bolt", 18.0, 0.66)
+			_begin_cast(&"veil_bolt", SPELL_CONFIG["veil_bolt"]["focus_cost"], SPELL_CONFIG["veil_bolt"]["cast_time"])
 		CombatStyle.EMBER_RITE:
-			_begin_cast(&"ember_rite", 30.0, 0.92)
+			_begin_cast(&"ember_rite", SPELL_CONFIG["ember_rite"]["focus_cost"], SPELL_CONFIG["ember_rite"]["cast_time"])
 		_:
 			_try_style_skill()
 
@@ -847,60 +936,103 @@ func _begin_cast(cast_id: StringName, focus_cost: float, duration: float) -> voi
 
 
 func _resolve_cast() -> void:
+	var config: Dictionary = SPELL_CONFIG.get(String(_pending_cast), {})
 	match _pending_cast:
 		&"veil_bolt", &"bow_quick_shot", &"bow_power_shot", &"seal_burst":
-			var projectile = SpellProjectileScene.instantiate()
-			var cast_direction := -camera.global_transform.basis.z
-			if lock_target != null and is_instance_valid(lock_target):
-				var target_point: Vector3 = (
-					lock_target.get_target_point()
-					if lock_target.has_method("get_target_point")
-					else lock_target.global_position
-				)
-				cast_direction = (
-					target_point
-					- (global_position + Vector3.UP * 1.25)
-				).normalized()
-			var action_id := String(_pending_cast)
-			var item_id := right_hand_item
-			var projectile_damage := 28.0
-			var projectile_stagger := 18.0
-			if _pending_cast == &"bow_quick_shot":
-				projectile_damage = 20.0
-				projectile_stagger = 10.0
-			elif _pending_cast == &"bow_power_shot" or _pending_cast == &"seal_burst":
-				projectile_damage = 34.0
-				projectile_stagger = 24.0
-			projectile.setup(self, cast_direction, projectile_damage, projectile_stagger, {
-				"hand": "right",
-				"item_id": item_id,
-				"action_id": action_id,
-				"tags": ["projectile", "spell" if "seal" in action_id or action_id == "veil_bolt" else "physical"],
-				"blockable": true,
-				"parryable": false,
-			})
-			var projectile_parent: Node = (
-				world_node
-				if world_node != null and world_node.is_inside_tree()
-				else get_tree().current_scene
-			)
-			projectile_parent.add_child(projectile)
-			projectile.global_position = global_position + Vector3.UP * 1.25 + cast_direction * 0.8
-			_show_message(LocalizationScript.text("VEIL BOLT"), 0.65)
+			_spawn_spell_projectile(config, String(_pending_cast))
 			_play_audio("recover", -6.0, 1.3)
+		&"arcane_barrage":
+			# Weapon art: five_elements_seal — fires 5 seeking bolts in a spread
+			for i in range(5):
+				var spread_angle := deg_to_rad(-16.0 + float(i) * 8.0)
+				var base_dir := -camera.global_transform.basis.z
+				var spread_dir := base_dir.rotated(Vector3.UP, spread_angle).normalized()
+				var barrage_config := config.duplicate()
+				barrage_config["proj_lifetime"] = config["proj_lifetime"] + randf_range(-0.15, 0.15)
+				_spawn_spell_projectile(barrage_config, "arcane_barrage", spread_dir)
+			_show_message("ARCANE BARRAGE", 0.7)
+			_play_audio("recover", -5.0, 1.1)
+		&"divine_smite":
+			# Weapon art: prayer_beads — fires a seeking golden bolt
+			_spawn_spell_projectile(config, "divine_smite")
+			_show_message("DIVINE SMITE", 0.7)
+			_play_audio("heavy", -5.0, 0.9)
 		&"ember_rite":
-			health = minf(health + 24.0, max_health)
+			var heal_amount: float = config.get("heal", 28.0)
+			var aoe_damage: float = config.get("aoe_damage", 22.0)
+			var aoe_stagger: float = config.get("aoe_stagger", 20.0)
+			var aoe_range: float = config.get("aoe_range", 6.0)
+			health = minf(health + heal_amount, max_health)
 			_emit_stats()
 			if world_node != null and world_node.has_method("get_target_candidates"):
 				for candidate in world_node.get_target_candidates():
-					if candidate is Node3D and global_position.distance_to(candidate.global_position) <= 5.5:
+					if candidate is Node3D and global_position.distance_to(candidate.global_position) <= aoe_range:
 						var direction: Vector3 = (
 							candidate.global_position - global_position
 						).normalized()
-						candidate.receive_hit(20.0, 18.0, direction, self)
+						candidate.receive_hit(aoe_damage, aoe_stagger, direction, self)
 			_show_message(LocalizationScript.text("EMBER RITE CAST"), 0.75)
 			_play_audio("rest", -4.0, 0.82)
 	_pending_cast = &""
+
+
+func _spawn_spell_projectile(config: Dictionary, action_id: String, override_direction: Vector3 = Vector3.ZERO) -> void:
+	var projectile = SpellProjectileScene.instantiate()
+	var cast_direction := override_direction if override_direction.length_squared() > 0.001 else -camera.global_transform.basis.z
+	if lock_target != null and is_instance_valid(lock_target) and override_direction.length_squared() < 0.001:
+		var target_point: Vector3 = (
+			lock_target.get_target_point()
+			if lock_target.has_method("get_target_point")
+			else lock_target.global_position
+		)
+		cast_direction = (
+			target_point
+			- (global_position + Vector3.UP * 1.25)
+		).normalized()
+
+	var item_id := right_hand_item
+	var proj_damage: float = config.get("damage", 28.0)
+	var proj_stagger: float = config.get("stagger", 18.0)
+
+	# Determine homing target
+	var homing: Node3D = null
+	if bool(config.get("homing", false)) and lock_target != null and is_instance_valid(lock_target):
+		homing = lock_target
+
+	var is_spell := action_id in ["veil_bolt", "seal_burst", "arcane_barrage", "divine_smite"]
+
+	projectile.setup(self, cast_direction, proj_damage, proj_stagger, {
+		"hand": "right",
+		"item_id": item_id,
+		"action_id": action_id,
+		"tags": ["projectile", "spell" if is_spell else "physical"],
+		"blockable": true,
+		"parryable": false,
+		"spell_type": String(config.get("spell_type", "default")),
+		"proj_speed": float(config.get("proj_speed", 15.0)),
+		"proj_lifetime": float(config.get("proj_lifetime", 2.2)),
+		"homing_target": homing,
+		"homing_strength": float(config.get("homing_strength", 0.0)),
+	})
+
+	var projectile_parent: Node = (
+		world_node
+		if world_node != null and world_node.is_inside_tree()
+		else get_tree().current_scene
+	)
+	projectile_parent.add_child(projectile)
+	projectile.global_position = global_position + Vector3.UP * 1.25 + cast_direction * 0.8
+
+	var message_key := "VEIL BOLT"
+	if action_id == "bow_quick_shot" or action_id == "bow_power_shot":
+		message_key = "QUICK SHOT" if action_id == "bow_quick_shot" else "POWER SHOT"
+	elif action_id == "seal_burst":
+		message_key = "SEAL BURST"
+	elif action_id == "arcane_barrage":
+		message_key = "ARCANE BARRAGE"
+	elif action_id == "divine_smite":
+		message_key = "DIVINE SMITE"
+	_show_message(message_key, 0.6)
 
 
 func _try_dodge() -> void:
@@ -959,14 +1091,15 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 
 func _attack_metadata() -> Dictionary:
 	var item_id := right_hand_item if attack_hand == "right" else left_hand_item
+	var is_unblockable := attack_action_id in ["pierce_thrust", "shield_bash"]
 	return {
 		"hand": attack_hand,
 		"item_id": item_id,
 		"action_id": attack_action_id,
 		"guard_damage": attack_damage + attack_stagger * 0.35,
-		"tags": ["melee", "heavy" if attack_heavy else "light"],
-		"blockable": true,
-		"parryable": attack_action_id != "shield_bash",
+		"tags": ["melee", "heavy" if attack_heavy else "light"] + (["unblockable"] if is_unblockable else []),
+		"blockable": not is_unblockable,
+		"parryable": attack_action_id != "shield_bash" and not is_unblockable,
 	}
 
 
