@@ -44,7 +44,7 @@ The fortress's outer defenses. Ballista bolts fly overhead as phantom armies cla
 ---
 
 ### Level 2-3: 俘虏营 (Prisoner Camp)
-A fortified camp where spirit-smiths are held captive, forced to forge weapons for both armies. Freeing them unlocks weapon forging at future shrines.
+A fortified camp where spirit-smiths are held captive, forced to forge weapons for both armies. The only lucid smith is **铁心 (Iron Heart)**. Freeing him and the other prisoners unlocks weapon forging at future shrines; 铁心 then migrates through the activated shrine network as the campaign's smith NPC.
 
 **Enemies:** 守营鬼卒 (Camp Guard Wraith) ×3, 刑具精怪 (Torture Device Spirit) ×1 — stationary, AoE damage
 
@@ -88,9 +88,19 @@ A vast circular arena carved into the mountain's peak. Two phantom armies fill t
 *See full boss document in [bestiary/bosses-master.md](../../bestiary/bosses-master.md)*
 
 **Key Mechanics:**
-- Phase 1: 刑天 fights with axes embedded (slower, deliberate)
-- Phase 2 (50% HP): Axes free, berserker rage, arena-wide fire
-- Unique interaction: 狂战士 class can commune instead of fighting initially
+- Phase 1 (100-70%): spectral chains restrict 刑天's reach, but each hit is devastating
+- Phase 2 (70-30%): the chains break; faster berserker attacks and axe throws
+- Phase 3 (30-0%): an honor duel with slower, deliberate counters and the Final Salute
+- Unique interaction: 狂战士 class can commune before combat and start directly at Phase 2
+
+**After Defeat:**
+- At the end of the Final Salute, choose **Honor the Warrior** (`ch2_xingtian_fate=honored`) or **Absorb the Rage** (`ch2_xingtian_fate=absorbed`)
+- Claim the 战烬; both phantom armies stop reforming for the first time in five centuries
+- 刑天's final command seal reveals a fox emblem and the route to the witness hidden in 翠微林
+- 铁心 joins the shrine network as the permanent forging NPC
+- The story continues at `level_03_01`
+
+**Narrative contract:** [Five-Chapter Causality Map](../../story/chapter-bridge-map.md#五章因果链)
 
 ---
 

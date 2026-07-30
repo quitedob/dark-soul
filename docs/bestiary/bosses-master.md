@@ -1,5 +1,30 @@
 # 烬渊 — Boss Compendium (首领图鉴)
 
+## Boss Classification
+
+| Class | Count | Encounters | Story Rule |
+|---|---:|---|---|
+| **Chapter Main Boss** | 5 | 巨阙、刑天、九尾、玄霄、烛阴 | One per chapter; each controls a Furnace fragment and writes a chapter outcome flag |
+| **Sub-Boss** | 2 | 玄霄·嗔念、玄霄·执念 | Mandatory Chapter 4 personality fragments; their HP is not part of the main boss pool |
+| **Boss Echo** | 4 | 5-3 memories of 巨阙、刑天、九尾、玄霄 | Reduced narrative rematches used to validate stored history; no duplicate Soul Vessel or fragment reward |
+| **Optional Boss** | 0 currently specified | — | Reserved classification. Elite enemies and Soul-Forger trials do not count as optional bosses |
+
+This table is the authority for boss counts. “5 main + 2 sub-bosses + 4 echoes” describes 11 encounters but only 7 unique registered boss identities.
+
+## Main Boss Narrative Outcomes
+
+| Boss | Story Flag | Valid Outcomes | Mandatory Story Result |
+|---|---|---|---|
+| 巨阙 | `ch1_guardian_fate` | `released` / `preserved` | Opens the 铁啸关 gate and reveals the Blood-Iron coordinate |
+| 刑天 | `ch2_xingtian_fate` | `honored` / `absorbed` | Ends both armies' command loop and yields the fox-marked military seal |
+| 九尾 | `ch3_nine_tails_fate` | `redeemed` / `sealed` | Reveals the player's manufactured origin and yields the Heaven-Gate Seal |
+| 玄霄 | `ch4_xuanxiao_fate` | `ascended` / `remembered` | Confirms 云游's responsibility and grants the Furnace Mandate |
+| 烛阴 | ending state | `passing_flame` / `furnace_keeper` / `great_silence` / `shared_forging` | Resolves the Final Ember and the future of reincarnation |
+
+Combat numbers and phases remain in this compendium; chapter causality and downstream effects are defined in [chapter-bridge-map.md](../story/chapter-bridge-map.md#主线-boss-叙事契约).
+
+---
+
 ## Boss Design Principles
 
 Each boss follows the design principles established in the Dark Souls research:
@@ -128,7 +153,7 @@ Nine-Tails' nine tails each manifest a different illusion type. The arena fills 
 | **Fox Wedding (Ultimate)** | At 50%: the arena transforms into a phantom wedding procession. Illusion guests crowd the arena (block movement), and Nine-Tails attacks from within the crowd. Lasts 15s. |
 
 ### Phase 3: 记忆之形 (Memory Form — 30-0%)
-Nine-Tails takes a human form — specifically, the form of someone the player character loved in a past life (narrative reveal). She fights with graceful martial arts and borrowed memories.
+Nine-Tails takes a human form woven from the fragment's strongest borrowed memory. The face is intimate but does not belong to the player, who has no conventional past life. She fights with graceful martial arts and techniques copied from the souls stored in the Illusion Ember.
 
 | Attack | Effect |
 |--------|--------|
@@ -137,7 +162,7 @@ Nine-Tails takes a human form — specifically, the form of someone the player c
 | **Heart's Desire** | At 15%: The arena shows a vision of the thing the player most desires (varies by class/choices). Nine-Tails offers to make it real if you stop fighting. Attacking breaks the vision. Standing still for 10s results in death. |
 
 ### The Memory Gaze (Interactive Cutscene)
-At 50% HP (Phase 2 → 3 transition): combat pauses. Nine-Tails shares her memory — a vision of her as the forest's gentle guardian before the Illusion Ember corrupted her. The player experiences her tragedy firsthand. This is unskippable on first playthrough. On NG+, the player can strike during this moment to skip directly to Phase 3.
+At 50% HP, combat pauses while Nine-Tails shares a memory of the forest before the Illusion Ember corrupted her. After the memory, combat resumes in Phase 2 until the normal 30% Phase 3 threshold. On NG+, the player may interrupt the vision and resume immediately; interruption does not skip a phase.
 
 ### Rewards
 | Reward | Details |
@@ -284,20 +309,21 @@ Zero-gravity phase. Player uses Chapter 4's gravity manipulation to navigate.
 | **Gravity Flip** | Variable | Arena gravity randomly inverts every 15s. Audio cue: low rumble. |
 
 ### Phase 4: 终结抉择 (Final Choice — 10-0%)
-At 10% HP, 烛阴 kneels. The fight ends. The player is alone with him on a single floating platform in the void. He speaks his final words:
+At 10% HP, 烛阴 kneels. The fight ends because the four outer Embers, the nine fallen Soul-Forgers' seals, and the Furnace Mandate recognize the player as the only temporary authority able to bind the Final Ember. Victory alone does not grant this right; the authority was assembled across all five chapters. The player is alone with 烛阴 on a single floating platform in the void. He speaks his final words:
 
 > *"So. An Ember Scion who can truly choose. Not bound by the old cycle. Not chained by my vision. Free."*
 > *"Then choose. I have waited five hundred years to see what a free being would do."*
 
-**Three actions, three endings:**
+**Four actions, four endings:**
 
 | Player Action | Ending | Outcome |
 |--------------|--------|---------|
 | Absorb 烛阴's remaining Ember into yourself | **薪火相传 (Passing the Flame)** | The Furnace reignites. Souls resume their cycle. You dissolve — your Ember becomes the new kindling. |
 | Walk to the Throne and sit | **守炉人 (Furnace-Keeper)** | You take 烛阴's place. Eternal vigil. The realms heal slowly under your silent watch. |
 | Strike the Throne until it shatters | **大寂灭 (The Great Silence)** | The Furnace is destroyed. No more cycle. Souls are free — free to live, die, and truly end. |
+| Return the four Furnace memories at the restored forge | **共铸新炉 (The Shared Forging)** | You and 烛阴 become paired regulators of a new, voluntary cycle; both surrender individual identity so neither can rule alone. |
 
-Endings available may be affected by choices in Level 5-3 (Samsara Path). A player who chose violence in all memories may be locked out of Ending A (sacrifice). A player who showed mercy may be locked out of Ending C (destruction).
+The three base actions are always available. The fourth action requires completion of `灵魂的回归`, `铸魂者的最后一个问题`, and `天炉的低语`. Flags from Chapters 1-4 alter attacks, allies, dialogue, and epilogues; they never retroactively change history or morality-lock a base ending. See [chapter-bridge-map.md](../story/chapter-bridge-map.md#结局可达矩阵).
 
 ### Rewards
 | Reward | Details |

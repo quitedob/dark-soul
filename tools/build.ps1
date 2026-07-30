@@ -29,8 +29,53 @@ if ($parseOutput -match "SCRIPT ERROR|Parse Error|Failed to load script") {
 }
 Assert-LastExitCode "Godot editor import"
 
+& $Godot --headless --path $GameRoot --import
+Assert-LastExitCode "Godot project import"
+
+& $Godot --headless --path $GameRoot -s "addons/gut/gut_cmdln.gd" -gdir=res://tests/unit/ -ginclude_subdirs -gexit -gjunit_xml_file=user://gut-results.xml
+Assert-LastExitCode "Godot GUT unit suite"
+
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/core_contract_test.gd"
 Assert-LastExitCode "Godot core contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/combat_contract_test.gd"
+Assert-LastExitCode "Godot combat contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/combat_style_resource_contract_test.gd"
+Assert-LastExitCode "Godot combat style resource contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/feedback_contract_test.gd"
+Assert-LastExitCode "Godot feedback contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/poise_contract_test.gd"
+Assert-LastExitCode "Godot poise contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/content_registry_contract_test.gd"
+Assert-LastExitCode "Godot content registry contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/level_id_migration_contract_test.gd"
+Assert-LastExitCode "Godot level ID migration contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/level_module_contract_test.gd"
+Assert-LastExitCode "Godot level module contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/campaign_generation_contract_test.gd"
+Assert-LastExitCode "Godot campaign generation contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/chapter1_slice_contract_test.gd"
+Assert-LastExitCode "Godot Chapter 1 vertical slice contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/jump_collision_contract_test.gd"
+Assert-LastExitCode "Godot jump/collision contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/context_attack_contract_test.gd"
+Assert-LastExitCode "Godot context attack contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/grip_charge_contract_test.gd"
+Assert-LastExitCode "Godot grip/charge contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/lock_on_contract_test.gd"
+Assert-LastExitCode "Godot lock-on contracts"
 
 & $Godot --headless --path $GameRoot -- --smoke-test --new-run
 Assert-LastExitCode "Godot gameplay smoke test"

@@ -24,6 +24,7 @@ enum EnemyType {
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
 const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
+const ChapterEnemyFactory = preload("res://scripts/combat/enemy_factory.gd")
 const AI_DECISION_INTERVAL := 0.1
 
 var world_node: Node
@@ -32,7 +33,11 @@ var audio_node: Node
 var spawn_origin := Vector3.ZERO
 var guardian := false
 var enemy_type: EnemyType = EnemyType.HOLLOW_SENTINEL
+var chapter_content: Dictionary = {}
+var content_id := ""
 var configured := false
+var _visuals_built_key := ""
+var _attack_profile: Dictionary = {}
 
 var max_health := 80.0
 var health := 80.0
@@ -66,6 +71,7 @@ var attack_damage := 16.0
 var attack_stagger := 22.0
 var attack_lunge := 1.4
 var attack_heavy := false
+var attack_is_low_sweep := false
 var navigation_refresh := 0.0
 var gravity := 24.0
 var knockback_velocity := Vector3.ZERO
@@ -73,11 +79,13 @@ var _cached_has_target := false
 var _cached_target_position := Vector3.ZERO
 var _cached_distance_to_target := INF
 var _cached_chase_direction := Vector3.ZERO
+var _visual_frozen := false
 
 var navigation_agent: NavigationAgent3D
 var body_collision: CollisionShape3D
 var body_shape: CapsuleShape3D
 var visual_root: Node3D
+var body_visual_root: Node3D
 var body_mesh: MeshInstance3D
 var head_mesh: MeshInstance3D
 var weapon_pivot: Node3D
@@ -101,10 +109,19 @@ func setup(world, target, audio, spawn_position, is_guardian = false, new_type: 
 	else:
 		enemy_type = new_type
 	configured = true
+	_visuals_built_key = ""
 	if is_inside_tree():
 		_ensure_nodes()
 		_apply_tuning()
 		reset_enemy()
+
+
+## 用章节内容字典配置敌人（数值 + 外观）
+func setup_from_content(world, target, audio, spawn_position, content: Dictionary, is_guardian := false) -> void:
+	chapter_content = content.duplicate(true)
+	content_id = String(content.get("id", ""))
+	_attack_profile = Dictionary(content.get("attack", {}))
+	setup(world, target, audio, spawn_position, is_guardian, EnemyType.HOLLOW_SENTINEL)
 
 
 func _ready() -> void:
@@ -388,6 +405,7 @@ func _start_attack() -> void:
 
 func _select_attack_profile() -> void:
 	var distance_to_target := _cached_distance_to_target
+	attack_is_low_sweep = false
 	if enemy_type == EnemyType.ASH_STALKER:
 		attack_index += 1
 		attack_windup = 0.22
@@ -397,6 +415,7 @@ func _select_attack_profile() -> void:
 		attack_stagger = 8.0
 		attack_lunge = 0.8
 		attack_heavy = false
+		attack_is_low_sweep = true  # 潜行低扫，可被跳跃豁免
 	elif not guardian:
 		attack_windup = 0.55
 		attack_active = 0.18
@@ -405,6 +424,7 @@ func _select_attack_profile() -> void:
 		attack_stagger = 22.0
 		attack_lunge = 1.4
 		attack_heavy = false
+		attack_is_low_sweep = distance_to_target <= attack_range * 0.85
 	else:
 		attack_index += 1
 		if distance_to_target < 2.0:
@@ -413,6 +433,9 @@ func _select_attack_profile() -> void:
 			_apply_long_range_attack()
 		else:
 			_apply_mid_range_attack()
+		# Boss 近距轻击也标 low_sweep
+		if not attack_heavy and distance_to_target < 2.0:
+			attack_is_low_sweep = true
 	telegraph_material.albedo_color = Color(1.0, 0.22, 0.04, 0.62) if attack_heavy else Color(1.0, 0.08, 0.04, 0.56)
 	telegraph_material.emission = Color(1.0, 0.12, 0.02) if attack_heavy else Color(1.0, 0.02, 0.01)
 
@@ -540,7 +563,16 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 		State.WINDUP:
 			_play_audio("heavy" if attack_heavy else "swing", -6.0, 0.82 if guardian else 1.0)
 		State.ACTIVE:
-			combat_area.begin_swing(attack_damage, attack_stagger)
+			var tags: Array = ["melee", "heavy" if attack_heavy else "light"]
+			if attack_is_low_sweep:
+				tags.append("low_sweep")
+			combat_area.begin_swing(attack_damage, attack_stagger, {
+				"action_id": "enemy_low_sweep" if attack_is_low_sweep else "enemy_swing",
+				"tags": tags,
+				"blockable": true,
+				"parryable": true,
+				"guard_damage": attack_damage + attack_stagger * 0.25,
+			})
 		State.STAGGER:
 			combat_area.end_swing()
 		State.DEAD:
@@ -624,6 +656,8 @@ func _slow_horizontal(delta: float, amount: float) -> void:
 
 
 func _update_telegraph() -> void:
+	if _visual_frozen:
+		return
 	if state != State.WINDUP or state_duration <= 0.0:
 		return
 	var progress := clampf(1.0 - state_time / state_duration, 0.0, 1.0)
@@ -635,9 +669,10 @@ func _update_telegraph() -> void:
 
 
 func _update_state_visuals() -> void:
-	if state == State.DEAD:
+	if _visual_frozen or state == State.DEAD:
 		return
-	_set_visual_palette()
+	# 仅刷新材质色，避免每状态重建网格
+	_ensure_visual_palette()
 	match state:
 		State.WINDUP:
 			weapon_material.albedo_color = Color(1.0, 0.24, 0.08)
@@ -648,29 +683,87 @@ func _update_state_visuals() -> void:
 			body_material.albedo_color = Color(0.9, 0.84, 0.7)
 
 
+func set_visual_frozen(frozen: bool) -> void:
+	_visual_frozen = frozen
+
+
 func _set_visual_palette() -> void:
-	var type_key: String
+	_visuals_built_key = ""
+	_ensure_visual_palette()
+
+
+func _ensure_visual_palette() -> void:
+	var build_key := _visual_identity_key()
+	if build_key == _visuals_built_key and body_visual_root.get_child_count() > 0:
+		_apply_palette_colors()
+		return
+	_visuals_built_key = build_key
+	_apply_palette_colors()
+	if not chapter_content.is_empty() and chapter_content.has("body_type"):
+		ChapterEnemyFactory.build_into_slots(
+			body_visual_root,
+			weapon_pivot,
+			chapter_content,
+			body_material,
+			weapon_material
+		)
+	else:
+		var type_key := _legacy_type_key()
+		CharacterMeshFactory.build_enemy(body_visual_root, type_key, body_material)
+		WeaponMeshFactory.build_enemy_weapon(weapon_pivot, type_key, weapon_material)
+	weapon_pivot.rotation = Vector3(0.0, 0.0, -0.2)
+
+
+func _visual_identity_key() -> String:
+	if not chapter_content.is_empty():
+		return "content:%s" % String(chapter_content.get("id", content_id))
+	if guardian:
+		return "legacy:guardian"
+	return "legacy:%d" % int(enemy_type)
+
+
+func _legacy_type_key() -> String:
+	if guardian:
+		return "cinder_guardian"
+	if enemy_type == EnemyType.ASH_STALKER:
+		return "ash_stalker"
+	return "hollow_sentinel"
+
+
+func _apply_palette_colors() -> void:
+	if not chapter_content.is_empty():
+		body_material.albedo_color = _color_from_hex(String(chapter_content.get("body_color", "382820")))
+		weapon_material.albedo_color = _color_from_hex(String(chapter_content.get("weapon_color", "5a5040")))
+		eye_material.emission = _color_from_hex(String(chapter_content.get("eye_emission", "ffaa22")))
+		return
 	if guardian:
 		body_material.albedo_color = Color(0.17, 0.11, 0.25)
 		weapon_material.albedo_color = Color(0.34, 0.3, 0.42)
 		eye_material.emission = Color(1.0, 0.3, 0.04)
-		type_key = "cinder_guardian"
 	elif enemy_type == EnemyType.ASH_STALKER:
 		body_material.albedo_color = Color(0.18, 0.17, 0.19)
 		weapon_material.albedo_color = Color(0.38, 0.28, 0.22)
 		eye_material.emission = Color(1.0, 0.45, 0.08)
-		type_key = "ash_stalker"
 	else:
 		body_material.albedo_color = Color(0.22, 0.075, 0.065)
 		weapon_material.albedo_color = Color(0.28, 0.27, 0.29)
 		eye_material.emission = Color(1.0, 0.06, 0.02)
-		type_key = "hollow_sentinel"
-	CharacterMeshFactory.build_enemy(visual_root, type_key, body_material)
-	WeaponMeshFactory.build_enemy_weapon(weapon_pivot, type_key, weapon_material)
-	weapon_pivot.rotation = Vector3(0.0, 0.0, -0.2)
+
+
+func _color_from_hex(hex: String) -> Color:
+	# 兼容有无 # 前缀的十六进制颜色
+	var value := hex.strip_edges()
+	if value.is_empty():
+		return Color.WHITE
+	if not value.begins_with("#"):
+		value = "#" + value
+	return Color(value)
 
 
 func _apply_tuning() -> void:
+	if not chapter_content.is_empty():
+		_apply_content_tuning()
+		return
 	if guardian:
 		max_health = 260.0
 		move_speed = 3.0
@@ -721,6 +814,39 @@ func _apply_tuning() -> void:
 		navigation_agent.height = 1.9
 
 
+func _apply_content_tuning() -> void:
+	# 从章节内容字典灌入战斗数值
+	max_health = float(chapter_content.get("max_health", 80.0))
+	move_speed = float(chapter_content.get("move_speed", 3.6))
+	acceleration = 15.0
+	aggro_range = float(chapter_content.get("aggro_range", 13.0))
+	disengage_range = float(chapter_content.get("disengage_range", 20.0))
+	leash_range = float(chapter_content.get("leash_range", 17.0))
+	attack_range = float(chapter_content.get("attack_range", 2.15))
+	reward = int(chapter_content.get("reward", 35))
+	poise_limit = float(chapter_content.get("poise_limit", 24.0))
+	stagger_duration = float(chapter_content.get("stagger_duration", 0.48))
+	if guardian:
+		body_shape.radius = 0.58
+		body_shape.height = 2.25
+		body_collision.position.y = 1.12
+		navigation_agent.radius = 0.62
+		navigation_agent.height = 2.3
+	else:
+		body_shape.radius = 0.42
+		body_shape.height = 1.85
+		body_collision.position.y = 0.92
+		navigation_agent.radius = 0.46
+		navigation_agent.height = 1.85
+	if not _attack_profile.is_empty():
+		attack_windup = float(_attack_profile.get("windup", attack_windup))
+		attack_active = float(_attack_profile.get("active", attack_active))
+		attack_recovery = float(_attack_profile.get("recovery", attack_recovery))
+		attack_damage = float(_attack_profile.get("damage", attack_damage))
+		attack_stagger = float(_attack_profile.get("stagger", attack_stagger))
+		attack_lunge = float(_attack_profile.get("lunge", attack_lunge))
+
+
 func _play_audio(cue: String, volume_db: float, pitch: float) -> void:
 	if audio_node != null and is_instance_valid(audio_node) and audio_node.has_method("play_cue"):
 		audio_node.call("play_cue", cue, volume_db, pitch)
@@ -751,6 +877,10 @@ func _ensure_nodes() -> void:
 	visual_root.name = "Visuals"
 	add_child(visual_root)
 
+	body_visual_root = Node3D.new()
+	body_visual_root.name = "BodyVisuals"
+	visual_root.add_child(body_visual_root)
+
 	body_material = StandardMaterial3D.new()
 	body_material.roughness = 0.82
 	weapon_material = StandardMaterial3D.new()
@@ -764,7 +894,7 @@ func _ensure_nodes() -> void:
 	body_mesh = MeshInstance3D.new()
 	body_mesh.name = "BodyRoot"
 	body_mesh.material_override = body_material
-	visual_root.add_child(body_mesh)
+	body_visual_root.add_child(body_mesh)
 	# Composite character model built by _set_visual_palette() below
 	head_mesh = body_mesh  # legacy ref — composite model has no single head node
 
@@ -797,6 +927,5 @@ func _ensure_nodes() -> void:
 
 	combat_area = CombatAreaScript.new()
 	combat_area.name = "CombatArea"
-	combat_area.position = Vector3(0.0, 1.0, -0.9)
 	add_child(combat_area)
-	combat_area.configure(self, 1.35, 1.55)
+	combat_area.configure(self, 1.35, 1.55, Vector3(0.0, 1.0, -0.9))

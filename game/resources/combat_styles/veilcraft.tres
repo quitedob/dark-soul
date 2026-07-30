@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="CombatStyleData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_style_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+style_id = &"veilcraft"
+display_name = "VEILCRAFT"
+windup_light = 0.30
+active_light = 0.16
+recovery_light = 0.42
+lunge_light = 1.8
+damage_light = 20.0
+stagger_light = 14.0
+stamina_light = 0.0
+windup_heavy = 0.52
+active_heavy = 0.20
+recovery_heavy = 0.58
+lunge_heavy = 2.4
+damage_heavy = 32.0
+stagger_heavy = 26.0
+stamina_heavy = 0.0
+stamina_dodge = 22.0
+wam_light = 0.0
+wam_heavy = 0.0
+trail_color = Color(0.3, 0.55, 1.0, 1)

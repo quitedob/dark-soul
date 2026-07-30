@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="CombatStyleData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_style_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+style_id = &"ember_rite"
+display_name = "EMBER RITE"
+windup_light = 0.34
+active_light = 0.18
+recovery_light = 0.48
+lunge_light = 1.6
+damage_light = 22.0
+stagger_light = 16.0
+stamina_light = 0.0
+windup_heavy = 0.56
+active_heavy = 0.22
+recovery_heavy = 0.64
+lunge_heavy = 2.0
+damage_heavy = 34.0
+stagger_heavy = 28.0
+stamina_heavy = 0.0
+stamina_dodge = 24.0
+wam_light = 0.05
+wam_heavy = 0.10
+trail_color = Color(1.0, 0.5, 0.18, 1)

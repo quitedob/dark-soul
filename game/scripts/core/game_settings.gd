@@ -9,6 +9,8 @@ var locale := "en"
 var ui_scale := 1.0
 var text_scale := 1.0
 var reduced_motion := false
+var screen_shake_enabled := true
+var screen_shake_intensity := 1.0
 var high_contrast := false
 var control_opacity := 0.72
 var camera_sensitivity := 1.0
@@ -19,6 +21,9 @@ var effects_volume := 0.85
 var subtitles_enabled := true
 var quality_preset: StringName = &"medium"
 var target_fps := 60
+var combat_hitbox_debug := false
+## 战斗提示模式：跳劈条件等教学提示；默认关闭
+var combat_tip_mode := false
 
 
 func to_dictionary() -> Dictionary:
@@ -28,6 +33,8 @@ func to_dictionary() -> Dictionary:
 		"ui_scale": ui_scale,
 		"text_scale": text_scale,
 		"reduced_motion": reduced_motion,
+		"screen_shake_enabled": screen_shake_enabled,
+		"screen_shake_intensity": screen_shake_intensity,
 		"high_contrast": high_contrast,
 		"control_opacity": control_opacity,
 		"camera_sensitivity": camera_sensitivity,
@@ -38,6 +45,8 @@ func to_dictionary() -> Dictionary:
 		"subtitles_enabled": subtitles_enabled,
 		"quality_preset": String(quality_preset),
 		"target_fps": target_fps,
+		"combat_hitbox_debug": combat_hitbox_debug,
+		"combat_tip_mode": combat_tip_mode,
 	}
 
 
@@ -48,6 +57,8 @@ func to_bridge_dictionary() -> Dictionary:
 		"uiScale": ui_scale,
 		"textScale": text_scale,
 		"reducedMotion": reduced_motion,
+		"screenShakeEnabled": screen_shake_enabled,
+		"screenShakeIntensity": screen_shake_intensity,
 		"highContrast": high_contrast,
 		"controlOpacity": control_opacity,
 		"cameraSensitivity": camera_sensitivity,
@@ -58,6 +69,8 @@ func to_bridge_dictionary() -> Dictionary:
 		"subtitlesEnabled": subtitles_enabled,
 		"qualityPreset": String(quality_preset),
 		"targetFps": target_fps,
+		"combatHitboxDebug": combat_hitbox_debug,
+		"combatTipMode": combat_tip_mode,
 	}
 
 
@@ -97,6 +110,8 @@ static func from_dictionary(data: Dictionary):
 	settings.ui_scale = clampf(float(data.get("ui_scale", data.get("uiScale", 1.0))), 0.75, 2.0)
 	settings.text_scale = clampf(float(data.get("text_scale", data.get("textScale", 1.0))), 0.85, 2.0)
 	settings.reduced_motion = bool(data.get("reduced_motion", data.get("reducedMotion", false)))
+	settings.screen_shake_enabled = bool(data.get("screen_shake_enabled", data.get("screenShakeEnabled", true)))
+	settings.screen_shake_intensity = clampf(float(data.get("screen_shake_intensity", data.get("screenShakeIntensity", 1.0))), 0.0, 2.0)
 	settings.high_contrast = bool(data.get("high_contrast", data.get("highContrast", false)))
 	settings.control_opacity = clampf(
 		float(data.get("control_opacity", data.get("controlOpacity", 0.72))),
@@ -133,6 +148,12 @@ static func from_dictionary(data: Dictionary):
 	settings.quality_preset = quality if quality in QUALITY_PRESETS else &"medium"
 	var requested_fps := int(data.get("target_fps", data.get("targetFps", 60)))
 	settings.target_fps = 30 if requested_fps <= 30 else 60
+	settings.combat_hitbox_debug = bool(
+		data.get("combat_hitbox_debug", data.get("combatHitboxDebug", false))
+	)
+	settings.combat_tip_mode = bool(
+		data.get("combat_tip_mode", data.get("combatTipMode", false))
+	)
 	return settings
 
 

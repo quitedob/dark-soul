@@ -10,11 +10,13 @@ Then came **烛阴 (Zhú Yīn)** — the Torch Dragon, the most powerful of the 
 
 烛阴 concluded that the cycle itself was the flaw — a slow, grinding entropy disguised as eternity. He resolved to **break the Furnace**, gather all remaining Embers, and reforge existence into a single, eternal, unchanging moment where nothing would ever fade again.
 
-His fellow Soul-Forgers tried to stop him. The battle that followed shattered the Celestial Furnace into five fragments, each hurled into a different realm. 烛阴 was cast into the depths of the Furnace's core — the **烬座 (Throne of Ashes)** — but he was not destroyed. Bound, wounded, and furious, he began to reach out from his prison, corrupting each realm through its Furnace fragment.
+Nine Soul-Forgers opposed him. 寂灭 accepted his diagnosis but rejected forced stasis, while 云游 reversed the Furnace current to stop the ritual. The collision shattered the Celestial Furnace into five fragments, each hurled into a different region. Nine Soul-Forgers died containing the breach. 烛阴 fused with the final fragment and was bound in the **烬座 (Throne of Ashes)**; 云游 and 寂灭 survived with different forms of guilt.
 
-Now, centuries later, the five realms have become twisted, isolated nightmares. Souls no longer reincarnate — they wander as **失魂者 (Lost Souls)**, gradually fading into nothing. The dead pile up in the underworld with no passage forward. The living realm decays as no new souls arrive.
+Now, centuries later, the five fractured regions have become twisted, isolated nightmares. Souls no longer reincarnate — they wander as **失魂者 (Lost Souls)**, gradually fading into nothing. The dead pile up in the underworld with no passage forward. The living realm decays as no new souls arrive.
 
-You are a **烬裔 (Ember Scion)** — a being born from a fragment of the original Furnace's flame. Unlike ordinary souls, you can absorb Embers and grow stronger, and you can pass between the fractured realms. Your quest: traverse all five realms, reclaim the Furnace fragments, descend to the Throne of Ashes, and face 烛阴 to decide the fate of all existence.
+You are the last **烬裔 (Ember Scion)** — an unfinished successor forged during the Shattering from unassigned soul-light, the nine fallen Soul-Forgers' seals, and the First Ember. You awaken with no personal past and an incomplete 轮回印 that will disperse unless it is stabilized by the other fragments. What begins as survival becomes a question of identity: will you merely execute the dead guardians' repair plan, inherit 烛阴's answer, or choose a future neither side designed?
+
+For the authoritative chapter-to-chapter causality, evidence, NPC transfers, and story flags, see [chapter-bridge-map.md](chapter-bridge-map.md).
 
 ---
 
@@ -31,6 +33,8 @@ The temple has been overrun by **失魂士兵 (Lost Soul Soldiers)** — the hus
 - Discover the first Furnace fragment in the Guardian's chamber
 - Defeat 巨阙, proving you are a true Ember Scion
 - The Wandering Sage reveals the existence of the other four fragments
+- Use the Keeper Rune to either release 巨阙 from duty or preserve its core as the shrine's new guardian
+- The First Ember reveals a blood-stained military coordinate and opens the road to 铁啸关
 - A vision shows 烛阴 stirring in his throne, aware of your awakening
 
 **Tone:** Mystery, loneliness, discovery. The tutorial teaches through atmosphere — ancient murals, scattered journal entries, and the gentle guidance of the Wandering Sage.
@@ -47,10 +51,10 @@ The fortress is ruled by **血将军·刑天 (Blood General · Xíng Tiān)** �
 
 **Key Story Beats:**
 - Navigate the war-torn fortress, choosing which army's territory to cross
-- Free captured spirit-smiths who reveal the fragment's location
+- Free **铁心**, the last lucid spirit-smith, who unlocks forging and identifies the military soul-seal hidden in 刑天's body
 - Confront 刑天 in the Fortress Arena as both armies watch
-- Absorb the second fragment; gain the ability to **forge weapons from Embers**
-- The Wandering Sage warns that 烛阴's influence is growing stronger
+- Choose to grant 刑天 an honorable release or absorb his rage before claiming the War Ember
+- 刑天's final command seal points to a witness hidden in 翠微林 who remembers the Shattering
 
 **Tone:** Martial, brutal, honor-bound tragedy. The enemy soldiers are victims as much as obstacles.
 
@@ -66,11 +70,12 @@ The forest is ruled by **玉面狐·九尾 (Jade-Faced Fox · Nine-Tails)** — 
 
 **Key Story Beats:**
 - Navigate illusion-shifting environments where reality changes
-- Encounter echoes of your own past lives as an Ember Scion
+- Encounter borrowed memories and initially mistake them for your own past lives
+- Free **忆姬**, keeper of the forest's true records, who proves the memories belong to souls trapped in the fragments
 - Free trapped spirits by breaking their illusion prisons
-- Confront Nine-Tails in her Moonlit Pavilion, where she takes the form of someone you loved
-- Absorb the third fragment; gain the ability to **see through illusions**
-- A moment of doubt: were the illusions truly worse than reality?
+- Confront Nine-Tails in her Moonlit Pavilion, where she takes the form of someone remembered by the fragments
+- Learn that you were made during the Shattering rather than naturally born, and choose to redeem Nine-Tails or seal her remaining spirit
+- Receive the **天门残印 (Broken Heaven-Gate Seal)**, the only key that can open the path to Cloud Zenith City
 
 **Tone:** Elegant, deceptive, melancholy. Beauty hides horror. The "enemy" is sympathetic.
 
@@ -87,10 +92,11 @@ The city is ruled by **堕仙·玄霄 (Fallen Immortal · Xuán Xiāo)** — a c
 **Key Story Beats:**
 - Ascend through the city's falling districts via gravity-defying platforms
 - Confront each of 玄霄's fragmented personalities as sub-bosses
-- Uncover the history of the immortal civilization and its hubris
+- Recover 玄霄's lucid core-remnant, which preserves an unaltered record of the Shattering
 - Face 玄霄's unified form atop the Celestial Spire as the city crumbles
-- Absorb the fourth fragment; gain the ability to **manipulate gravity briefly**
-- The Wandering Sage reveals his true identity: he was one of the Soul-Forgers who helped shatter the Furnace
+- Decide whether 玄霄 completes ascension or returns his identity to mortal memory
+- Absorb the fourth fragment, gain brief gravity manipulation, and receive the **炉心敕印 (Furnace Mandate)** that recognizes the player as a temporary mobile Furnace
+- 云游 confesses that his reversal saved the living but caused the fracture; the Mandate opens the descent to 烬座
 
 **Tone:** Tragic, epic, vertiginous. The ruins of paradise. The cost of ambition.
 
@@ -106,10 +112,10 @@ The final descent. With four fragments absorbed, you enter the **烬座 (Throne 
 
 **Key Story Beats:**
 - Traverse the Throne realm, where the geometry is non-Euclidean and time loops
-- Free or absorb the drifting souls to weaken 烛阴's power
-- Confront the Wandering Sage's final choice: help you repair the cycle, or help 烛阴 end it
+- See the actual consequences of the four prior chapter choices; the player may accept or regret them but cannot rewrite them
+- Commune with the nine fallen Soul-Forgers and confront the two surviving witnesses, 云游 and 寂灭
 - Face 烛阴 in a multi-phase boss fight across cosmic scale
-- **Ending Decision:** Repair the Celestial Furnace (restarting the cycle but losing yourself as fuel), become the new Furnace-Keeper (eternal vigil), or shatter the cycle entirely (freeing all souls but ending reincarnation forever)
+- **Ending Decision:** choose one of three base endings, or unlock a costly fourth path by completing the three major truth questlines
 
 **Tone:** Cosmic, philosophical, final. The end of a journey. Questions without easy answers.
 
@@ -126,6 +132,11 @@ Take 烛阴's place. You bind yourself to the Throne of Ashes, becoming the new 
 ### Ending C: 大寂灭 (The Great Silence)
 Shatter the Furnace completely. Without the cycle, souls are truly free for the first time — free to live, free to die, free to fade. No more reincarnation, no more cosmic order. The universe becomes a wilderness of possibility. Whether this is salvation or damnation... no one can say.
 
+### Hidden Ending D: 共铸新炉 (The Shared Forging)
+Return the Furnace memories to 烛阴 and convince him to help build a cycle that preserves less memory as fuel and allows souls to refuse reincarnation. The player and 烛阴 dissolve their individual identities into paired regulators so neither can control the new Furnace alone. This is the most hopeful ending, not a perfect one: the world gains consent and oversight, but loses both people who made it possible.
+
+**Unlock requirement:** complete all three major Chapter 5 truth questlines — `灵魂的回归`, `铸魂者的最后一个问题`, and `天炉的低语`. The first three endings are never morality-locked; prior choices alter dialogue, assistance, and epilogues instead.
+
 ---
 
 ## Major NPCs
@@ -134,14 +145,15 @@ Shatter the Furnace completely. Without the cycle, souls are truly free for the 
 |------|-------|------|---------------|
 | 云游道人 | The Wandering Sage | Guide, lore-keeper, former Soul-Forger | Ch.1 |
 | 铁心 | Iron Heart | Captured spirit-smith, weapon crafter | Ch.2 |
-| 忆姬 | Lady of Memories | Freed illusion prisoner, provides backstory | Ch.3 |
-| 玄霄残识 | Xuán Xiāo's Remnant | Fragmented personality that helps you | Ch.4 |
+| 忆姬 | Lady of Memories | Keeper of true records; separates borrowed memory from player identity | Ch.3 |
+| 玄霄残识 | Xuán Xiāo's Remnant | Lucid core-remnant; grants testimony and the Furnace Mandate | Ch.4 |
+| 寂灭 | Silence-Bringer | Surviving Soul-Forger; final threshold witness | Ch.5 |
 | 烛阴 | Torch Dragon | Final boss, tragic antagonist | Ch.5 |
 
 ## Story Themes
 
 - **Cycle vs. End:** Is eternal recurrence a blessing or a prison?
 - **Memory and Identity:** If you forget who you were, are you still that person?
-- **Sacrifice:** Every ending demands giving something up. There is no "perfect" resolution.
+- **Sacrifice:** Every ending, including the hidden fourth path, demands giving something up. There is no perfect resolution.
 - **Chinese Cosmology:** Heaven (天), Earth (地), Underworld (冥), and Humanity (人) in cosmic balance.
 - **The Value of Impermanence:** Things are precious *because* they end. 烛阴's flaw was refusing to accept this.

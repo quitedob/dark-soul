@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="CombatStyleData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_style_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+style_id = &"crescent_pair"
+display_name = "CRESCENT PAIR"
+windup_light = 0.20
+active_light = 0.14
+recovery_light = 0.28
+lunge_light = 1.6
+damage_light = 16.0
+stagger_light = 10.0
+stamina_light = 16.0
+windup_heavy = 0.38
+active_heavy = 0.18
+recovery_heavy = 0.44
+lunge_heavy = 2.2
+damage_heavy = 26.0
+stagger_heavy = 20.0
+stamina_heavy = 28.0
+stamina_dodge = 18.0
+leap_windup = 0.22
+leap_active = 0.34
+leap_recovery = 0.34
+leap_damage = 18.0
+leap_stagger = 12.0
+leap_stamina = 27.0
+leap_lunge = 5.8
+leap_velocity_y = 4.8
+wam_light = 0.0
+wam_heavy = 0.0
+wam_leap = 0.0

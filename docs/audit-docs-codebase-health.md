@@ -152,7 +152,7 @@ All 9 agents in `docs/agents/` follow an identical template (YAML frontmatter, "
 
 | File | Lines | Class / Extends | Purpose |
 |---|---|---|---|
-| `scripts/player.gd` | 1,140 | `CharacterBody3D` | 12-state player: LOCOMOTION, ATTACK_WINDUP, ATTACK_ACTIVE, ATTACK_RECOVERY, DODGE, STAGGER, DEAD, PARRY, GUARD, CAST, HEAL, INTERACT |
+| `scripts/player/player.gd` | 1,140 | `CharacterBody3D` | 12-state player: LOCOMOTION, ATTACK_WINDUP, ATTACK_ACTIVE, ATTACK_RECOVERY, DODGE, STAGGER, DEAD, PARRY, GUARD, CAST, HEAL, INTERACT |
 | `scripts/hud.gd` | 1,132 | `CanvasLayer` | Full procedural HUD: vitals bars, boss bar, title/pause/death/victory/help overlays, locale switching (en/zh_CN), accessibility (UI scale, text scale, reduced motion, high contrast), mobile controls |
 | `scripts/game_world.gd` | 962 | `Node3D` | World orchestrator: spawns all entities, wires all signals, manages save/load, checkpoint logic, shrine upgrades, death/recovery loop, host bridge integration, embedded smoke test (140 lines, gated by `--smoke-test`) |
 | `scripts/enemy.gd` | 704 | `CharacterBody3D` | 8-state enemy FSM: IDLE, CHASE, WINDUP, ACTIVE, RECOVERY, STAGGER, RETURN, DEAD. Cinder Guardian variant with phase 2 (≤50% HP), distance-bracket attack selection (3 brackets), weapon emission glow, stagger transition |
@@ -179,7 +179,7 @@ The codebase follows a **central-mediator pattern** with clean signal-based comm
 main.tscn
   └── ashen_hollow.tscn (game_world.gd)  ← single orchestrator
         ├── ProceduralAudio (procedural_audio.gd)
-        ├── Warden (player.gd)
+        ├── Warden (scripts/player/player.gd)
         ├── HUD (hud.gd)
         │     └── MobileControls (mobile_controls.gd)
         ├── EmberShrine (checkpoint.gd)

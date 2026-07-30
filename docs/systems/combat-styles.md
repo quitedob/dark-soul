@@ -2,7 +2,9 @@
 
 ## Overview
 
-Building on Ashen Hollow's 5 original combat styles, 烬渊 re-themes and extends the combat style system to support 4 character classes, each with a unique style. The original 5 styles are preserved and adapted.
+Building on Ashen Hollow's 5 compatibility loadouts, 烬渊 re-themes the current prototype while defining a broader weapon-class future. Tables in this file describe the **current or currently targeted compatibility loadouts**, not a complete one-hand/two-hand execution system. Planned charge attacks, grip modes, context attacks, executions, Boss weak points, grabs, and data-driven weapon arts are specified in [Combat Execution, Guard & Weapon Arts](combat-execution-guard-weapon-arts.md).
+
+**Implementation boundary:** normal light/heavy attacks read `CombatStyleData` resources. Leap, dodge, and action armor still have legacy-data dependencies. Features listed as class fantasy below may not yet exist in runtime; `controls.md` is authoritative for currently playable inputs.
 
 ---
 
@@ -26,10 +28,10 @@ Building on Ashen Hollow's 5 original combat styles, 烬渊 re-themes and extend
 
 | Action | Stamina | Windup | Active | Recovery | Damage |
 |--------|---------|--------|--------|----------|--------|
-| Light Attack | 18 | 0.28s | 0.15s | 0.32s | 22 |
-| Heavy Attack | 34 | 0.58s | 0.22s | 0.65s | 38 |
+| Light Attack | 22 | 0.28s | 0.16s | 0.38s | 22 |
+| Heavy Attack | 40 | 0.58s | 0.22s | 0.62s | 38 |
 | Dodge | 24 | — | — | — | — |
-| Parry Window | — | — | 0.06-0.26s | — | Counter: 26 |
+| Medium Shield Parry | 10 | 0.40s | 0.20s | 0.60s × 1.5 miss | Counter |
 
 **Special Abilities:**
 - **Parry (格挡):** Frame-tight parry window, staggers enemy on success
@@ -48,9 +50,9 @@ Building on Ashen Hollow's 5 original combat styles, 烬渊 re-themes and extend
 
 | Action | Stamina | Windup | Active | Recovery | Damage |
 |--------|---------|--------|--------|----------|--------|
-| Light Attack | 22 | 0.48s | 0.22s | 0.52s | 32 |
-| Heavy Attack | 42 | 0.82s | 0.28s | 0.90s | 56 |
-| Dodge | 30 | — | — | — | — |
+| Light Attack | 38 | 0.48s | 0.20s | 0.62s | 32 |
+| Heavy Attack | 65 | 0.82s | 0.26s | 0.92s | 56 |
+| Dodge | 32 | — | — | — | — |
 | Leap Attack | 38 | 0.65s | 0.30s | 0.75s | 58 |
 
 **Special Abilities:**
@@ -71,11 +73,10 @@ Building on Ashen Hollow's 5 original combat styles, 烬渊 re-themes and extend
 
 | Action | Stamina/Focus | Windup | Active | Recovery | Damage |
 |--------|--------------|--------|--------|----------|--------|
-| Quick Shot | 12 stam | 0.20s | Instant | 0.18s | 18 |
-| Power Shot | 28 stam | 0.80s | Instant | 0.40s | 42 |
-| Evade Shot | 26 stam | — | — | — | 14 (mid-jump) |
-| Dagger Slash | 10 stam | 0.18s | 0.12s | 0.20s | 12 |
-| Arrow Rain | 40 Focus | 1.20s cast | 2.0s rain | 0.50s | 8×8 arrows |
+| Quick Shot | 16 stam | 0.20s | Instant | 0.28s | 16 |
+| Power Shot | 28 stam | 0.38s | Instant | 0.44s | 26 |
+| Evade / Crescent Leap | 27 stam | 0.22s | 0.34s | 0.34s | 18×2 |
+| Dodge | 18 stam | — | — | — | — |
 
 **Special Abilities:**
 - **Elemental Arrows:** Toggle Fire/Ice/Lightning/Spirit arrows (8-10 Focus per arrow)
@@ -150,4 +151,4 @@ Building on Ashen Hollow's 5 original combat styles, 烬渊 re-themes and extend
 
 Styles can be switched at any Ember Shrine. During combat experimentation, players may temporarily use other styles in specific "trial" areas (Chapter 1 alcoves, Chapter 5 Soul-Forger trials) without permanently unlocking them.
 
-**Technical Note:** The existing Ashen Hollow `CombatStyle` enum and `STYLE_TIMING` dictionary in `player.gd` serve as the foundation. New styles extend this system with additional entries in the enum and timing profiles.
+**Technical Note:** The current prototype keeps the original `CombatStyle` enum as a compatibility selector and loads ordinary timing from five `CombatStyleData` resources. Legacy dictionaries still service leap, dodge, and action armor and must be removed before `AttackData` / `MovesetData` migration. See [Attack and Moveset Data Schema](attack-moveset-data-schema.md).

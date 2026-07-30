@@ -15,7 +15,12 @@ const HostBridgeScript = preload("res://scripts/app/game_host_bridge.gd")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
 const InputConfigScript = preload("res://scripts/core/input_config.gd")
 const WorldEnvScript = preload("res://scripts/core/world_environment.gd")
-const LevelBuilderScript = preload("res://scripts/core/level_builder.gd")
+const CampaignLevelRuntimeScript = preload("res://scripts/world/campaign_level_runtime.gd")
+const CampaignModuleRuntimeScript = preload("res://scripts/world/campaign_module_runtime.gd")
+const Chapter1ContentScript = preload("res://scripts/data/chapter_1_content.gd")
+const SafePlacement = preload("res://scripts/core/safe_placement.gd")
+const HitStopManagerScript = preload("res://scripts/combat/hit_stop_manager.gd")
+const TraumaShakeScript = preload("res://scripts/components/trauma_shake.gd")
 
 const SAVE_PATH := "user://ashen_hollow_run_v1.json"
 const SETTINGS_PATH := "user://ashen_hollow_settings_v1.json"
@@ -44,23 +49,76 @@ var interaction_candidates: Array[Area3D] = []
 var _interaction_refresh := 0.0
 var _play_time_fraction_ms := 0.0
 var _env_setup: WorldEnvSetup
-var _level_builder: AshenLevelBuilder
+var campaign_runtime: CampaignLevelRuntime
+var _module_runtime: CampaignModuleRuntime
+var _hit_stop_manager: HitStopManager
+var _trauma_shake: TraumaShake
+var _level_transition_locked := false
 
 
 func _ready() -> void:
+	assert(is_equal_approx(Engine.time_scale, 1.0), "Engine.time_scale must remain 1.0; use local hit-stop.")
 	InputConfigScript.configure_inputs()
 	_env_setup = WorldEnvScript.new()
 	_env_setup.setup(self)
 	_env_setup.create_environment()
 	materials = _env_setup.create_materials()
-	_level_builder = LevelBuilderScript.new()
-	_level_builder.setup(self, materials, brazier_lights, brazier_flicker_phases)
-	_level_builder.create_level()
+	campaign_runtime = CampaignLevelRuntimeScript.new()
+	campaign_runtime.name = "CampaignLevelRuntime"
+	add_child(campaign_runtime)
+	campaign_runtime.load_level(&"level_01_01")
+	_update_level_markers()
 	_create_systems()
 	_load_initial_state()
 	call_deferred("_generate_navigation")
 	if "--smoke-test" in OS.get_cmdline_user_args():
 		get_tree().create_timer(2.0).timeout.connect(_run_smoke_test)
+
+
+func _load_campaign_level(level_id: StringName) -> bool:
+	if campaign_runtime == null:
+		return false
+	var level_root := campaign_runtime.load_level(level_id)
+	if level_root == null:
+		return false
+	_update_level_markers()
+	if checkpoint != null:
+		checkpoint.position = _checkpoint_position()
+	if player != null and is_instance_valid(player):
+		_spawn_chapter_encounters()
+		_activate_campaign_modules()
+		player.respawn_at(respawn_position)
+	return true
+
+
+func _update_level_markers() -> void:
+	if campaign_runtime == null:
+		return
+	var spawn_marker := campaign_runtime.get_spawn_marker()
+	if spawn_marker != null:
+		respawn_position = spawn_marker.global_position
+	var checkpoint_position := _checkpoint_position()
+	var shrine_glow := get_node_or_null("ShrineGlow") as OmniLight3D
+	if shrine_glow != null:
+		shrine_glow.position = checkpoint_position + Vector3(0.0, 2.4, 0.0)
+		shrine_glow.light_energy = 3.0
+	var shrine_fill := get_node_or_null("ShrineFill") as OmniLight3D
+	if shrine_fill != null:
+		shrine_fill.position = checkpoint_position + Vector3(0.0, 1.2, 1.5)
+		shrine_fill.light_energy = 0.9
+	if shortcut != null and is_instance_valid(shortcut):
+		shortcut.position = checkpoint_position + Vector3(-6.0, 0.0, -2.0)
+	if shortcut_gate != null and is_instance_valid(shortcut_gate):
+		var exit_marker := campaign_runtime.get_exit_marker()
+		if exit_marker != null:
+			shortcut_gate.position = exit_marker.global_position + Vector3(0.0, 1.5, 2.0)
+
+
+func _checkpoint_position() -> Vector3:
+	if campaign_runtime == null:
+		return Vector3(0.0, 0.0, 6.0)
+	var marker := campaign_runtime.get_checkpoint_marker()
+	return marker.global_position if marker != null else Vector3(0.0, 0.0, 6.0)
 
 
 func _process(delta: float) -> void:
@@ -71,6 +129,8 @@ func _process(delta: float) -> void:
 	if elapsed_whole_ms > 0:
 		run_state.play_time_ms += elapsed_whole_ms
 		_play_time_fraction_ms -= elapsed_whole_ms
+	if _module_runtime != null:
+		_module_runtime.tick_hazards(delta)
 	_interaction_refresh -= delta
 	if _interaction_refresh > 0.0:
 		return
@@ -122,6 +182,8 @@ func _create_systems() -> void:
 	hud = HudScene.instantiate()
 	add_child(hud)
 	hud.locale_requested.connect(_on_hud_locale_requested)
+	if hud.has_signal("combat_tip_mode_requested"):
+		hud.combat_tip_mode_requested.connect(_on_hud_combat_tip_mode_requested)
 	hud.play_started.connect(_on_play_started)
 
 	player = PlayerScene.instantiate()
@@ -130,6 +192,7 @@ func _create_systems() -> void:
 	player.died.connect(_on_player_died)
 	player.stats_changed.connect(hud.update_stats)
 	player.focus_changed.connect(hud.update_focus)
+	player.poise_changed.connect(hud.update_poise)
 	player.embers_changed.connect(hud.update_embers)
 	player.lock_target_changed.connect(hud.set_lock_target)
 	player.combat_style_changed.connect(hud.set_combat_style)
@@ -138,28 +201,39 @@ func _create_systems() -> void:
 	add_child(player)
 	player.combat_area.hit_landed.connect(_on_player_hit_landed)
 	hud.setup(player)
+	_hit_stop_manager = HitStopManagerScript.new()
+	_hit_stop_manager.name = "HitStopManager"
+	add_child(_hit_stop_manager)
+	_trauma_shake = TraumaShakeScript.new()
+	_trauma_shake.name = "TraumaShake"
+	_trauma_shake.setup(player.camera)
+	add_child(_trauma_shake)
 	_create_interaction_sensor()
 
 	checkpoint = CheckpointScene.instantiate()
-	checkpoint.position = Vector3(0.0, 0.0, 6.0)
-	checkpoint.setup(self, "Ember Shrine")
+	checkpoint.position = _checkpoint_position()
+	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
+	checkpoint.setup(self, String(level_data.get("display_name", "Ember Shrine")))
 	checkpoint.activated.connect(_on_checkpoint_activated)
 	checkpoint.rested.connect(_on_checkpoint_rested)
 	add_child(checkpoint)
 
-	shortcut_gate = _create_gate(Vector3(0.0, 1.5, -5.6))
+	var exit_marker := campaign_runtime.get_exit_marker() if campaign_runtime != null else null
+	var gate_pos := exit_marker.global_position + Vector3(0.0, 1.5, 2.0) if exit_marker != null else Vector3(0.0, 1.5, -5.6)
+	shortcut_gate = _create_gate(gate_pos)
 	shortcut = ShortcutScene.instantiate()
-	shortcut.position = Vector3(-8.0, 0.0, -5.0)
+	shortcut.position = _checkpoint_position() + Vector3(-6.0, 0.0, -2.0)
 	shortcut.setup(shortcut_gate, self)
 	shortcut.opened.connect(_on_shortcut_opened)
 	add_child(shortcut)
 
-	_spawn_enemy(Vector3(-4.0, 0.95, -3.0), false)
-	_spawn_enemy(Vector3(4.0, 0.95, -8.0), false)
-	_spawn_enemy(Vector3(-3.0, 0.95, -10.0), false, EnemyScript.EnemyType.ASH_STALKER)
-	_spawn_enemy(Vector3(4.0, 0.95, -14.0), false, EnemyScript.EnemyType.ASH_STALKER)
-	_spawn_enemy(Vector3(-7.0, 0.95, -12.0), false)
-	guardian = _spawn_enemy(Vector3(0.0, 1.15, -24.0), true)
+	_module_runtime = CampaignModuleRuntimeScript.new()
+	_module_runtime.name = "CampaignModuleRuntime"
+	add_child(_module_runtime)
+	_module_runtime.bind(player, hud, audio)
+	_module_runtime.exit_requested.connect(_on_campaign_exit_requested)
+	_spawn_chapter_encounters()
+	_activate_campaign_modules()
 
 
 func _create_interaction_sensor() -> void:
@@ -192,11 +266,115 @@ func _on_interaction_area_exited(area: Area3D) -> void:
 
 
 func _show_intro() -> void:
-	hud.show_message(LocalizationScript.text("ASHEN HOLLOW\nReach the sealed guardian beyond the ruins."), 4.0)
+	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
+	var level_name := String(level_data.get("display_name", "ASHEN HOLLOW"))
+	var purpose := String(level_data.get("purpose", "explore"))
+	hud.show_message(LocalizationScript.text("%s\nLearn the hollow: %s") % [level_name, purpose], 4.0)
 
 
 func _on_play_started() -> void:
 	_show_intro()
+
+
+func _activate_campaign_modules() -> void:
+	# 激活当前关卡模块行为
+	if _module_runtime == null or campaign_runtime == null:
+		return
+	_module_runtime.activate(campaign_runtime.current_level)
+
+
+func _clear_enemies() -> void:
+	# 清除旧遭遇战敌人
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+	enemies.clear()
+	guardian = null
+
+
+func _spawn_chapter_encounters() -> void:
+	# 相对标记点生成第一章教程遭遇
+	_clear_enemies()
+	if campaign_runtime == null:
+		return
+	var spawn_marker := campaign_runtime.get_spawn_marker()
+	var origin := spawn_marker.global_position if spawn_marker != null else Vector3.ZERO
+	var level_data := campaign_runtime.get_level_data()
+	var level_id := StringName(level_data.get("id", &"level_01_01"))
+	var chapter_id := String(level_data.get("chapter_id", &"chapter_01"))
+	if chapter_id != "chapter_01":
+		# 非第一章暂用兼容哨兵，后续章节工厂再接入
+		_spawn_enemy(origin + Vector3(-3.5, 0.95, -5.0), false)
+		_spawn_enemy(origin + Vector3(3.5, 0.95, -9.0), false, EnemyScript.EnemyType.ASH_STALKER)
+		return
+	var roster: Array[Dictionary] = Chapter1ContentScript.enemies()
+	if roster.is_empty():
+		return
+	match level_id:
+		&"level_01_01":
+			# 苏醒之庭：敌人放在中后场，避免出生点圣所内立刻仇恨
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -14.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(3.2, 0.95, -17.5), roster[0])
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -21.0), roster[1])
+		&"level_01_02":
+			_spawn_content_enemy(origin + Vector3(-2.5, 0.95, -5.0), roster[1])
+			_spawn_content_enemy(origin + Vector3(2.5, 0.95, -8.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -12.0), roster[2])
+		&"level_01_05":
+			_spawn_content_enemy(origin + Vector3(-4.0, 0.95, -6.0), roster[1])
+			_spawn_content_enemy(origin + Vector3(4.0, 0.95, -10.0), roster[3])
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter1ContentScript.boss(), true)
+		_:
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
+
+
+func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guardian := false):
+	# 用章节内容生成敌人
+	var payload := content.duplicate(true)
+	if is_guardian and not payload.has("body_type"):
+		payload["body_type"] = "armored_medium"
+		payload["weapon_shape"] = payload.get("weapon_shape", "temple_halberd")
+		payload["body_color"] = payload.get("body_color", "2a2820")
+		payload["weapon_color"] = payload.get("weapon_color", "5a5040")
+		payload["eye_emission"] = payload.get("eye_emission", "ff5518")
+	var enemy = EnemyScene.instantiate()
+	enemy.name = String(payload.get("id", "ChapterEnemy"))
+	enemy.position = spawn_position
+	enemy.setup_from_content(self, player, audio, spawn_position, payload, is_guardian)
+	enemy.defeated.connect(_on_enemy_defeated)
+	enemy.engagement_changed.connect(_on_enemy_engagement_changed)
+	enemy.health_changed.connect(_on_guardian_health_changed.bind(enemy))
+	add_child(enemy)
+	enemies.append(enemy)
+	return enemy
+
+
+func _on_campaign_exit_requested(from_level_id: StringName) -> void:
+	# 出口交互 → 推进下一关并记完成
+	if _level_transition_locked:
+		return
+	var current_id := from_level_id
+	if current_id.is_empty() and campaign_runtime != null:
+		current_id = campaign_runtime.current_level_id
+	var next_level: Dictionary = campaign_runtime.registry.get_next_level(current_id) if campaign_runtime != null else {}
+	if next_level.is_empty():
+		hud.show_message(LocalizationScript.text("THE PATH ENDS HERE"), 2.0)
+		return
+	_level_transition_locked = true
+	var completed := String(current_id)
+	if completed not in run_state.completed_levels:
+		run_state.completed_levels.append(completed)
+	var next_id := StringName(next_level.get("id", &""))
+	hud.show_message(LocalizationScript.text("THE SEAL OPENS\n%s") % String(next_level.get("display_name", "")), 2.2)
+	audio.play_cue("rest", -6.0, 0.85)
+	if not _load_campaign_level(next_id):
+		_level_transition_locked = false
+		return
+	run_state.level_id = String(campaign_runtime.current_level_id)
+	run_state.chapter_id = String(campaign_runtime.get_level_data().get("chapter_id", run_state.chapter_id))
+	_save_run("level_advanced")
+	_level_transition_locked = false
 
 
 func _spawn_enemy(spawn_position: Vector3, is_guardian: bool, enemy_type = -1):
@@ -217,8 +395,9 @@ func _spawn_enemy(spawn_position: Vector3, is_guardian: bool, enemy_type = -1):
 
 
 func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> void:
-	respawn_position = shrine.global_position + Vector3(0.0, 1.1, 2.0)
-	run_state.checkpoint_id = "ember_shrine"
+	respawn_position = _resolve_respawn_position(shrine.global_position + Vector3(0.0, 1.1, 2.0))
+	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
+	run_state.checkpoint_id = String(level_data.get("checkpoint_id", "ember_shrine"))
 	player.heal_full()
 	_try_shrine_upgrade()
 	for enemy in enemies:
@@ -252,7 +431,8 @@ func _try_shrine_upgrade() -> void:
 
 
 func _on_checkpoint_activated(_shrine: Node, _interacting_player: Node) -> void:
-	run_state.checkpoint_id = "ember_shrine"
+	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
+	run_state.checkpoint_id = String(level_data.get("checkpoint_id", "ember_shrine"))
 	_save_run("checkpoint_activated")
 
 
@@ -306,6 +486,7 @@ func _on_player_died(death_position: Vector3) -> void:
 			enemy.reset_enemy()
 	hud.show_death()
 	await get_tree().create_timer(2.2).timeout
+	respawn_position = _resolve_respawn_position(respawn_position)
 	player.respawn_at(respawn_position)
 	hud.clear_death()
 	hud.show_message(LocalizationScript.text("RISE AGAIN"), 1.5)
@@ -314,11 +495,26 @@ func _on_player_died(death_position: Vector3) -> void:
 func _spawn_lost_echo(amount: int, at: Vector3) -> void:
 	if lost_echo != null and is_instance_valid(lost_echo):
 		lost_echo.queue_free()
+	var safe_at := at
+	var space := get_world_3d().direct_space_state if is_inside_tree() else null
+	if space != null:
+		safe_at = SafePlacement.resolve_standing_position(space, at)
 	lost_echo = LostEchoScene.instantiate()
-	lost_echo.position = at
+	lost_echo.position = safe_at
 	lost_echo.setup(amount, self)
 	lost_echo.recovered.connect(_on_lost_echo_recovered)
 	add_child(lost_echo)
+
+
+func _resolve_respawn_position(candidate: Vector3) -> Vector3:
+	# 祠堂/标记点重生前做地面投影
+	var space := get_world_3d().direct_space_state if is_inside_tree() else null
+	if space == null:
+		return candidate
+	var exclude: Array[RID] = []
+	if player != null and is_instance_valid(player):
+		exclude.append(player.get_rid())
+	return SafePlacement.resolve_standing_position(space, candidate, exclude)
 
 
 func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
@@ -357,7 +553,7 @@ func get_target_candidates() -> Array[Node]:
 
 
 func is_position_in_sanctuary(at: Vector3) -> bool:
-	return at.z >= 3.5
+	return at.distance_to(respawn_position) <= 5.0
 
 
 func _load_initial_state() -> void:
@@ -387,7 +583,11 @@ func _apply_run_state(state) -> void:
 	if state == null:
 		return
 	run_state = state
-	respawn_position = Vector3(0.0, 1.1, 8.0)
+	if not _load_campaign_level(StringName(run_state.level_id)):
+		_load_campaign_level(&"level_01_01")
+	run_state.level_id = String(campaign_runtime.current_level_id)
+	var level_data := campaign_runtime.get_level_data()
+	run_state.chapter_id = String(level_data.get("chapter_id", &"chapter_01"))
 	if player.has_method("set_embers"):
 		player.set_embers(run_state.embers)
 	else:
@@ -414,6 +614,9 @@ func _apply_run_state(state) -> void:
 
 
 func _snapshot_run_state() -> Dictionary:
+	run_state.level_id = String(campaign_runtime.current_level_id)
+	var level_data := campaign_runtime.get_level_data()
+	run_state.chapter_id = String(level_data.get("chapter_id", run_state.chapter_id))
 	run_state.embers = int(player.embers)
 	run_state.focus = float(player.focus)
 	run_state.combat_style = int(player.combat_style)
@@ -486,23 +689,17 @@ func _on_hud_locale_requested(locale: String) -> void:
 	_apply_settings()
 
 
-func _on_player_hit_landed(is_heavy: bool) -> void:
-	var pause_duration := 0.08 if is_heavy else 0.04
-	var pause_scale := 0.02 if is_heavy else 0.05
-	Engine.time_scale = pause_scale
-	var timer := get_tree().create_timer(pause_duration, true, true)
-	timer.timeout.connect(func():
-		Engine.time_scale = 1.0
-	)
-	if is_heavy and player != null and is_instance_valid(player) and player.camera != null:
-		player.camera.h_offset = randf_range(-0.08, 0.08)
-		player.camera.v_offset = randf_range(-0.04, 0.04)
-		var reset_timer := get_tree().create_timer(0.06, true, true)
-		reset_timer.timeout.connect(func():
-			if player != null and is_instance_valid(player) and player.camera != null:
-				player.camera.h_offset = 0.0
-				player.camera.v_offset = 0.0
-		)
+func _on_hud_combat_tip_mode_requested(enabled: bool) -> void:
+	# 暂停菜单切换战斗提示模式并持久化
+	game_settings.combat_tip_mode = enabled
+	game_settings.save_to_path(SETTINGS_PATH)
+	_apply_settings()
+
+
+func _on_player_hit_landed(target: Node3D, is_heavy: bool) -> void:
+	var duration := 0.08 if is_heavy else 0.04
+	_hit_stop_manager.trigger(player, target, duration, float(Engine.physics_ticks_per_second))
+	_trauma_shake.inject(0.8 if is_heavy else 0.3)
 
 
 func _on_player_healing() -> void:
@@ -515,6 +712,11 @@ func _on_player_healing() -> void:
 
 func _apply_settings() -> void:
 	Engine.max_fps = game_settings.target_fps
+	if _trauma_shake != null:
+		_trauma_shake.set_settings(
+			game_settings.screen_shake_enabled and not game_settings.reduced_motion,
+			game_settings.screen_shake_intensity
+		)
 	TranslationServer.set_locale(game_settings.locale)
 	if player != null and player.has_method("apply_game_settings"):
 		player.apply_game_settings(game_settings.to_dictionary())
@@ -578,11 +780,31 @@ func _on_host_protocol_error(message: String) -> void:
 
 
 func _create_level() -> void:
-	_level_builder.create_level()
+	_load_campaign_level(&"level_01_01")
 
 
 func _create_gate(at: Vector3) -> Node3D:
-	return _level_builder._create_gate(at)
+	var gate := Node3D.new()
+	gate.name = "ShortcutGate"
+	gate.position = at
+	for offset: float in [-1.6, -0.8, 0.0, 0.8, 1.6]:
+		var bar := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(0.22, 3.0, 0.3)
+		mesh.material = materials["metal"]
+		bar.mesh = mesh
+		bar.position.x = offset
+		gate.add_child(bar)
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(4.0, 3.0, 0.5)
+	collision.shape = shape
+	body.add_child(collision)
+	gate.add_child(body)
+	add_child(gate)
+	return gate
 
 
 func _generate_navigation() -> void:

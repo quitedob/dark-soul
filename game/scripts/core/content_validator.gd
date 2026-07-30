@@ -66,6 +66,7 @@ static func _validate_levels(levels: Array, chapter_by_id: Dictionary, level_by_
 	for level_value in levels:
 		var level: Dictionary = level_value
 		var level_id := StringName(level.get("id", &""))
+		_validate_level_id_format(level_id, "Level ID", errors)
 		for field in REQUIRED_LEVEL_FIELDS:
 			if not level.has(field):
 				errors.append("Level %s is missing field %s." % [level_id, field])
@@ -78,6 +79,8 @@ static func _validate_levels(levels: Array, chapter_by_id: Dictionary, level_by_
 		elif chapter_by_id.has(chapter_id) and StringName(chapter_by_id[chapter_id].get("theme_id", &"")) != theme_id:
 			errors.append("Level %s theme does not match chapter %s." % [level_id, chapter_id])
 		var next_level_id := StringName(level.get("next_level_id", &""))
+		if not next_level_id.is_empty():
+			_validate_level_id_format(next_level_id, "Level %s next level ID" % level_id, errors)
 		if not next_level_id.is_empty() and not level_by_id.has(next_level_id):
 			errors.append("Level %s references missing next level %s." % [level_id, next_level_id])
 		var boss_id := StringName(level.get("boss_id", &""))
@@ -99,6 +102,7 @@ static func _validate_bosses(bosses: Array, chapter_by_id: Dictionary, level_by_
 		var boss_id := StringName(boss.get("id", &""))
 		var chapter_id := StringName(boss.get("chapter_id", &""))
 		var level_id := StringName(boss.get("level_id", &""))
+		_validate_level_id_format(level_id, "Boss %s level ID" % boss_id, errors)
 		if not chapter_by_id.has(chapter_id):
 			errors.append("Boss %s references missing chapter %s." % [boss_id, chapter_id])
 		if not level_by_id.has(level_id):
@@ -108,11 +112,19 @@ static func _validate_bosses(bosses: Array, chapter_by_id: Dictionary, level_by_
 
 
 static func _validate_endpoint(chapter_id: StringName, level_id: StringName, endpoint: String, level_by_id: Dictionary, errors: Array[String]) -> void:
+	_validate_level_id_format(level_id, "Chapter %s %s level ID" % [chapter_id, endpoint], errors)
 	if level_id.is_empty() or not level_by_id.has(level_id):
 		errors.append("Chapter %s has a missing %s level." % [chapter_id, endpoint])
 		return
 	if StringName(level_by_id[level_id].get("chapter_id", &"")) != chapter_id:
 		errors.append("Chapter %s %s level belongs to another chapter." % [chapter_id, endpoint])
+
+
+static func _validate_level_id_format(level_id: StringName, label: String, errors: Array[String]) -> void:
+	var pattern := RegEx.new()
+	pattern.compile("^level_[0-9]{2}_[0-9]{2}$")
+	if pattern.search(String(level_id)) == null:
+		errors.append("%s %s is not canonical." % [label, level_id])
 
 
 static func _index_records(records: Array, label: String, errors: Array[String]) -> Dictionary:

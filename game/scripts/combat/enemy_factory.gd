@@ -13,31 +13,42 @@ static func build_enemy_model(parent: Node3D, enemy_data: Dictionary, body_mater
 	_clear_children(parent)
 	var body_type: String = enemy_data.get("body_type", "humanoid")
 	var weapon_shape: String = enemy_data.get("weapon_shape", "club")
+	_build_body_for_type(parent, body_type, body_material)
+	_build_chapter_weapon(parent, weapon_shape, weapon_material)
 
+
+## 写入敌人已有的身体/武器槽位（避免再建一层 EnemyWeaponPivot）
+static func build_into_slots(
+	body_parent: Node3D,
+	weapon_parent: Node3D,
+	enemy_data: Dictionary,
+	body_material: StandardMaterial3D,
+	weapon_material: StandardMaterial3D
+) -> void:
+	_clear_children(body_parent)
+	_clear_children(weapon_parent)
+	var body_type: String = enemy_data.get("body_type", "humanoid")
+	var weapon_shape: String = enemy_data.get("weapon_shape", "club")
+	_build_body_for_type(body_parent, body_type, body_material)
+	_dispatch_weapon(weapon_parent, weapon_shape, weapon_material)
+
+
+static func _build_body_for_type(parent: Node3D, body_type: String, body_material: StandardMaterial3D) -> void:
 	match body_type:
-		# Chapter 1 body types
 		"wraith_thin", "armored_medium", "ethereal_flicker", "hulking_molten":
 			Chapter1EnemyFactory.build_body(parent, body_type, body_material)
-		# Chapter 2 body types
 		"ragged_soldier", "hound_spectral", "immobile_turret", "elite_armored", "tower_ranged":
 			Chapter2EnemyFactory.build_body(parent, body_type, body_material)
-		# Chapter 3 body types
 		"floating_small", "ethereal_thin", "floating_orb", "lantern_float", "floating_dress", "reflection_clone", "flower_stationary", "beast_humanoid":
 			Chapter3EnemyFactory.build_body(parent, body_type, body_material)
-		# Chapter 4 body types
 		"celestial_guard", "flying_large", "barrel_heavy", "robed_caster", "floating_book", "shambling_giant":
 			Chapter4EnemyFactory.build_body(parent, body_type, body_material)
-		# Chapter 5 body types
 		"void_wraith", "gravity_armor", "flying_small", "shadow_form", "quantum_shimmer", "ancient_giant":
 			Chapter5EnemyFactory.build_body(parent, body_type, body_material)
-		# Elite types (built locally — may reference chapter types)
-		"armored_heavy", "massive_golem", "ethereal_elite", "floating_dress_elite",
-		"reflection_knight", "floating_knight", "gravity_mage", "void_knight", "ancient_titan":
+		"armored_heavy", "massive_golem", "ethereal_elite", "floating_dress_elite", "reflection_knight", "floating_knight", "gravity_mage", "void_knight", "ancient_titan":
 			_build_elite_body(parent, body_type, body_material)
 		_:
 			_build_default_humanoid(parent, body_material)
-
-	_build_chapter_weapon(parent, weapon_shape, weapon_material)
 
 
 # ── Weapon dispatch ──────────────────────────────────────────────────────
@@ -47,31 +58,26 @@ static func _build_chapter_weapon(parent: Node3D, weapon_id: String, weapon_mate
 	weapon_pivot.name = "EnemyWeaponPivot"
 	weapon_pivot.position = Vector3(0.68, 0.45, -0.16)
 	parent.add_child(weapon_pivot)
+	_dispatch_weapon(weapon_pivot, weapon_id, weapon_material)
 
+
+static func _dispatch_weapon(weapon_pivot: Node3D, weapon_id: String, weapon_material: StandardMaterial3D) -> void:
 	match weapon_id:
-		# Ch1 weapons
 		"rusted_blade", "temple_halberd", "glass_shard", "slag_fist":
 			Chapter1EnemyFactory.build_weapon(weapon_pivot, weapon_id, weapon_material)
-		# Ch2 weapons
 		"war_broken_sword", "spectral_fangs", "siege_glaive", "iron_maiden_spikes", "guandao", "beacon_flame":
 			Chapter2EnemyFactory.build_weapon(weapon_pivot, weapon_id, weapon_material)
-		# Ch3 weapons
 		"wing_blade", "memory_claw", "sound_wave", "fox_fire_orb", "sleeve_blade", "water_orb", "petal_blade", "jade_halberd", "fox_claw":
 			Chapter3EnemyFactory.build_weapon(weapon_pivot, weapon_id, weapon_material)
-		# Ch4 weapons
 		"cloud_glaive", "talon", "furnace_body", "alchemy_sword", "floating_pages", "scripture_blade", "broken_limb":
 			Chapter4EnemyFactory.build_weapon(weapon_pivot, weapon_id, weapon_material)
-		# Ch5 weapons
 		"drift_blade", "inverted_halberd", "ember_wing", "shadow_blade", "possibility_orb", "soul_hammer":
 			Chapter5EnemyFactory.build_weapon(weapon_pivot, weapon_id, weapon_material)
-		# Elite weapons (built locally)
 		"bronze_mirror_shield":
 			WeaponMeshFactory.build_shield(weapon_pivot, weapon_material)
 		"beacon_bow":
 			WeaponMeshFactory.build_into_parent(weapon_pivot, "bow", weapon_material)
-		"stone_fist", "commander_sword", "chain_hook", "memory_scythe", "bridal_veil",
-		"mirror_blade", "celestial_sword", "elixir_vial", "scripture_tome",
-		"void_blade", "gravity_staff", "soul_forge_hammer":
+		"stone_fist", "commander_sword", "chain_hook", "memory_scythe", "bridal_veil", "mirror_blade", "celestial_sword", "elixir_vial", "scripture_tome", "void_blade", "gravity_staff", "soul_forge_hammer":
 			_build_elite_weapon(weapon_pivot, weapon_id, weapon_material)
 		_:
 			box(weapon_pivot, Vector3(0.08, 1.2, 0.12), Vector3(0, -0.3, 0), Vector3.ZERO, weapon_material)

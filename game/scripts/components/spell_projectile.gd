@@ -1,6 +1,11 @@
 extends Area3D
 ## Differentiated spell projectile — each spell type gets distinct visuals,
 ## speed, lifetime, collision size, and particle effects.
+## Flight uses PhysicsDirectSpaceState3D sweep (World | Enemies), not bare transform moves.
+
+const WORLD_LAYER := 1
+const ENEMY_LAYER := 4
+const QUERY_MASK := WORLD_LAYER | ENEMY_LAYER
 
 var source: Node3D
 var direction := Vector3.FORWARD
@@ -12,6 +17,8 @@ var hit_payload: Dictionary = {}
 var _spell_type := "default"
 var _homing_target: Node3D = null
 var _homing_strength := 0.0
+var _collision_radius := 0.24
+var _resolved := false
 
 
 func setup(
@@ -49,18 +56,18 @@ func setup(
 
 
 func _ready() -> void:
+	# Area3D 仅作表现；飞行碰撞由 space sweep 决定
 	collision_layer = 0
-	collision_mask = 4
-	monitoring = true
+	collision_mask = 0
+	monitoring = false
 	monitorable = false
-	body_entered.connect(_on_body_entered)
 
-	# Per-spell-type visual configuration
 	var spell_config := _get_spell_config(_spell_type)
+	_collision_radius = float(spell_config["collision_radius"])
 
 	var collision := CollisionShape3D.new()
 	var shape := SphereShape3D.new()
-	shape.radius = spell_config["collision_radius"]
+	shape.radius = _collision_radius
 	collision.shape = shape
 	add_child(collision)
 
@@ -143,6 +150,8 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _resolved:
+		return
 	# Homing behavior
 	if _homing_target != null and is_instance_valid(_homing_target) and _homing_strength > 0.0:
 		var target_point: Vector3 = (
@@ -153,32 +162,85 @@ func _physics_process(delta: float) -> void:
 		var desired := (target_point - global_position).normalized()
 		direction = direction.lerp(desired, _homing_strength * delta).normalized()
 
-	global_position += direction * speed * delta
+	var motion := direction * speed * delta
+	var hit := _sweep_motion(motion)
+	if not hit.is_empty():
+		global_position = hit["position"]
+		_resolve_hit(hit.get("collider") as Node)
+		return
+
+	global_position += motion
 	lifetime -= delta
 	if lifetime <= 0.0:
 		queue_free()
 
 
-func _on_body_entered(body: Node3D) -> void:
-	if body == source:
+func _sweep_motion(motion: Vector3) -> Dictionary:
+	# 球形扫掠：命中世界或敌人时返回最近点
+	var space := get_world_3d().direct_space_state
+	if space == null:
+		return {}
+	var shape := SphereShape3D.new()
+	shape.radius = _collision_radius
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = shape
+	params.transform = global_transform
+	params.motion = motion
+	params.collision_mask = QUERY_MASK
+	params.collide_with_areas = false
+	params.collide_with_bodies = true
+	var exclude: Array[RID] = []
+	if source != null and is_instance_valid(source) and source is CollisionObject3D:
+		exclude.append((source as CollisionObject3D).get_rid())
+	params.exclude = exclude
+	var cast := space.cast_motion(params)
+	if cast.size() < 2:
+		return {}
+	var safe_fraction: float = float(cast[0])
+	if safe_fraction >= 1.0:
+		return {}
+	var travel := motion * safe_fraction
+	var rest := PhysicsShapeQueryParameters3D.new()
+	rest.shape = shape
+	rest.transform = Transform3D(global_transform.basis, global_position + travel)
+	rest.collision_mask = QUERY_MASK
+	rest.exclude = exclude
+	rest.collide_with_areas = false
+	rest.collide_with_bodies = true
+	var overlaps := space.intersect_shape(rest, 4)
+	if overlaps.is_empty():
+		# 回退射线，避免贴面漏检
+		var ray := PhysicsRayQueryParameters3D.create(global_position, global_position + motion)
+		ray.collision_mask = QUERY_MASK
+		ray.exclude = exclude
+		return space.intersect_ray(ray)
+	var best: Dictionary = overlaps[0]
+	best["position"] = global_position + travel
+	return best
+
+
+func _resolve_hit(collider: Node) -> void:
+	_resolved = true
+	if collider == null or collider == source:
+		queue_free()
 		return
-	if body.has_method("receive_hit_payload"):
+	# 世界层阻挡：直接消散
+	if collider is CollisionObject3D and ((collider as CollisionObject3D).collision_layer & WORLD_LAYER) != 0:
+		if not collider.has_method("receive_hit") and not collider.has_method("receive_hit_payload"):
+			queue_free()
+			return
+	if collider.has_method("receive_hit_payload"):
 		var payload := hit_payload.duplicate(true)
 		payload["direction"] = direction
 		payload["source"] = source
-		body.receive_hit_payload(payload)
-	elif body.has_method("receive_hit"):
-		body.receive_hit(damage, stagger, direction, source)
+		collider.receive_hit_payload(payload)
+	elif collider.has_method("receive_hit"):
+		collider.receive_hit(damage, stagger, direction, source)
 	queue_free()
 
 
 func _get_spell_config(spell_type: String) -> Dictionary:
 	## Returns visual+physics config per spell type.
-	## veil_bolt: fast blue mage bolt with trail
-	## seal_burst: slow purple burst orb
-	## bow_quick_shot: fast compact arrow-like projectile
-	## bow_power_shot: larger heavy arrow
-	## divine_smite: golden prayer strike (future)
 	match spell_type:
 		"veil_bolt":
 			return {

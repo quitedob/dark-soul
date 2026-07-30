@@ -75,8 +75,8 @@
 | 铸魂者长袍 (Soul-Forger's Robe) | Chest | Light | 10% | 25% | +20% all elemental resistances for 8s after casting | 5-4 |
 | 烬渊王冠 (Ember Abyss Crown) | Head | Medium | 12% | 15% | +1 Talent Point while equipped | 5-5 |
 | 倒悬护符 (Inversion Talisman) | Accessory | — | — | — | Gravity effects reduced by 50% | 5-2 |
-| 轮回之石 (Samsara Stone) | Accessory | — | — | — | Choices in 5-3 have reduced consequences (wider ending availability) | 5-3 |
-| 十一铸魂者之证 (Eleven Forgers' Seal) | Accessory | — | — | — | +5% all stats per Soul-Forger communed (max +15%) | 5-4 |
+| 轮回之石 (Samsara Stone) | Accessory | — | — | — | In 5-3, shows the source chapter flag and reveals the accept/regret consequences before confirmation | 5-3 |
+| 九铸魂者之证 (Nine Fallen Forgers' Seal) | Accessory | — | — | — | +5% all stats per fallen Soul-Forger communed (max +15%) | 5-4 |
 | 终末步伐 (Eschaton Greaves) | Legs | Heavy | 18% | 8% | Walking through damaging terrain negates its effect for 2s | 5-2 |
 
 ---

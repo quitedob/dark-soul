@@ -1,4 +1,4 @@
-# Research — Dark Souls Design Principles
+﻿# Research — Dark Souls Design Principles
 
 **Last updated:** 2026-07-29 (post-audit fixes applied)
 **Revision:** Initial research 2026-07-29; Updated 2026-07-29 to reflect 9 audit fixes (commit `7f30d4f`)
@@ -55,7 +55,7 @@ All nine gaps identified in the initial audit (2026-07-29) were resolved in comm
 
 DS1's four-directional locked roll and slower stamina recovery create a heavier, more deliberate feel. DS3's omnidirectional locked roll and more generous stamina economy produce faster-paced combat. Neither game allows canceling attacks once past early startup frames. The difference is in animation speed, recovery windows, stamina costs, and lock-on mobility — not a fundamental "DS1 can't cancel, DS3 can."
 
-**Status for Ashen Hollow:** The design correctly identifies wind-up/active/recovery phases and that attacks should not be freely cancellable. Input buffering is now implemented with a 150ms window (`game/scripts/player.gd:357-400`). Combat actions pressed during attack recovery are stored and executed on return to LOCOMOTION. Last-input-wins; the buffer decays in `_update_state()`.
+**Status for Ashen Hollow:** The design correctly identifies wind-up/active/recovery phases and that attacks should not be freely cancellable. Input buffering is now implemented with a 150ms window (`game/scripts/player/player.gd:357-400`). Combat actions pressed during attack recovery are stored and executed on return to LOCOMOTION. Last-input-wins; the buffer decays in `_update_state()`.
 
 ---
 
@@ -73,7 +73,7 @@ DS1's four-directional locked roll and slower stamina recovery create a heavier,
 
 Stamina functions as a shared budget across offensive, defensive, and movement actions. This creates natural decision tension: attacking reduces ability to evade. Regeneration delay creates a rhythm where players must disengage to recover.
 
-**Status for Ashen Hollow:** The design (`docs/game-design.md:32`) correctly implements shared stamina for sprinting, attacking, and dodging with regeneration delay. The specific costs (20/38/26) are prototype targets, not derived from DS. The initial implementation allowed the regeneration delay to count down during attack execution, which would have made heavy attacks effectively consume no delay. This was corrected: stamina regeneration and delay decrement are now gated behind `state == State.LOCOMOTION` (`game/scripts/player.gd:717-730`), ensuring the delay actually punishes committed actions.
+**Status for Ashen Hollow:** The design (`docs/game-design.md:32`) correctly implements shared stamina for sprinting, attacking, and dodging with regeneration delay. The specific costs (20/38/26) are prototype targets, not derived from DS. The initial implementation allowed the regeneration delay to count down during attack execution, which would have made heavy attacks effectively consume no delay. This was corrected: stamina regeneration and delay decrement are now gated behind `state == State.LOCOMOTION` (`game/scripts/player/player.gd:717-730`), ensuring the delay actually punishes committed actions.
 
 ### What NOT to Copy
 
@@ -93,7 +93,7 @@ Exact stamina pool sizes, cost ratios, regen rates, and equipment load threshold
 
 Lock-on provides spatial anchoring for one-on-one combat. The camera tracks the locked target, freeing the player from manual camera control during combat. Known limitations in both games include: target selection through walls/geometry, camera collision with walls in tight spaces, disorientation against very large or very fast enemies, and no distance-based or occlusion-aware target filtering.
 
-**Status for Ashen Hollow:** The implementation (`game/scripts/player.gd:742-793`) uses distance and camera-facing angle for target selection. Target cycling is now implemented: first press acquires the best camera-facing target, subsequent presses cycle through all valid candidates, and lock releases when only one target remains. Occlusion checks remain a documented planned improvement (`docs/research.md:57`).
+**Status for Ashen Hollow:** The implementation (`game/scripts/player/player.gd:742-793`) uses distance and camera-facing angle for target selection. Target cycling is now implemented: first press acquires the best camera-facing target, subsequent presses cycle through all valid candidates, and lock releases when only one target remains. Occlusion checks remain a documented planned improvement (`docs/research.md:57`).
 
 ### What NOT to Copy
 
@@ -143,7 +143,7 @@ The death-recovery loop creates push-your-luck tension: carrying many souls make
 
 **Status for Ashen Hollow:** The implementation largely matches the described loop — death drops embers, Lost Echo enables recovery, second death replaces the old echo (`docs/game-design.md:40`, `game/scripts/game_world.gd:187`). Both defects identified in the initial audit have been resolved:
 
-- **Resolved:** Embers now have a spending purpose via Vitality Forging at the Ember Shrine (`game/scripts/player.gd:277-287`, `game/scripts/game_world.gd:204-223`). Three upgrade tiers (50/120/250 embers) each grant +10 max HP. Upgrades persist across deaths and application sessions via `run_state.gd`, giving the death-recovery loop a progressive anchor.
+- **Resolved:** Embers now have a spending purpose via Vitality Forging at the Ember Shrine (`game/scripts/player/player.gd:277-287`, `game/scripts/game_world.gd:204-223`). Three upgrade tiers (50/120/250 embers) each grant +10 max HP. Upgrades persist across deaths and application sessions via `run_state.gd`, giving the death-recovery loop a progressive anchor.
 - **Resolved:** Enemy reset now occurs on both shrine rest AND player death (`game/scripts/game_world.gd:276-278`). Death restores all regular enemies to full HP and spawn positions, matching the Soulslike convention of re-traversing the area on respawn.
 
 ---
@@ -199,7 +199,7 @@ Any specific boss name, visual design, attack animation sequence, arena geometry
 
 Without a spending outlet, collected currency has no instrumental value beyond a score counter. The "risk recovery or cut losses" decision only has weight if the recovered currency can be meaningfully used.
 
-**Status for Ashen Hollow:** Embers can be earned, lost, and recovered. The initial audit identified the absence of a spending outlet as the highest-priority design gap. **Resolved:** Embers now have a spending purpose via Vitality Forging at the Ember Shrine (`game/scripts/player.gd:277-287`, `game/scripts/game_world.gd:204-223`). The three-tier system (50/120/250 ember costs for +10 HP per tier, up to 3 tiers) activates the death-recovery loop's motivational structure. This is a minimal but sufficient sink for the vertical slice.
+**Status for Ashen Hollow:** Embers can be earned, lost, and recovered. The initial audit identified the absence of a spending outlet as the highest-priority design gap. **Resolved:** Embers now have a spending purpose via Vitality Forging at the Ember Shrine (`game/scripts/player/player.gd:277-287`, `game/scripts/game_world.gd:204-223`). The three-tier system (50/120/250 ember costs for +10 HP per tier, up to 3 tiers) activates the death-recovery loop's motivational structure. This is a minimal but sufficient sink for the vertical slice.
 
 ---
 

@@ -1,93 +1,166 @@
-# Controls
+# Controls — 烬渊 (Ember Abyss)
+
+The game uses semantic right-hand and left-hand actions. Their exact behavior changes with the equipped loadout, while the physical bindings stay consistent.
 
 ## Keyboard and Mouse
 
-| Action | Primary | Alternative |
-|---|---|---|
-| Move | `W`, `A`, `S`, `D` | — |
-| Orbit camera | Mouse movement | — |
-| Light attack | Left mouse button | `J` |
-| Heavy attack | Right mouse button | `K` |
-| Dodge | `Space` | — |
-| Sprint | Left `Shift` while moving | — |
-| Lock on / release | Middle mouse button | `Q` |
-| Cycle lock-on target | `Q` (on locked target) | — |
-| Interact / rest | `E` | — |
-| Guard | `C` (Reliquary Guard only) | — |
-| Parry | `R` (Reliquary Guard only) | — |
-| Special attack / skill | `F` | — |
-| Cast spell / prayer | `G` | — |
-| Cycle combat style | `Tab` | — |
-| Direct style select | `1`–`5` | — |
-| Pause | `Esc` | — |
-| Help overlay | `F1` | — |
+### Movement and Camera
 
-## Controller / Gamepad
+| Action | Binding | Notes |
+|---|---|---|
+| Move | `W`, `A`, `S`, `D` | Camera-relative |
+| Sprint | Hold left `Shift` | Drains stamina while moving |
+| Jump | `V` | Grounded locomotion only; separate from dodge. Airborne light = jump attack; airborne falling heavy = falling attack |
+| Dodge | `Space` | Directional roll with invulnerability; pure back input = backstep (no i-frames). Recovery window enables roll/backstep attacks |
+| Sprint + attack | Hold `Shift` + attack | Sprint attack while moving at sprint speed |
+| Orbit camera | Mouse movement | Uses SpringArm3D collision avoidance |
+| Lock on / cycle | `Q` or middle mouse | First press acquires a centered visible target; later presses cycle by screen angle |
+| Interact / rest | `E` | Shrines, levers, and Lost Echo |
+
+### Combat
+
+| Semantic action | Mouse | Keyboard | Meaning |
+|---|---|---|---|
+| Right primary | Left mouse | `J` | Light attack, quick shot, heal, or bolt |
+| Right secondary | Right mouse | `K` | Heavy attack (tap) or charged heavy (hold/release); power shot / stronger spell |
+| Left primary | — | `C` | Guard, off-hand attack, or spell shield (disabled while two-handing) |
+| Left secondary | — | `R` | Parry, off-hand heavy, or utility action |
+| Weapon skill | — | `F` | Style-specific special action |
+| Cast | — | `G` | Current style spell or prayer |
+| Cycle style | — | `Tab` | Cycles all five compatibility loadouts |
+| Toggle grip | — | `T` | Cycles grip. Two-hand: **1.3× damage / 1.5× stamina**, no shield. Jump slash only if hands share `weapon_type` (or two-handing) |
+
+## Settings
+
+| Setting | Default | Where | Effect |
+|---|---|---|---|
+| Combat Tip Mode (`combat_tip_mode`) | **Off** | Pause → Combat Tip Mode | When on, shows teaching HUD for charge tiers, grip, context attacks, jump-slash denial, and weapon arts. Rules still apply when off. |
+| Combat Hitbox Debug | Off | `F3` / settings | Visualizes active CombatArea capsules |
+| Direct style select | — | `1`–`5` | Selects a loadout directly |
+
+### Menus
 
 | Action | Binding |
 |---|---|
-| Move | Left stick |
-| Orbit camera | Right stick |
-| Light attack | `RB` |
-| Heavy attack | `LB` |
-| Dodge | `A` |
-| Sprint | `L3` |
-| Lock on / cycle | `R3` |
-| Interact / rest | `Y` |
-| Guard | Left trigger |
-| Parry | `X` |
-| Special attack / skill | `B` |
-| Cycle combat style | D-pad right |
-| Pause | `Start` |
-| Help overlay | `Back` |
+| Pause | `Esc` |
+| Help | `F1` |
+| Hitbox debug | `F3` | Toggles CombatArea capsule visualization |
 
-## Touch / Mobile
+## Controller
 
-| Action | Gesture |
-|---|---|
-| Move | Virtual joystick (left side) |
-| Orbit camera | Drag in camera zone (right side) |
-| Light attack | LIGHT button |
-| Heavy attack | HEAVY button |
-| Dodge | DODGE button (tap) |
-| Sprint | DODGE button (hold ≥ 0.32 s) |
-| Lock on | LOCK button |
-| Interact / rest | USE button |
-| Guard | GUARD button |
-| Special attack / skill | SKILL button |
-| Cycle style | STYLE button |
-| Pause | PAUSE button |
+| Xbox | PlayStation | Action |
+|---|---|---|
+| Left stick | Left stick | Move |
+| Right stick | Right stick | Orbit camera |
+| `RB` | `R1` | Right primary |
+| `RT` | `R2` | Right secondary |
+| `LB` | `L1` | Left primary |
+| `LT` | `L2` | Left secondary |
+| `B` | Circle | Weapon skill |
+| `X` | Square | Parry compatibility action |
+| `A` | Cross | Dodge |
+| D-pad up | D-pad up | Jump |
+| `Y` | Triangle | Interact / rest |
+| `L3` | `L3` | Sprint |
+| `R3` | `R3` | Lock on / cycle |
+| D-pad right | D-pad right | Cycle style |
+| Start | Options | Pause |
+| Back | Touchpad/Create | Help |
 
-Mobile controls auto-detect via `OS.has_feature("mobile")`, JS bridge pointer media query, or screen size ≤ 900 px.
+## Touch and Mobile
 
-## Combat Styles
+- The left-side dynamic stick controls movement.
+- Dragging the right-side camera zone orbits the camera.
+- `R1`, `R2`, `L1`, and `L2` buttons show the current equipment-driven action labels.
+- Tap `DODGE / SPRINT` to dodge; hold it for at least 0.32 seconds to sprint.
+- `LOCK`, `USE`, and `PAUSE` occupy the upper-right utility cluster.
+- Touch controls use a minimum 48-pixel target, configurable UI scale, and configurable opacity.
+- Mobile controls are enabled for mobile builds, coarse-pointer Web hosts, or narrow screens.
 
-| # | Style | Unique Mechanic | Input |
-|---|---|---|---|
-| 1 | Reliquary Guard | Timed parry (0.06–0.26 s window), shield guard (82% reduction), guarded thrust | Hold `C` to guard, `R` to parry, `F` while guarding for thrust |
-| 2 | Twin Colossi | Colossal leap attack (hyper armor during active frames) | `F` for leap |
-| 3 | Crescent Pair | Curved two-hit leap attack | `F` for leap |
-| 4 | Veilcraft | Veil Bolt projectile (28 dmg, 15 m/s, costs 18 Focus) | `G` to cast |
-| 5 | Ember Rite | AoE heal 24 HP + 20 dmg to enemies (costs 30 Focus, 0.92 s cast) | `G` to cast |
+## Combat Loadouts
 
-## Combat Notes
+### Reliquary Guard — Sword and Shield
 
-- Attacking and dodging require enough stamina.
-- Stamina starts regenerating after a short delay (only during LOCOMOTION state).
-- Lock-on selects a visible target near the camera's forward direction; subsequent presses cycle candidates.
-- Dodges include a brief invulnerability window (0.08 s–0.38 s); the complete 0.58 s animation is not invulnerable.
-- Resting at the Ember Shrine restores the player and resets enemies.
-- Death drops carried embers. Touch the Lost Echo to recover them.
-- Input buffering (150 ms window, last-input-wins) allows queuing actions during attack recovery.
+| Input | Action | Cost / behavior |
+|---|---|---|
+| Right primary | Sword light | 22 stamina |
+| Right secondary | Sword heavy | 40 stamina; shield bash while guarding |
+| Left primary | Shield guard | 82% frontal absorption; stability-driven stamina loss |
+| Left secondary | Medium-shield parry | 0.40 s startup, 0.20 s active, heavy miss recovery |
+| Weapon skill | Pierce Thrust | 26 stamina; unblockable lunge |
+| Dodge | Guard-style dodge | 24 stamina |
+
+Additional parry-capable equipment uses its own data profile: the Jade Buckler has a wider active window and harsher miss penalty, while dagger and fist parries recover faster.
+
+### Twin Colossi — Paired Axes
+
+| Input | Action | Cost / behavior |
+|---|---|---|
+| Right primary | Right axe strike | 38 stamina |
+| Right secondary | Colossal Leap | 38 stamina; heavy leap |
+| Left primary | Left axe strike | 38 stamina |
+| Left secondary | Left heavy | 65 stamina |
+| Weapon skill | Colossal Leap | 38 stamina; hyper armor during heavy execution |
+| Dodge | Heavy dodge | 32 stamina |
+
+### Crescent Pair — Bow and Dagger
+
+| Input | Action | Cost / behavior |
+|---|---|---|
+| Right primary | Quick shot | 16 stamina |
+| Right secondary | Power shot | 28 stamina |
+| Left primary | Dagger slash | Uses the light action profile |
+| Left secondary | Dagger feint | Uses the heavy action profile |
+| Weapon skill | Crescent Leap | 27 stamina; two-hit curved leap |
+| Dodge | Agile dodge | 18 stamina |
+
+### Veilcraft — Seal and Spirit Stone
+
+| Input | Action | Cost / behavior |
+|---|---|---|
+| Right primary | Seal bolt | Focus-driven spell action |
+| Right secondary | Seal burst | Stronger Focus-driven spell action |
+| Left primary | Spell shield | 58% frontal absorption |
+| Left secondary | Stone pulse | Off-hand utility |
+| Weapon skill | Arcane Barrage | 20 Focus |
+| Cast | Veil Bolt | 14 Focus |
+| Dodge | Mystic dodge | 22 stamina |
+
+### Ember Rite — Prayer Beads and Talismans
+
+| Input | Action | Cost / behavior |
+|---|---|---|
+| Right primary | Beads heal | Focus-driven prayer |
+| Right secondary | Ember Rite | Stronger prayer |
+| Left primary | Talisman strike | Off-hand action |
+| Left secondary | Talisman burst | Off-hand heavy action |
+| Weapon skill | Divine Smite | 22 Focus |
+| Cast | Ember Rite heal/AoE | 20–35 Focus depending on action |
+| Dodge | Prayer dodge | 24 stamina |
+
+## Planned Combat Inputs
+
+The target combat system still has hold-to-charge heavies and grip modes as **runtime** features. Execution / grab systems remain roadmap items. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md) and [Combat Expansion Roadmap](tasks/combat-expansion-roadmap.md).
+
+## Resources
+
+| Resource | HUD | Rules |
+|---|---|---|
+| Vitality | Red bar and numeric value | Rest, upgrades, and Ember Rite restore or increase it |
+| Endurance | Green bar and numeric value | Regenerates after the spend delay while locomoting |
+| Focus | Blue bar and numeric value | Powers Veilcraft and Ember Rite actions |
+| Embers | Top-right counter | Earned from enemies; dropped into a Lost Echo on death |
 
 ## Accessibility
 
-- Every mouse combat action has a keyboard alternative.
-- Critical feedback combines text, movement, brightness, and sound rather than relying on color alone.
-- Health and stamina include numeric labels and bars.
-- The help overlay can be toggled at any time with `F1` and presents controls as separate action/input rows.
-- Pause and help menus establish keyboard focus immediately, so their buttons can be navigated without precise mouse input.
-- UI scale (0.75–1.6), text scale (0.85–2.0), reduced motion (disables tweens), and high contrast mode are configurable in settings.
-- Input actions are registered through Godot's `InputMap`, so they can be moved into a remapping screen in a future iteration.
+- UI scale, text scale, control opacity, camera sensitivity, camera inversion, reduced motion, high contrast, locale, and quality preset are configurable.
+- Reduced motion disables HUD tween motion; gameplay camera effects must also honor this setting.
+- Bars include numeric values and do not rely only on color.
+- Keyboard alternatives exist for all mouse combat actions.
+- The help and pause overlays take keyboard focus when opened.
 
-The prototype supports keyboard/mouse, controller (gamepad), and touch/mobile input. Controller glyphs and an in-game remapping UI are recommended next steps.
+## References
+
+- [Game Design](game-design.md)
+- [Combat Style System](systems/combat-styles.md)
+- [Validation](validation.md)

@@ -28,6 +28,20 @@ static func default_content() -> Dictionary:
 	}
 
 
+static func normalize_level_id(raw_level_id: StringName) -> StringName:
+	var raw := String(raw_level_id).strip_edges()
+	if raw.begins_with("level_"):
+		return StringName(raw)
+	var parts := raw.split("-", false)
+	if parts.size() != 2 or not parts[0].is_valid_int() or not parts[1].is_valid_int():
+		return StringName(raw)
+	var chapter := int(parts[0])
+	var level := int(parts[1])
+	if chapter <= 0 or level <= 0:
+		return StringName(raw)
+	return StringName("level_%02d_%02d" % [chapter, level])
+
+
 func validate() -> Array[String]:
 	return ContentValidatorScript.validate(_content)
 
@@ -37,7 +51,19 @@ func get_chapter(chapter_id: StringName) -> Dictionary:
 
 
 func get_level(level_id: StringName) -> Dictionary:
-	return _levels_by_id.get(level_id, {}).duplicate(true)
+	return _levels_by_id.get(normalize_level_id(level_id), {}).duplicate(true)
+
+
+func get_next_level(level_id: StringName) -> Dictionary:
+	var level := get_level(level_id)
+	var next_level_id := StringName(level.get("next_level_id", &""))
+	return get_level(next_level_id) if not next_level_id.is_empty() else {}
+
+
+func get_boss_for_level(level_id: StringName) -> Dictionary:
+	var level := get_level(level_id)
+	var boss_id := StringName(level.get("boss_id", &""))
+	return get_boss(boss_id) if not boss_id.is_empty() else {}
 
 
 func get_theme(theme_id: StringName) -> Dictionary:

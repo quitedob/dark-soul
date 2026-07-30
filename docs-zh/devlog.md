@@ -1,4 +1,44 @@
-# 烬谷 (Ashen Hollow) 开发日志
+﻿# 烬谷 (Ashen Hollow) 开发日志
+
+## 2026-07-30 — 战斗提示模式（默认关）+ 持握 / 蓄力 / 跳劈设定入档
+
+### 范围
+
+新增独立设置 **Combat Tip Mode（战斗提示模式）**，**默认关闭**。蓄力、持握、语境攻、跳劈规则与兵器诀的教学 HUD 仅在玩家开启后显示。同步写入系统/操作文档。
+
+### 运行时
+
+- `game_settings.combat_tip_mode` / bridge `combatTipMode`，持久化至 `user://ashen_hollow_settings_v1.json`
+- 暂停菜单 → **COMBAT TIP MODE** → `Show combat tips (charge / grip / context)`
+- 玩家 `_show_combat_tip` 门控：`CHARGING`、`CHARGE T1–T3`、冲刺/翻滚/后撤/跳/下落提示、跳劈拒绝、持握名/`GRIP LOCKED`、盾击/突刺/跳劈战技文案
+- 始终显示：精力不足、弹反/破防/韧性、关卡事件、Hitbox Debug
+
+### 设定 / 文档
+
+- 双持 **伤害 ×1.3 / 精力 ×1.5**；跳劈仅双持或左右手 `weapon_type` 相同
+- 蓄力档 **0.20 / 0.75 / 1.40s**（`ChargeProfile`）；空中与冲刺/翻滚/后撤语境不进蓄力
+- 更新：`docs/systems/combat-execution-guard-weapon-arts.md`、`docs/controls.md`、本日志与英文 `docs/devlog.md`
+- 合约：`ASHEN_CORE_CONTRACTS_OK`、`ASHEN_GRIP_CHARGE_CONTRACTS_OK`
+
+---
+
+## 2026-07-30 — 玩家脚本包路径迁移
+
+### 范围
+
+将单体玩家控制器从 `game/scripts/player.gd` 迁入包目录 `game/scripts/player/player.gd`。本轮仅做路径/布局迁移，未继续拆分 combat/movement 助手。
+
+### 变更
+
+- `git mv` 保留 `player.gd.uid`
+- 更新 `scenes/actors/player.tscn` 与直接 preload 测试为 `res://scripts/player/player.gd`
+- 在 `docs/project-structure.md` / `docs/architecture.md` 记录 `scripts/player/` 包
+
+### 验证
+
+- Godot check-only、combat 合约、player FSM、smoke 已通过
+
+---
 
 ## 2026-07-30 — 文档中文化与游戏代码全面审查
 
@@ -237,7 +277,7 @@
 | `game/scripts/data/chapter_content.gd` | **新增** — 5章主内容：32敌人、7Boss、14精英、25法术、30武器、5场景（约900行）|
 | `game/scripts/combat/enemy_factory.gd` | **新增** — 29种身体类型构建器+44种武器形状构建器，章节间零模型复用（约750行）|
 | `game/scripts/components/spell_projectile.gd` | 重写 — 6种法术视觉配置、追踪系统、尾迹粒子、按类型碰撞/光照（约255行）|
-| `game/scripts/player.gd` | +SPELL_CONFIG（7条目）、+3武器技能函数（pierce_thrust/arcane_barrage/divine_smite）、+unblockable攻击元数据、+_spawn_spell_projectile辅助函数、重新平衡所有法术成本/时机 |
+| `game/scripts/player/player.gd` | +SPELL_CONFIG（7条目）、+3武器技能函数（pierce_thrust/arcane_barrage/divine_smite）、+unblockable攻击元数据、+_spawn_spell_projectile辅助函数、重新平衡所有法术成本/时机 |
 | `game/scripts/enemy.gd` | +PHASE_THREE_THRESHOLD（0.25）、+_phase_two_played标志、全部3个距离区间的第3阶段攻击配置、双重阶段过渡（带AoE爆发）、第3阶段身体发光 |
 | `game/scripts/core/weapon_meshes.gd` | +dispatch match中30个形状ID、+24个章节武器构建器函数（bronze_blade到ember_shield）|
 | `game/scripts/game_world.gd` | +brazier_lights/flicker_phases数组、+_update_brazier_flicker()、圣祠补光、4层粒子（余烬/尘埃+新增圣祠垂落+新增地面薄雾）、增强材质、色调映射调整、月光阴影升级 |
@@ -317,7 +357,7 @@
 | `game/scripts/core/weapon_meshes.gd` | **新增** — 12个武器形状构建器+复合原始体辅助函数（280行）|
 | `game/scripts/core/character_meshes.gd` | **新增** — 4个角色类型构建器+人形骨架+盔甲部件（200行）|
 | `game/scripts/data/hand_equipment.gd` | 向全部10个物品添加`mesh_shape`、`mesh_color`字段；添加`get_mesh_shape()`、`get_mesh_color()` |
-| `game/scripts/player.gd` | 用`CharacterMeshFactory.build_player()`替换CapsuleMesh+PrismMesh+SphereMesh+BoxMesh身体；用`WeaponMeshFactory.build_into_parent()`替换单个BoxMesh武器；添加`_update_weapon_visuals()`、武器尾迹系统（`_update_weapon_trail()`、`_build_trail_ribbon()`）|
+| `game/scripts/player/player.gd` | 用`CharacterMeshFactory.build_player()`替换CapsuleMesh+PrismMesh+SphereMesh+BoxMesh身体；用`WeaponMeshFactory.build_into_parent()`替换单个BoxMesh武器；添加`_update_weapon_visuals()`、武器尾迹系统（`_update_weapon_trail()`、`_build_trail_ribbon()`）|
 | `game/scripts/enemy.gd` | 用`CharacterMeshFactory.build_enemy()`+`WeaponMeshFactory.build_enemy_weapon()`替换胶囊体+球头+盒武器；添加`weapon_pivot`节点用于复合武器旋转 |
 | `game/scripts/game_world.gd` | 添加`_create_ground_detail()`、`_create_wall_detail()`、`_create_ceiling_beams()`、`_create_atmospheric_particles()`；增强`_create_ember_brazier()`、`_create_pillar()`、`_create_landmark()`、`_create_gate()`；添加`rubble`、`wood`、`ember_vein`材质 |
 | `game/scripts/checkpoint.gd` | 增强`_build_visuals()`：多层底座、中环、柱环、碗边缘、4个符文标记、双层火焰；更新`_update_appearance()`内焰材质 |
@@ -381,7 +421,7 @@
 
 - **装备注册表** (`game/scripts/data/hand_equipment.gd`): 10个规范物品（guardian_sword、reliquary_shield、xingtian_axe_right/left、marksman_bow、marksman_dagger、five_elements_seal、spirit_stone、prayer_beads、talisman_papers）。每个定义手部、主/副行动ID、格挡配置（吸收/稳定/正面点积）和招架窗口。保留了五个旧版风格→装备映射。
 - **语义输入** (`game/scripts/game_world.gd`): `right_primary`（LMB/J/RB）、`right_secondary`（RMB/K/RT）、`left_primary`（C/LB）、`left_secondary`（R/LT）。旧版别名（`light_attack`、`heavy_attack`、`guard`、`parry`）完整保留。
-- **手部分发** (`game/scripts/player.gd`): `_execute_hand_action(hand, slot)`按装备路由行动——剑轻/重、盾格挡/招架/盾冲、斧击、弓射、印飞矢/爆发、念珠治疗、符纸攻击。`set_hand_loadout()`按ID装备；`set_combat_style()`保留为兼容适配器。
+- **手部分发** (`game/scripts/player/player.gd`): `_execute_hand_action(hand, slot)`按装备路由行动——剑轻/重、盾格挡/招架/盾冲、斧击、弓射、印飞矢/爆发、念珠治疗、符纸攻击。`set_hand_loadout()`按ID装备；`set_combat_style()`保留为兼容适配器。
 - **命中负载** (`game/scripts/combat_area.gd`): `begin_swing()`接受元数据字典→结构化`hit_payload`，包含`hand`、`item_id`、`action_id`、`guard_damage`、`tags`、`blockable`、`parryable`。旧版`receive_hit()`包装为负载。
 - **弹道负载** (`game/scripts/components/spell_projectile.gd`): `setup()`接受元数据→带有相同字段的`hit_payload`。通过`receive_hit_payload()`或旧版回退传递。
 - **格挡解析器** (`game/scripts/combat/guard_resolver.gd`): 确定性`GuardResolver.resolve()`——方向性正面弧、来自盾牌配置的吸收/稳定、耐力检查、带强制硬直的格挡崩溃、不可格挡绕过。盾牌和灵印有独特配置。
@@ -426,7 +466,7 @@
 | `game/tests/smoke/combat_contract_test.gd` | **新增** — 手部映射、格挡矩阵、负载构建器 |
 | `game/scripts/core/run_state.gd` | 模式v2：嵌套location/player/progression/lostEcho；v1→v2迁移；upgrade_tier序列化 |
 | `game/scripts/game_world.gd` | 语义输入；手部保存应用/快照；hands_changed信号连线 |
-| `game/scripts/player.gd` | `right_hand_item`/`left_hand_item`；`set_hand_loadout()`；`_execute_hand_action()`；`receive_hit_payload()`；`_update_guard_active()`移动锁定；盾冲；缓冲语义行动；状态转换时取消格挡 |
+| `game/scripts/player/player.gd` | `right_hand_item`/`left_hand_item`；`set_hand_loadout()`；`_execute_hand_action()`；`receive_hit_payload()`；`_update_guard_active()`移动锁定；盾冲；缓冲语义行动；状态转换时取消格挡 |
 | `game/scripts/combat_area.gd` | 结构化`hit_payload`字典；`begin_swing()`元数据参数 |
 | `game/scripts/components/spell_projectile.gd` | `hit_payload`字典；`setup()`上的元数据参数 |
 | `game/scripts/hud.gd` | 通过`hands_changed`信号显示双手 |
@@ -654,7 +694,7 @@
 | 文件 | 变更 |
 |---|---|
 | `game/scripts/core/procedural_utils.gd` | **新增** — 共享`make_material()`/`has_collision_shape()` |
-| `game/scripts/player.gd` | +`STYLE_TIMING`字典、`_style_value()`、霸体、治疗信号、命名常量、7个函数中的按风格时机 |
+| `game/scripts/player/player.gd` | +`STYLE_TIMING`字典、`_style_value()`、霸体、治疗信号、命名常量、7个函数中的按风格时机 |
 | `game/scripts/enemy.gd` | +`EnemyType`枚举、灰烬潜行者配置、`on_player_healing()`、调优/调色板/攻击分支 |
 | `game/scripts/game_world.gd` | +卡肉处理器、`_on_player_healing()`、`_generate_navigation()`、灰烬潜行者生成、碰撞层修复、`_ProcUtils`预加载 |
 | `game/scripts/combat_area.gd` | +`signal hit_landed`、成功命中时发射 |
@@ -669,7 +709,7 @@
 
 ### 范围
 
-应用了由黑暗之魂设计研究审计（[research-dark-souls-design.md](research-dark-souls-design.md)）识别的9项修复，涉及`game/scripts/enemy.gd`、`game/scripts/player.gd`、`game/scripts/game_world.gd`、`game/scripts/core/run_state.gd`和`docs/game-design.md`。
+应用了由黑暗之魂设计研究审计（[research-dark-souls-design.md](research-dark-souls-design.md)）识别的9项修复，涉及`game/scripts/enemy.gd`、`game/scripts/player/player.gd`、`game/scripts/game_world.gd`、`game/scripts/core/run_state.gd`和`docs/game-design.md`。
 
 ### 代码Bug修复
 

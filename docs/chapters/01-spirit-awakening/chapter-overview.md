@@ -131,11 +131,15 @@ A vast circular chamber at the temple's core. The ceiling has collapsed, reveali
 *See: [Chapter 1 Boss](bosses.md#守炉灵巨阙-furnace-keeper--giant-gate)*
 
 **After Defeat:**
-- The boss crumbles, revealing the 始烬 (First Ember) fragment
-- Absorbing it grants the player their first **天赋 (Talent Point)**
-- The Wandering Sage appears in full for the first time, explaining the quest
-- A vision of the other four fragments' locations
-- Chapter 1 completes
+- The boss drops to 10% integrity and the Keeper Rune exposes its final command
+- Choose **Release Duty** (`ch1_guardian_fate=released`) or **Preserve the Core** (`ch1_guardian_fate=preserved`)
+- The boss body crumbles, revealing the 始烬 (First Ember) fragment
+- Absorbing it stabilizes the first section of the player's incomplete 轮回印 and grants the first **天赋 (Talent Point)**
+- The Wandering Sage appears in full and admits that the player was made to gather the fragments, but withholds who made them
+- The First Ember projects a blood-stained military coordinate; the Keeper Rune opens the界门 to 铁啸关
+- Chapter 1 completes and the story continues at `level_02_01`
+
+**Narrative contract:** [Five-Chapter Causality Map](../../story/chapter-bridge-map.md#五章因果链)
 
 ---
 

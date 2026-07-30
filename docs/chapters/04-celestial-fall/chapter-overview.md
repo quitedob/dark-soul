@@ -48,7 +48,7 @@ A district dedicated to celestial alchemy. Massive bronze cauldrons float above 
 ---
 
 ### Level 4-3: 藏经阁 (Scripture Depository)
-A vast floating library containing the accumulated knowledge of immortal cultivators. Bookshelves stretch into the clouds. Some books have become animate — **书精 (Book Spirits)** flutter through the air, their pages whispering forgotten techniques.
+A vast floating library containing the accumulated knowledge of immortal cultivators. Bookshelves stretch into the clouds. Some books have become animate — **书精 (Book Spirits)** flutter through the air, their pages whispering forgotten techniques. A sealed copy of the unaltered Furnace record contains **玄霄残识**, the lucid core of 玄霄's divided mind; releasing it establishes the original account of the Shattering.
 
 **Enemies:** 书精 (Book Spirit) ×5 — swarming, low HP but fast, steal items on hit (returned on kill); 守阁仙魂 (Library Guardian Spirit) ×2 — elite, uses techniques from random player classes
 
@@ -88,7 +88,7 @@ A vast floating library containing the accumulated knowledge of immortal cultiva
 
 ### Level 4-6: 玄霄·真身·天顶 (Celestial Zenith — True Form)
 
-The highest point of Cloud Zenith City. The Sky Ember fragment floats at the center of a crumbling celestial platform, and before it kneels **玄霄's true body** — half divine light, half rotting flesh, frozen mid-transformation for 500 years. As the player approaches, all three fragments (Wrath, Obsession, and the un-fragmented core) reunite.
+The highest point of Cloud Zenith City. The Sky Ember fragment floats at the center of a crumbling celestial platform, and before it kneels **玄霄's true body** — half divine light, half rotting flesh, frozen mid-transformation for 500 years. As the player approaches, the defeated Wrath and Obsession fragments return to the body while the lucid **Core Remnant** recovered in 4-3 restores a third, temporary voice.
 
 **Boss:** 堕仙·玄霄 (Fallen Immortal · Xuán Xiāo)
 
@@ -102,9 +102,14 @@ The highest point of Cloud Zenith City. The Sky Ember fragment floats at the cen
 - Phase 3 (30-0%): 玄霄's mind fully fragments. The arena becomes a storm of three consciousnesses — the player must identify which attack pattern is currently active and respond. Wrath = aggressive, Obsession = ritual, Core = balanced.
 
 **After Defeat:**
-- 玄霄's spirit, finally free, speaks his last words
-- Absorb the Sky Ember → gain **gravity manipulation** (brief anti-gravity jumps, slow-fall)
-- The city begins its final collapse → dramatic escape sequence before the chapter ends
+- At 10% HP, 玄霄残识 creates a lucid interval: choose **Complete Ascension** (`ch4_xuanxiao_fate=ascended`) or **Return to Memory** (`ch4_xuanxiao_fate=remembered`)
+- Absorb the Sky Ember and gain brief gravity manipulation
+- 玄霄残识 combines the Sky Ember with the unaltered record to produce the **炉心敕印 (Furnace Mandate)**
+- 云游 confesses that his reversed soul-current saved the living but caused the five-way fracture
+- The city begins its final collapse; the escape ends at the Mandate's descent gate to 烬座
+- The story continues at `level_05_01`
+
+**Narrative contract:** [Five-Chapter Causality Map](../../story/chapter-bridge-map.md#五章因果链)
 
 ---
 

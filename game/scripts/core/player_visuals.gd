@@ -26,7 +26,18 @@ func setup(player_node: Node3D) -> void:
 func build_nodes() -> void:
 	_player.collision_layer = 2
 	_player.collision_mask = 1
+	# 显式 CharacterBody3D 参数，避免引擎升级改变隐式默认值
+	_player.motion_mode = CharacterBody3D.MOTION_MODE_GROUNDED
+	_player.up_direction = Vector3.UP
+	_player.floor_stop_on_slope = true
+	_player.floor_constant_speed = false
+	_player.floor_block_on_wall = true
+	_player.floor_max_angle = deg_to_rad(45.0)
 	_player.floor_snap_length = 0.35
+	_player.safe_margin = 0.001
+	_player.max_slides = 6
+	_player.wall_min_slide_angle = deg_to_rad(15.0)
+	_player.slide_on_ceiling = true
 
 	_player.body_collision = CollisionShape3D.new()
 	_player.body_collision.name = "BodyCollision"
@@ -58,8 +69,11 @@ func build_nodes() -> void:
 	# Keep references for death / state visuals — find them by node path
 	_player.body_mesh = _player.visual_root.get_node_or_null("BodyRoot") as MeshInstance3D
 	if _player.body_mesh == null:
+		_player.body_mesh = _player.visual_root.find_child("*", true, false) as MeshInstance3D
+	if _player.body_mesh == null:
 		_player.body_mesh = MeshInstance3D.new()
 		_player.body_mesh.name = "BodyRoot"
+		_player.visual_root.add_child(_player.body_mesh)
 	_player.cloak_mesh = _player.body_mesh
 	_player.head_mesh = _player.body_mesh
 
@@ -109,9 +123,8 @@ func build_nodes() -> void:
 
 	_player.combat_area = CombatAreaScript.new()
 	_player.combat_area.name = "CombatArea"
-	_player.combat_area.position = Vector3(0.0, 1.0, -1.0)
 	_player.add_child(_player.combat_area)
-	_player.combat_area.configure(_player, 1.25, 1.45)
+	_player.combat_area.configure(_player, 1.25, 1.45, Vector3(0.0, 1.0, -1.0))
 
 	_player.camera_rig = Node3D.new()
 	_player.camera_rig.name = "CameraRig"
@@ -157,19 +170,27 @@ func update_weapon_visuals() -> void:
 
 	WeaponMeshFactory.build_into_parent(_player.weapon_pivot, right_shape, right_mat)
 
+	var two_handing: bool = _player.grip_mode == _player.GripMode.TWO_HANDED
+	var single_from_pair: bool = (
+		_player.grip_mode == _player.GripMode.ONE_HANDED
+		and _player.combat_style in [_player.CombatStyle.TWIN_COLOSSI, _player.CombatStyle.CRESCENT_PAIR]
+	)
+	# 双持：主武器略居中；成对改单持时隐藏副手
+	_player.weapon_pivot.position = Vector3(0.18, 1.28, -0.18) if two_handing else Vector3(0.58, 1.25, -0.15)
+
 	# Offhand visibility and mesh
 	var offhand_visible: bool = _player.left_hand_item in [
 		"xingtian_axe_left",
 		"marksman_dagger",
 		"talisman_papers",
 		"spirit_stone",
-	]
+	] and not two_handing and not single_from_pair
 	_player.offhand_weapon_pivot.visible = offhand_visible
 	if offhand_visible:
 		WeaponMeshFactory.build_into_parent(_player.offhand_weapon_pivot, left_shape, left_mat)
 
-	# Shield visibility and mesh
-	var shield_visible: bool = _player.left_hand_item == "reliquary_shield"
+	# Shield visibility and mesh — 双持失去盾
+	var shield_visible: bool = _player.left_hand_item == "reliquary_shield" and not two_handing
 	_player.shield_mesh.visible = shield_visible
 	if shield_visible:
 		var shield_mat := make_material(left_color, 0.48, 0.72)
@@ -224,6 +245,12 @@ func update_visual_pose() -> void:
 			var pulse := sin((_player.state_duration - _player.state_time) * 12.0) * 0.12
 			_player.weapon_pivot.rotation.z = -0.7 + pulse
 			_player.visual_root.rotation.y = pulse * 0.3
+		_player.State.CHARGE_HEAVY:
+			# 蓄力架势：武器后引，随时间微颤
+			var charge_t: float = clampf(_player._charge_time / 1.4, 0.0, 1.0)
+			_player.weapon_pivot.rotation.z = lerpf(-0.35, -1.65, charge_t)
+			_player.weapon_pivot.rotation.x = lerpf(0.0, -0.35, charge_t)
+			_player.visual_root.rotation.x = -0.08
 		_player.State.STAGGER:
 			_player.visual_root.rotation.z = sin(_player.state_time * 28.0) * 0.12
 		_:

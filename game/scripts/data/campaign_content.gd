@@ -13,7 +13,7 @@ static func chapters() -> Array[Dictionary]:
 
 
 static func levels() -> Array[Dictionary]:
-	return [
+	var records := [
 		_level(&"level_01_01", "苏醒之庭 / Courtyard of Awakening", &"chapter_01", &"courtyard", &"theme_spirit_ruins", &"tutorial", &"movement_and_interaction", &"level_01_02"),
 		_level(&"level_01_02", "守门廊 / Gate-Keeper Corridor", &"chapter_01", &"linear_corridor", &"theme_spirit_ruins", &"tutorial", &"dodge_stamina_and_parry", &"level_01_03"),
 		_level(&"level_01_03", "明镜殿 / Hall of Mirrored Truth", &"chapter_01", &"multi_angle_hall", &"theme_spirit_ruins", &"tutorial", &"lock_on_spacing_and_styles", &"level_01_04"),
@@ -43,6 +43,15 @@ static func levels() -> Array[Dictionary]:
 		_level(&"level_05_04", "十一铸魂者之墓 / Tomb of the Eleven Soul-Forgers", &"chapter_05", &"memorial_ring", &"theme_ember_abyss", &"trial", &"select_final_blessings", &"level_05_05"),
 		_level(&"level_05_05", "烬座·烛阴之缚 / Throne of Ashes · The Dragon Binding", &"chapter_05", &"cosmic_multi_phase_arena", &"theme_ember_abyss", &"final_boss", &"final_boss_and_endings", &"", &"boss_zhu_yin"),
 	]
+	for record in records:
+		var level_id := String(record["id"])
+		var chapter := int(level_id.substr(6, 2))
+		var level := int(level_id.substr(9, 2))
+		record["seed"] = chapter * 100 + level
+		record["modules"] = _modules_for(record)
+		record["encounter_id"] = StringName("encounter_%02d_%02d" % [chapter, level])
+		record["checkpoint_id"] = StringName("shrine_%02d_%02d" % [chapter, level])
+	return records
 
 
 static func themes() -> Array[Dictionary]:
@@ -65,6 +74,32 @@ static func bosses() -> Array[Dictionary]:
 		_boss(&"boss_xuan_xiao", "堕仙·玄霄 / Fallen Immortal · Xuán Xiāo", &"chapter_04", &"level_04_06", &"chapter_boss"),
 		_boss(&"boss_zhu_yin", "烬渊之主·烛阴 / Lord of the Ember Abyss · Zhú Yīn", &"chapter_05", &"level_05_05", &"final_boss"),
 	]
+
+
+static func _modules_for(level: Dictionary) -> Array[StringName]:
+	var modules: Array[StringName] = []
+	var topology := StringName(level.get("topology", &""))
+	var kind := StringName(level.get("kind", &""))
+	match topology:
+		&"hazard_wing", &"memory_canyon", &"vertical_library":
+			modules.append(&"hazard")
+		&"vertical_tower", &"vertical_floating_path", &"floating_platform_cluster", &"reflection_dual_plane", &"inverted_multi_surface":
+			modules.append(&"moving_platform")
+		&"looping_forest", &"shifting_maze", &"non_euclidean_branches":
+			modules.append(&"illusion_marker")
+	if kind in [&"hazard_puzzle", &"gravity_puzzle"]:
+		modules.append(&"poison_fire_zone" if kind == &"hazard_puzzle" else &"gravity_visual_zone")
+	if kind in [&"choice", &"puzzle", &"narrative_puzzle"]:
+		modules.append(&"switch_offering")
+	if kind in [&"boss", &"sub_boss", &"final_boss"]:
+		modules.append(&"arena_seal")
+	else:
+		modules.append(&"gate_exit")
+	if topology in [&"courtyard", &"hazard_wing"]:
+		modules.append(&"fragile_floor")
+	if topology in [&"layered_ramparts", &"processional_path"]:
+		modules.append(&"projectile_lane")
+	return modules
 
 
 static func _chapter(id: StringName, display_name: String, theme_id: StringName, start_level_id: StringName, exit_level_id: StringName, boss_ids: Array[StringName]) -> Dictionary:

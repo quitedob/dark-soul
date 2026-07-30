@@ -1,6 +1,186 @@
-# Ashen Hollow Development Log
+﻿# Ashen Hollow Development Log
+
+## 2026-07-30 — Combat Tip Mode (default off) + Grip / Charge / Jump-Slash Spec
+
+### Scope
+
+Ship a dedicated **Combat Tip Mode** setting (default **off**) so teaching HUD for charge, grip, context attacks, jump-slash rules, and weapon arts stays quiet unless the player opts in. Document matching combat rules in the systems / controls specs.
+
+### Runtime
+
+- `game_settings.combat_tip_mode` / bridge `combatTipMode`, persisted in `user://ashen_hollow_settings_v1.json`
+- Pause menu → **COMBAT TIP MODE** → `Show combat tips (charge / grip / context)`
+- Player `_show_combat_tip` gates: `CHARGING`, `CHARGE T1–T3`, sprint/roll/backstep/jump/falling tips, jump-slash denial, grip labels / `GRIP LOCKED`, shield bash / pierce / leap arts
+- Always-on feedback unchanged: stamina fail, parry/guard/poise, world events, hitbox debug
+
+### Spec / docs
+
+- Two-hand **×1.3 damage / ×1.5 stamina**; jump slash only when two-handing or left/right `weapon_type` matches
+- Charge tiers **0.20 / 0.75 / 1.40s** (`ChargeProfile`); mid-air and sprint/roll/backstep contexts skip charge
+- Updated: `docs/systems/combat-execution-guard-weapon-arts.md`, `docs/controls.md`, this log
+- Contracts: `ASHEN_CORE_CONTRACTS_OK`, `ASHEN_GRIP_CHARGE_CONTRACTS_OK`
+
+---
+
+## 2026-07-30 — B-05 Charge Heavy + B-07 Grip Modes
+
+### Scope
+
+Playable discrete charge-heavy tiers and one-hand / two-hand / paired grip switching with distinct `MovesetData` (no critical-damage doubling from two-handing).
+
+### Changes
+
+- `ChargeProfile` validation + factory tiers (0.2 / 0.75 / 1.4s)
+- `WeaponData.create_weapon` per style with supported grips
+- Player: `CHARGE_HEAVY` hold/release, `T` toggle grip, two-hand disables shield guard
+- Visuals: charge pose; two-hand centers weapon / hides shield; paired→one hides offhand
+- Contract: `ASHEN_GRIP_CHARGE_CONTRACTS_OK`; tasks B-05/B-07 → DONE
+
+### Controls
+
+- Hold RMB/`K` to charge, release to swing tier
+- `T` cycles grip when the loadout supports more than one
+
+---
+
+## 2026-07-30 — Finish Aerial Hitbox / Void Recovery Polish
+
+### Scope
+
+Closed remaining jump/falling polish: weapon-tip socket follow, hitbox debug wiring, and automatic `last_safe_transform` recovery when falling out of the world.
+
+### Changes
+
+- Jump / leap hitboxes follow `weapon_pivot` tip via `CombatArea.set_socket_follow`
+- Falling stays root-relative tall capsule until land
+- `F3` / `combat_hitbox_debug` toggles debug capsule
+- Void / deep drop → `recover_to_last_safe` (light HP penalty)
+- Contracts updated (`weapon_tip`, void API)
+
+---
+
+## 2026-07-30 — ShapeCast Continuous Hit Sampling
+
+### Scope
+
+CombatArea now sweeps the active hitbox capsule along per-frame motion during swings, preventing tunneling on fast downward falling attacks. Optional `debug_draw` shows a semi-transparent capsule while the swing is active.
+
+### Changes
+
+- `combat_area.gd`: ShapeCast3D motion sampling via `_sample_motion_hits()`, shared `already_hit` dedupe, `debug_draw` capsule mesh
+- `attack_data.gd`: `hitbox_until_land` included in `to_hit_metadata()`
+- Contract tests updated for motion-cast capability and metadata fields
+
+---
+
+## 2026-07-30 — Context Attacks (B-06 / B-08)
+
+### Scope
+
+Completed contextual attacks across all compatibility movesets: sprint, roll, backstep, general jump, and falling plunge. Leap weapon arts remain on `weapon_art_heavy` and no longer occupy `jump_attack`. Jump grants `low_sweep` immunity while airborne.
+
+### Changes
+
+- `compatibility_moveset_factory.gd`: fills sprint/roll/backstep/jump/falling; leap → `weapon_art_heavy`
+- `player.gd`: context resolve priority (falling > jump > sprint > roll > backstep > neutral); backstep dodge; low-sweep immunity
+- `enemy.gd`: close light / stalker swings tagged `low_sweep`
+- Contracts: `ASHEN_CONTEXT_ATTACK_CONTRACTS_OK`; GUT moveset schema updated
+- Tasks B-06 / B-08 → DONE; `controls.md` updated
+
+### Remaining
+
+- Grip modes (B-07), charge heavy (B-05)
+- Automatic recovery teleport to `last_safe_transform` (P2)
+
+---
+
+## 2026-07-30 — Jump/Collision Research P0–P1 Runtime Landing
+
+### Scope
+
+Implemented prioritized recommendations from `docs/research-godot-jump-collision.md`: projectile world sweep, vertical topology ramps, safe spawn/Lost Echo projection, explicit CharacterBody3D parameters, and basic grounded jump.
+
+### Changes
+
+- `spell_projectile.gd`: `QUERY_MASK = World|Enemies`, `cast_motion` sweep, nearest-hit resolve
+- `procedural_campaign_level_builder.gd`: `_add_height_ramps()` for 1-cell height steps; pillars become colliding `StaticBody3D`
+- `safe_placement.gd`: capsule overlap + downward floor projection with deterministic ring fallback
+- `player.gd`: `jump` (`V` / D-pad up), landing speed sample, `last_safe_transform`, safe `respawn_at`
+- `player_visuals.gd`: explicit motion/floor/wall/safe_margin parameters
+- Contract: `ASHEN_JUMP_COLLISION_CONTRACTS_OK`
+
+### Remaining
+
+- Automatic recovery teleport to `last_safe_transform` (P2)
+
+---
+
+## 2026-07-30 — Player Script Package Migration
+
+### Scope
+
+Moved the monolith player controller from `game/scripts/player.gd` into a dedicated package directory `game/scripts/player/player.gd`. This is a path/layout migration only — combat/movement helpers were not extracted further in this step.
+
+### Changes
+
+- `git mv` preserved `player.gd.uid`
+- Updated `scenes/actors/player.tscn` and direct test preloads to `res://scripts/player/player.gd`
+- Documented `scripts/player/` in `docs/project-structure.md` and `docs/architecture.md`
+- Synchronized path references across `docs/` and `docs-zh/` (tasks, research, audit, mcp guide)
+
+### Validation
+
+- Godot check-only / combat contract / player FSM / smoke after reference updates
+- Doc path sweep: no remaining live `res://scripts/player.gd` / `scripts/player.gd` inventory entries
+
+---
+
+## 2026-07-30 — Chapter 1 Vertical Slice: Content Spawn, Module Behaviors, Level Exit
+
+### Scope
+
+Wired the first playable Chapter 1 slice into runtime (`H-04` Ch.1 subset + `H-07` start). `level_01_01` now spawns from `Chapter1Content` via `ChapterEnemyFactory`, activates interactive `fragile_floor` / `gate_exit` modules, and advances to `level_01_02` through the campaign exit interactable. Enemy mesh rebuild churn on every state change was also eliminated.
+
+### Runtime Integration
+
+- `game_world.gd` binds spawn/checkpoint/exit markers, spawns Ch.1 roster relative to the spawn marker (tutorial courtyard: 2× lost soul + 1× temple guardian; boss only on `level_01_05`).
+- Checkpoint IDs now write `shrine_XX_YY` from campaign metadata instead of hardcoding `ember_shrine`.
+- `CampaignModuleRuntime` activates module shells after each level load: fragile collapse, gate exit interact, hazard DPS tick, arena seal hint.
+- Exit interact calls `ContentRegistry.get_next_level()`, records `completed_levels`, reloads geometry/encounters, and saves.
+
+### Enemy Content Path
+
+- `enemy.setup_from_content()` applies chapter dictionaries (stats + attack profile + colors).
+- `ChapterEnemyFactory.build_into_slots()` fills existing body/weapon pivots without nesting a second weapon root.
+- Visual rebuild is keyed (`_visuals_built_key`) so state flashes only recolor materials.
+
+### Validation
+
+- `ASHEN_CHAPTER1_SLICE_CONTRACTS_OK`
+- Existing `ASHEN_LEVEL_MODULE_CONTRACTS_OK` / `CAMPAIGN_GENERATION_OK` remain green
+- Parser check-only clean for `enemy_factory.gd`, `enemy.gd`, `game_world.gd`, `campaign_module_runtime.gd`
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `game/scripts/game_world.gd` | Chapter spawn, module activate, exit advance, marker-relative layout |
+| `game/scripts/enemy.gd` | `setup_from_content`, visual rebuild guard, content tuning |
+| `game/scripts/combat/enemy_factory.gd` | `build_into_slots` + body/weapon dispatch helpers |
+| `game/scripts/world/campaign_module_runtime.gd` | **NEW** module behavior activator |
+| `game/scripts/world/campaign_exit_interact.gd` | **NEW** exit interactable |
+| `game/tests/smoke/chapter1_slice_contract_test.gd` | **NEW** slice contracts |
+| `game/scripts/core/localization.gd` | New ZH strings for exit/floor/seal prompts |
+| `tools/build.ps1` | Include chapter1 slice contract |
+
+### Coordination
+
+- Next: broaden module polish across remaining Chapter 1 levels (`H-04`), death-loop verification against campaign markers (`H-06`), and boss factory path for `boss_giant_gate` on `level_01_05`.
+
+---
 
 ## 2026-07-30 — Critical Bug Fixes: Locale Freeze, Voice Stealing, Mesh Churn, Phase Skip & Timer Leak
+
 
 ### Scope
 
@@ -264,7 +444,7 @@ Extended `game/scripts/core/weapon_meshes.gd` — added 30 new `build_into_paren
 | `game/scripts/data/chapter_content.gd` | **NEW** — 5-chapter master content: 32 enemies, 7 bosses, 14 elites, 25 spells, 30 weapons, 5 scenes (~900 lines) |
 | `game/scripts/combat/enemy_factory.gd` | **NEW** — 29 body type builders + 44 weapon shape builders, zero model reuse across chapters (~750 lines) |
 | `game/scripts/components/spell_projectile.gd` | Rewritten — 6 spell visual configs, homing system, trail particles, per-type collision/light (~255 lines) |
-| `game/scripts/player.gd` | +SPELL_CONFIG (7 entries), +3 weapon skill functions (pierce_thrust/arcane_barrage/divine_smite), +unblockable attack metadata, +_spawn_spell_projectile helper, rebalanced all spell costs/timings |
+| `game/scripts/player/player.gd` | +SPELL_CONFIG (7 entries), +3 weapon skill functions (pierce_thrust/arcane_barrage/divine_smite), +unblockable attack metadata, +_spawn_spell_projectile helper, rebalanced all spell costs/timings |
 | `game/scripts/enemy.gd` | +PHASE_THREE_THRESHOLD (0.25), +_phase_two_played flag, phase 3 attack profiles for all 3 distance brackets, dual phase transitions with AoE bursts, body emission in phase 3 |
 | `game/scripts/core/weapon_meshes.gd` | +30 shape IDs in dispatch match, +24 chapter-weapon builder functions (bronze_blade through ember_shield) |
 | `game/scripts/game_world.gd` | +brazier_lights/flicker_phases arrays, +_update_brazier_flicker(), shrine fill light, 4-layer particles (ember/dust + NEW shrine fall + NEW ground mist), enhanced materials, tonemap adjustments, moonlight shadow upgrade |
@@ -340,7 +520,7 @@ Applied "never ship flat shapes" principle to the level itself:
 | `game/scripts/core/weapon_meshes.gd` | **NEW** — 12 weapon shape builders + composite primitive helpers (280 lines) |
 | `game/scripts/core/character_meshes.gd` | **NEW** — 4 character type builders + humanoid skeleton + armor pieces (200 lines) |
 | `game/scripts/data/hand_equipment.gd` | Added `mesh_shape`, `mesh_color` fields to all 10 items; added `get_mesh_shape()`, `get_mesh_color()` |
-| `game/scripts/player.gd` | Replaced CapsuleMesh+PrismMesh+SphereMesh+BoxMesh body with `CharacterMeshFactory.build_player()`; replaced single BoxMesh weapons with `WeaponMeshFactory.build_into_parent()`; added `_update_weapon_visuals()`, weapon trail system (`_update_weapon_trail()`, `_build_trail_ribbon()`) |
+| `game/scripts/player/player.gd` | Replaced CapsuleMesh+PrismMesh+SphereMesh+BoxMesh body with `CharacterMeshFactory.build_player()`; replaced single BoxMesh weapons with `WeaponMeshFactory.build_into_parent()`; added `_update_weapon_visuals()`, weapon trail system (`_update_weapon_trail()`, `_build_trail_ribbon()`) |
 | `game/scripts/enemy.gd` | Replaced capsule body + sphere head + box weapon with `CharacterMeshFactory.build_enemy()` + `WeaponMeshFactory.build_enemy_weapon()`; added `weapon_pivot` node for composite weapon rotation |
 | `game/scripts/game_world.gd` | Added `_create_ground_detail()`, `_create_wall_detail()`, `_create_ceiling_beams()`, `_create_atmospheric_particles()`; enhanced `_create_ember_brazier()`, `_create_pillar()`, `_create_landmark()`, `_create_gate()`; added `rubble`, `wood`, `ember_vein` materials |
 | `game/scripts/checkpoint.gd` | Enhanced `_build_visuals()`: multi-tier base, mid ring, pillar collar, bowl rim, 4 rune marks, dual flame; updated `_update_appearance()` for inner flame material |
@@ -404,7 +584,7 @@ Replaced the 5 monolithic `CombatStyle` presets with explicit right/left-hand eq
 
 - **Equipment registry** (`game/scripts/data/hand_equipment.gd`): 10 canonical items (guardian_sword, reliquary_shield, xingtian_axe_right/left, marksman_bow, marksman_dagger, five_elements_seal, spirit_stone, prayer_beads, talisman_papers). Each defines hand, primary/secondary action IDs, guard profile (absorption/stability/front_dot), and parry window. Five legacy style→loadout maps preserved.
 - **Semantic inputs** (`game/scripts/game_world.gd`): `right_primary` (LMB/J/RB), `right_secondary` (RMB/K/RT), `left_primary` (C/LB), `left_secondary` (R/LT). Legacy aliases (`light_attack`, `heavy_attack`, `guard`, `parry`) intact.
-- **Hand dispatch** (`game/scripts/player.gd`): `_execute_hand_action(hand, slot)` routes per-equipment actions — sword light/heavy, shield guard/parry/bash, axe strikes, bow shots, seal bolt/burst, beads heal, talisman attacks. `set_hand_loadout()` equips by ID; `set_combat_style()` remains as compatibility adapter.
+- **Hand dispatch** (`game/scripts/player/player.gd`): `_execute_hand_action(hand, slot)` routes per-equipment actions — sword light/heavy, shield guard/parry/bash, axe strikes, bow shots, seal bolt/burst, beads heal, talisman attacks. `set_hand_loadout()` equips by ID; `set_combat_style()` remains as compatibility adapter.
 - **Hit payloads** (`game/scripts/combat_area.gd`): `begin_swing()` accepts metadata dict → structured `hit_payload` with `hand`, `item_id`, `action_id`, `guard_damage`, `tags`, `blockable`, `parryable`. Legacy `receive_hit()` wraps into payload.
 - **Projectile payloads** (`game/scripts/components/spell_projectile.gd`): `setup()` accepts metadata → `hit_payload` with same fields. Delivers via `receive_hit_payload()` or legacy fallback.
 - **Guard resolver** (`game/scripts/combat/guard_resolver.gd`): Deterministic `GuardResolver.resolve()` — directional front arc, absorption/stability from shield profile, stamina check, guard break with forced stagger, unblockable bypass. Shield and spell_stone have distinct profiles.
@@ -449,7 +629,7 @@ Added `example/` (gitignored) containing five open-source Godot soulslike/ARPG r
 | `game/tests/smoke/combat_contract_test.gd` | **NEW** — hand mappings, guard matrix, payload builders |
 | `game/scripts/core/run_state.gd` | Schema v2: nested location/player/progression/lostEcho; v1→v2 migration; upgrade_tier serialized |
 | `game/scripts/game_world.gd` | Semantic inputs; hand save apply/snapshot; hands_changed signal wiring |
-| `game/scripts/player.gd` | `right_hand_item`/`left_hand_item`; `set_hand_loadout()`; `_execute_hand_action()`; `receive_hit_payload()`; `_update_guard_active()` locomotion lock; shield bash; buffered semantic actions; guard cancel on state transition |
+| `game/scripts/player/player.gd` | `right_hand_item`/`left_hand_item`; `set_hand_loadout()`; `_execute_hand_action()`; `receive_hit_payload()`; `_update_guard_active()` locomotion lock; shield bash; buffered semantic actions; guard cancel on state transition |
 | `game/scripts/combat_area.gd` | Structured `hit_payload` dict; `begin_swing()` metadata parameter |
 | `game/scripts/components/spell_projectile.gd` | `hit_payload` dict; metadata parameter on `setup()` |
 | `game/scripts/hud.gd` | Dual-hand display via `hands_changed` signal |
@@ -705,7 +885,7 @@ Applied 12 fixes identified by the codebase health audit ([audit-docs-codebase-h
 | File | Change |
 |---|---|
 | `game/scripts/core/procedural_utils.gd` | **NEW** — shared `make_material()` / `has_collision_shape()` |
-| `game/scripts/player.gd` | +`STYLE_TIMING` dict, `_style_value()`, hyper armor, healing signal, named constants, per-style timing in 7 functions |
+| `game/scripts/player/player.gd` | +`STYLE_TIMING` dict, `_style_value()`, hyper armor, healing signal, named constants, per-style timing in 7 functions |
 | `game/scripts/enemy.gd` | +`EnemyType` enum, Ash Stalker profile, `on_player_healing()`, tuning/palette/attack branches |
 | `game/scripts/game_world.gd` | +hit-stop handler, `_on_player_healing()`, `_generate_navigation()`, Ash Stalker spawns, collision layer fix, `_ProcUtils` preload |
 | `game/scripts/combat_area.gd` | +`signal hit_landed`, emit on successful hit |
@@ -759,7 +939,7 @@ Both documents now:
 
 ### Scope
 
-Applied 9 fixes identified by the Dark Souls design research audit ([research-dark-souls-design.md](research-dark-souls-design.md)) across `game/scripts/enemy.gd`, `game/scripts/player.gd`, `game/scripts/game_world.gd`, `game/scripts/core/run_state.gd`, and `docs/game-design.md`.
+Applied 9 fixes identified by the Dark Souls design research audit ([research-dark-souls-design.md](research-dark-souls-design.md)) across `game/scripts/enemy.gd`, `game/scripts/player/player.gd`, `game/scripts/game_world.gd`, `game/scripts/core/run_state.gd`, and `docs/game-design.md`.
 
 ### Code Bug Fixes
 
@@ -1047,3 +1227,58 @@ Implementation was paused at the user's request. Flutter and OpenHarmony work is
 5. Test keyboard/mouse, controller, touch controls, and a real Android phone-size build.
 6. Rebuild and smoke-test Web and Windows exports.
 7. Update the remaining documentation to match the verified game.
+
+## 2026-07-30 — Godot Jump, Landing, and Collision-Tunneling Research
+
+### Scope
+
+Researched common Godot 4.x solutions for jump/landing detection, slopes, vertical steps, wall-corner sticking, high-speed movement, projectile tunneling, safe respawn, collision-shape setup, debugging, and headless regression coverage. The complete report is archived at [research-godot-jump-collision.md](research-godot-jump-collision.md).
+
+Research used one consolidated Perplexity deep-research thread, a follow-up verification attempt, direct reads of identified Godot official documentation, and a read-only scan of the current repository. No runtime code was changed.
+
+### High-Confidence Findings
+
+- `floor_snap_length` handles downward ground adhesion; it does not climb upward vertical steps.
+- Automatic floor snap stops while velocity points along `up_direction`. `apply_floor_snap()` ignores velocity and is an on-demand override, not a method to call unconditionally every frame.
+- Godot's built-in stair-stepping proposal remains open. Visual stairs should prefer ramp colliders; custom step-up requires bounded upward/forward/downward motion tests.
+- Current projectiles use `Area3D`, move through direct `global_position` updates, and have `collision_mask = 4`. They detect enemies but intentionally ignore world layer 1. `Area3D` documents overlap monitoring, not continuous swept collision.
+- Current vertical campaign topologies place floors at 2 m height increments while the player has no general jump. Navigation `agent_max_climb` does not grant the player step-up or jumping behavior.
+- Player respawn, enemy reset, and Lost Echo placement currently assign positions without overlap, floor-angle, or reachability validation.
+- `RigidBody3D.continuous_cd` is specific to rigid bodies and does not solve CharacterBody3D or Area3D transform movement.
+- CharacterBody3D/moving-body colliders should use unscaled primitive or convex shapes; concave shapes belong to static level geometry.
+
+### Corrections to Initial Research Claims
+
+The first Perplexity answer overclaimed two points and was not adopted verbatim:
+
+- **Rejected:** “Always call `apply_floor_snap()` after `move_and_slide()`.” This can interfere with intentional upward movement. Use automatic snap normally and force snap only in an explicitly validated recovery case.
+- **Rejected:** “8.4 m/s dodge definitely tunnels.” `move_and_slide()` performs collision-aware motion; tunneling must be demonstrated against thin geometry, extreme per-step displacement, initial overlap, direct transform changes, or multi-contact edge cases.
+- **Rejected:** “`body_test_motion()` is the highest-performance option.” Official documentation does not make that performance claim.
+
+### Confirmed Project Risks
+
+1. **Projectile world penetration — P0:** add world blocking and explicit ray/shape sweep; nearest collision wins.
+2. **Vertical topology reachability — P0:** generate ramps/lifts/legal connectors until general jump exists; test Spawn→Checkpoint→Exit reachability.
+3. **Unsafe respawn and Lost Echo placement — P0:** validate capsule overlap, floor angle, and deterministic fallback positions.
+4. **Missing general jump/landing contract — P1:** add airborne/landing semantics, preserve upward detachment from snap, sample pre-landing vertical velocity, and handle ceilings.
+5. **Implicit CharacterBody defaults — P1:** explicitly set motion mode, up direction, floor angle, floor/wall behavior, safe margin, max slides, and ceiling behavior.
+6. **Missing movement diagnostics — P1:** record previous position, requested/actual motion, floor transitions, slide count/normals, stuck frames, and last safe transform.
+7. **No stair/edge regression scenes — P2:** test slopes, step thresholds, concave corners, thin walls, 30/60/120 physics ticks, projectile sweeps, and occupied spawn points.
+
+### Recommended API Boundaries
+
+| Problem | Recommended API |
+|---|---|
+| Character proposed motion | `PhysicsBody3D.test_move()` or `PhysicsServer3D.body_test_motion()` |
+| Target spawn overlap | `PhysicsDirectSpaceState3D.intersect_shape()` |
+| Thin projectile | `intersect_ray()` |
+| Projectile with radius | `cast_motion()` or `ShapeCast3D` |
+| Current-position overlap | `intersect_shape()`; it ignores query motion |
+| Physical rigid projectile | `RigidBody3D` with `continuous_cd`, only when force/mass/ricochet are required |
+
+### Validation Status
+
+- Official CharacterBody3D parameter defaults and floor-snap semantics were verified against Godot 4.4/stable documentation.
+- Official ShapeCast, direct-space query, Area3D, RigidBody3D CCD, collision-shape, and test-motion semantics were reviewed.
+- Markdown report links and project code references still require final documentation validation.
+- No Godot parser, physics scene, smoke, or export test was run for this research-only entry.

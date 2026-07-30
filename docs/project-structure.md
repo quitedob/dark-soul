@@ -15,7 +15,9 @@ newproject/
 │   ├── scenes/                  # Reusable scene definitions grouped by role
 │   ├── scripts/                 # Gameplay and runtime implementation
 │   └── tests/                   # Godot automated tests
+├── mcp/                         # Godot MCP Native plugin and CLI tools
 ├── packages/                    # Reusable Flutter/platform integration packages
+├── screenshot/                  # Scene screenshots and editor viewport captures
 └── tools/                       # Repository-level build and validation automation
 ```
 
@@ -44,13 +46,14 @@ game/
 │   ├── app/                     # Godot-to-host communication bridge
 │   ├── components/              # Reusable combat/projectile behavior
 │   ├── core/                    # Save state, settings, and localization
+│   ├── player/                  # Player controller package (player.gd entry)
 │   ├── ui/                      # Auxiliary UI behavior
-│   └── *.gd                     # Existing gameplay composition and actor scripts
+│   └── *.gd                     # Remaining gameplay composition and actor scripts
 └── tests/
     └── smoke/                   # Headless contract and smoke checks
 ```
 
-The scene folders communicate runtime meaning. The existing top-level gameplay scripts remain valid while other agents are actively changing the game. A future script migration should only happen as one coordinated change that moves files, preserves `.uid` files, updates every `res://` reference, and passes Godot import and smoke validation.
+The scene folders communicate runtime meaning. Actor scripts may live in packages under `scripts/` (for example `scripts/player/player.gd`); coordinated moves must preserve `.uid` files, update every `res://` reference, and pass Godot import and smoke validation.
 
 ### `app/`
 
@@ -76,6 +79,16 @@ Generated Flutter output such as `app/build/` and `app/.dart_tool/` is not sourc
 - `agents/`: local specialist-agent guidance.
 
 Documentation must describe verified behavior. Planned work should be labeled as planned rather than recorded as complete.
+
+### `screenshot/`
+
+`screenshot/` is the **only** directory where scene screenshots and editor viewport captures may be placed. All screenshots — whether taken via Godot MCP (`get_editor_screenshot`, `get_runtime_screenshot`), manual `Print Screen`, or any other tool — must go under `screenshot/`.
+
+**Rules:**
+- ❌ **禁止乱放** — do not scatter screenshots in `game/`, `docs/`, the repository root, or any other directory
+- ✅ 所有截图统一放在 `screenshot/` 根目录下
+- 📁 可按日期或场景创建子目录，例如 `screenshot/2026-07-30/` 或 `screenshot/chapter-1/`
+- 🚫 不要将截图提交到其他目录的 `.gitignore` 白名单之外
 
 ### `tools/`
 

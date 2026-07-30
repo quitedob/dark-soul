@@ -28,15 +28,15 @@ Approximately 500 years before the game begins:
 
 1. 烛阴 announced to the other Soul-Forgers that the Ember-light was dimming
 2. He proposed **永恒锻法 (The Eternal Forging)** — a plan to concentrate all Embers into a single, perfect, unchanging soul-reality
-3. The other eleven Soul-Forgers refused, arguing that the cycle was sacred
-4. 烛阴 attempted to seize the Furnace by force; the eleven opposed him
-5. The resulting battle shattered the Furnace into **five fragments**
-6. Eleven Soul-Forgers died or vanished; only one survived (云游道人, later The Wandering Sage)
-7. 烛阴 was bound in chains of solidified Ember and cast into the Furnace's core
+3. Nine Soul-Forgers rejected the plan. 寂灭 accepted 烛阴's diagnosis but rejected forced stasis; 云游 demanded that the decision be delayed
+4. 烛阴 activated the Eternal Forging by force. 云游 reversed the soul-current to prevent every living soul from being condensed into one reality
+5. The collision shattered the Furnace into **five fragments**
+6. Nine Soul-Forgers died sealing the breach; 云游 and 寂灭 survived, while 烛阴 fused with the Final Ember and was bound in the core
+7. Before fading, the nine fallen Soul-Forgers shaped the unassigned soul-light caught in the breach into an emergency successor: the last 烬裔
 
 ### The Five Fragments
 
-Each fragment of the Furnace retained a portion of its original power and fell into a different realm:
+Each fragment retained part of the Furnace's power and fell into a different **fractured region**. These five campaign regions are not five additional cosmological realms: 灵墟、血铁与玉障 lie in the Mortal Realm, 天崩 is a fallen border of Heaven, and 烬座 is the Furnace nexus between all Three Realms.
 
 | Fragment | Chinese Name | Fell Into | Corrupted By |
 |----------|-------------|-----------|--------------|
@@ -54,20 +54,24 @@ Each fragment of the Furnace retained a portion of its original power and fell i
 The twelve original guardians of the Furnace. Each embodied a different aspect of the cosmic cycle:
 
 1. **烛阴 (Torch Dragon)** — Light and Time (Leader, antagonist)
-2. **云游 (Cloud Wanderer)** — Journey and Guidance (Survivor, guide NPC)
-3. **铸星 (Star-Forger)** — Creation (Deceased)
-4. **断念 (Thought-Breaker)** — Release and Forgetting (Deceased)
-5. **归尘 (Dust-Returner)** — Death and Acceptance (Deceased)
-6. **织命 (Fate-Weaver)** — Destiny (Deceased)
-7. **守门 (Gate-Keeper)** — Thresholds (Deceased)
-8. **量罪 (Sin-Measurer)** — Judgment (Deceased)
-9. **燃灯 (Lamp-Lighter)** — Hope (Deceased)
-10. **镇魂 (Soul-Pacifier)** — Peace (Deceased)
-11. **循环 (Cycle-Turner)** — Motion and Change (Deceased)
-12. **寂灭 (Silence-Bringer)** — Endings (Deceased)
+2. **云游 (Cloud Wanderer)** — Journey and Guidance (Survivor; reversed the soul-current; guide NPC)
+3. **铸星 (Star-Forger)** — Creation (Fell sealing the breach)
+4. **断念 (Thought-Breaker)** — Release and Forgetting (Fell sealing the breach)
+5. **归尘 (Dust-Returner)** — Death and Acceptance (Fell sealing the breach)
+6. **织命 (Fate-Weaver)** — Destiny (Fell sealing the breach)
+7. **守门 (Gate-Keeper)** — Thresholds (Fell sealing the breach)
+8. **量罪 (Sin-Measurer)** — Judgment (Fell sealing the breach)
+9. **燃灯 (Lamp-Lighter)** — Hope (Fell sealing the breach)
+10. **镇魂 (Soul-Pacifier)** — Peace (Fell sealing the breach)
+11. **循环 (Cycle-Turner)** — Motion and Change (Fell sealing the breach)
+12. **寂灭 (Silence-Bringer)** — Endings (Survivor; guards the final threshold)
 
 ### 烬裔 (Ember Scions)
-Rare beings born with a fragment of original Furnace-fire in their soul. Cannot be created — only born at random when a particular reincarnation aligns with residual Ember-light. The player character is the last known Ember Scion.
+Before the Shattering, rare Ember Scions appeared when a reincarnating soul aligned with residual Furnace-light. No new natural Ember Scion can be born while the cycle is broken.
+
+The player is the exception: an **emergency successor intentionally forged during the Shattering** from unassigned soul-light, the nine fallen Soul-Forgers' final seals, and a spark of the First Ember. The unfinished vessel slept beneath the Furnace-Keeper's Shrine for five centuries. The player therefore has no hidden mortal childhood or conventional past lives. Memories seen in Chapter 3 belong to souls carried by the fragments, not to the player.
+
+The player's 轮回印 is incomplete. It keeps the vessel alive but also binds it to the broken Furnace: without gathering the fragments, the player's identity will eventually disperse with the dying Ember-light. This makes the journey both a cosmic duty and a personal struggle to become more than the tool the fallen Soul-Forgers created.
 
 **Known Abilities of Ember Scions:**
 - Absorb Embers from defeated enemies to grow stronger
@@ -148,11 +152,11 @@ All enemies in 烬渊 are classified by their nature:
 
 **Spoiler — revealed in Chapter 4:**
 
-云游道人 (The Wandering Sage) was not merely present at the Shattering — he cast the deciding vote. When the eleven Soul-Forgers opposed 烛阴, 云游 was the one who hesitated. His aspect is "Journey and Guidance" — he could not accept that the cycle was perfect, nor that 烛阴's eternal stasis was the answer. His indecision created the opening 烛阴 exploited.
+云游道人 (The Wandering Sage) did not cast a deciding vote. When 烛阴 activated the Eternal Forging by force, 云游 deliberately reversed the Furnace's soul-current. That act saved the living and prevented a single frozen reality, but the collision also caused the five-way fracture. He helped stop 烛阴 and helped break the Furnace at the same time.
 
-After the Shattering, 云游 spent centuries wandering the broken realms, observing how beings adapted to the new reality. He concluded that **both sides were wrong**: the old cycle was slowly failing, and 烛阴's solution was a different kind of death. The only answer is for someone new — an Ember Scion — to enter the Throne and choose freely.
+After the Shattering, 云游 spent centuries wandering the broken regions, observing how beings adapted to the new reality. He concluded that **both sides were wrong**: the old cycle was slowly failing, and 烛阴's solution was a different kind of death. The only answer is for someone new — an Ember Scion — to enter the Throne and choose freely.
 
-He guides you not to ensure a particular outcome, but because you represent the one thing neither side had: **genuine choice**. You were born after the Shattering. You owe allegiance to neither the old order nor 烛阴's rebellion.
+He guides you not to ensure a particular outcome, but because you represent the one thing neither side had: **genuine choice**. You were made after their decision and inherit their power without inheriting their allegiance. Chapter 4 exposes his responsibility; Chapter 5 requires him to stop guiding and accept the player's judgment.
 
 ---
 

@@ -16,7 +16,7 @@ AshenHollow (Node3D, game_world.gd)
 │   ├── Boss血条、交互提示、锁定标记
 │   ├── 帮助覆盖层、消息面板
 │   └── MobileControls (mobile_controls.gd) — 触屏覆盖层
-├── Warden (CharacterBody3D, player.gd) — 12状态FSM
+├── Warden (CharacterBody3D, scripts/player/player.gd) — 12状态FSM
 │   ├── 碰撞体和原始视觉模型（身体、斗篷、面甲）
 │   ├── CombatArea (combat_area.gd) — 每次挥砍单次命中
 │   ├── 相机旋转轴 / SpringArm3D / Camera3D
@@ -36,7 +36,7 @@ AshenHollow (Node3D, game_world.gd)
 ## 职责划分 (Responsibilities)
 
 - `game_world.gd`：集成根节点，关卡生成，输入注册，敌人注册表，检查点/死亡循环，捷径和胜利推进流程。
-- `player.gd`：权威玩家状态，移动，相机，锁定，耐力，攻击，无敌帧，伤害，死亡和烬火。
+- `scripts/player/player.gd`：权威玩家状态，移动，相机，锁定，耐力，攻击，无敌帧，伤害，死亡和烬火。包目录：`scripts/player/`（后续助手脚本可收入此包）。
 - `enemy.gd`：敌人有限状态机，导航，攻击前摇，攻击时序，伤害，重置和奖励。
 - `combat_area.gd`：可复用的 `Area3D` 伤害窗口，记录挥砍中已命中的实体。
 - `hud.gd`：生命/耐力/烬火显示，提示，锁定标记，守护者血条，消息，暂停和帮助。

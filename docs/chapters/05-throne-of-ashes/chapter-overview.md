@@ -28,7 +28,7 @@ The entry point to the Throne realm. An endless gray beach where waves of cooled
 
 **No Traps.** This level is deliberately contemplative — a moment of quiet before the final trials.
 
-**Key Moment:** The Wandering Sage reveals his full truth. He was not merely the Soul-Forger who hesitated — he was the one who **agreed with 烛阴's logic but could not accept his method**. He hoped the Shattering would lead to a better answer. After 500 years, he still doesn't know if he was right.
+**Key Moment:** The Wandering Sage gives testimony rather than guidance. He admits that he deliberately reversed the soul-current to stop the Eternal Forging. The act saved living souls from forced stasis but collided with 烛阴's ritual and caused the five-way fracture. He will not choose a side for the player in the final chapter.
 
 **Loot:** 阳维脉解锁石 (Yang Linking Vessel Stone) — the final meridian
 
@@ -52,35 +52,31 @@ A non-Euclidean space where the player walks through moments from all previous c
 
 **Enemies:** 歧路守魂 (Forked Path Guardian) ×2 per branch — spectral versions of previous bosses (weaker, but with key movesets); 可能性之影 (Shadow of Possibility) ×3 — shadowy figures that represent unchosen paths
 
-**Puzzles:** The player must choose which version of each past event to "validate." These choices affect:
-- Which endings are available in the final fight
-- Special dialogue from spirits in the final area
-- Cosmetic changes to the Throne realm
+**Memory Validation:** The path reconstructs the choices actually made in Chapters 1-4. The player cannot replace them with hypothetical alternatives. At each memory, the player may **accept** or **regret** the result; this changes dialogue, scenery, and epilogue tone without rewriting the stored chapter flag.
 
-**Choices Presented:**
-1. Chapter 1 memory: Destroy 巨阙 (mercy kill) vs leave it (let it continue its duty)
-2. Chapter 2 memory: Execute 刑天 (honor in death) vs absorb his rage (gain his power)
-3. Chapter 3 memory: Free Nine-Tails (release her from corruption) vs seal her (contain the threat)
-4. Chapter 4 memory: Help 玄霄 ascend (complete his transformation) vs let him fall (end his suffering)
+**Memories Presented:**
+1. `ch1_guardian_fate`: 巨阙 was released from duty or preserved as 灵墟's guardian
+2. `ch2_xingtian_fate`: 刑天 received an honorable end or had his rage absorbed
+3. `ch3_nine_tails_fate`: Nine-Tails was redeemed by the True Mirror or sealed after combat
+4. `ch4_xuanxiao_fate`: 玄霄 completed ascension or returned his identity to mortal memory
 
-**No "correct" answers** — each choice has narrative and gameplay consequences. The game tracks these choices silently.
+The three base endings remain available regardless of these results. The memories instead alter final-battle assistance, 烛阴's attacks and dialogue, and each ending's epilogue.
 
 **Loot:** 轮回之石 (Samsara Stone — key item), varies by choices made
 
 ---
 
-### Level 5-4: 十一铸魂者之墓 (Tomb of the Eleven Soul-Forgers)
-The final rest of the eleven Soul-Forgers who died opposing 烛阴. Eleven memorials arranged in a circle, each containing a fragment of its Soul-Forger's essence. The player can commune with each memorial to learn fragments of the true story — and to receive blessings for the final battle.
+### Level 5-4: 九铸魂者之墓 (Tomb of the Nine Soul-Forgers)
+The final rest of the nine Soul-Forgers who died sealing the Shattering. Nine memorials form an incomplete ring around three living seals: 烛阴's occupied core, 云游's witness mark, and 寂灭's closed threshold. The player communes with the dead for testimony and blessings, then confronts 寂灭 at the exit.
 
-**Enemies:** 铸魂者残影 (Soul-Forger Remnant) ×3 — not hostile unless attacked. They test the player with combat trials rather than ambushes.
+**Encounters:** 铸魂者残影 (Soul-Forger Remnant) ×3 combat trials; 寂灭 is a mandatory threshold encounter that can be resolved through combat or testimony.
 
-**Trials:** Each hostile remnant tests a different skill:
+**Trials:**
 - 铸星 (Star-Forger): Damage race — defeat before timer expires
 - 断念 (Thought-Breaker): No healing allowed
 - 守门 (Gate-Keeper): Defend a point from waves
 
-**Blessings:** Each communed Soul-Forger grants a unique buff for the 烛阴 fight. The player can choose up to 3:
-- +15% damage / +15% defense / +20% stamina regen / +20% Focus regen / etc.
+**Blessings:** Each fallen Soul-Forger grants a unique buff for the 烛阴 fight. The player can choose up to 3, or up to 5 after completing `九位遗录` in Chapter 4.
 
 **Loot:** 铸魂碎片 (Soul-Forge Shard) — required for +10 weapon reinforcement
 
@@ -88,7 +84,7 @@ The final rest of the eleven Soul-Forgers who died opposing 烛阴. Eleven memor
 
 ### Level 5-5: 烬座·烛阴之缚 (Throne of Ashes · The Dragon's Binding)
 
-The heart of everything. A platform of solid Ember-light floating in an infinite void of dying stars. At the center: a throne made of chains — chains forged by the eleven Soul-Forgers to bind 烛阴. And on that throne: the Torch Dragon himself.
+The heart of everything. A platform of solid Ember-light floating in an infinite void of dying stars. At the center: a throne made from the nine fallen Soul-Forgers' final seals — and on that throne, the Torch Dragon himself.
 
 烛阴 does not attack immediately. He speaks. His voice is not evil — it is tired, ancient, and utterly convinced of its righteousness. The dialogue before the fight is the longest in the game. He explains his reasoning:
 
@@ -139,8 +135,11 @@ At 10% HP, 烛阴 stops fighting. He kneels. The combat ends. The player is pres
 | Absorb 烛阴's Ember into yourself | **Ending A: 薪火相传** — You restart the cycle, sacrificing yourself |
 | Sit on the Throne of Ashes | **Ending B: 守炉人** — You become the new guardian, eternal vigil |
 | Destroy the Throne completely | **Ending C: 大寂灭** — Freedom for all souls, end of reincarnation |
+| Return all Furnace memories at the restored forge | **Hidden Ending D: 共铸新炉** — You and 烛阴 become paired regulators of a consensual new cycle; both individual identities are sacrificed |
 
-Your choices in Level 5-3 may lock or unlock certain endings.
+The three base endings are always available. The hidden fourth action appears only after completing `灵魂的回归`, `铸魂者的最后一个问题`, and `天炉的低语`. Prior chapter flags change combat, witnesses, dialogue, and epilogues rather than locking an ending.
+
+**Narrative contract:** [Five-Chapter Causality Map](../../story/chapter-bridge-map.md#结局可达矩阵)
 
 ---
 
@@ -166,7 +165,7 @@ Your choices in Level 5-3 may lock or unlock certain endings.
 | **Armor** | 铸魂者长袍 (Soul-Forger's Robe) | 5-4 |
 | **Armor** | 烬渊王冠 (Ember Abyss Crown) | 5-5 |
 | **Accessory** | 轮回之石 (Samsara Stone) | 5-3 |
-| **Accessory** | 十一铸魂者之证 (Eleven Soul-Forgers' Seal) | 5-4 |
+| **Accessory** | 九铸魂者之证 (Nine Fallen Forgers' Seal) | 5-4 |
 | **Key Item** | 阳维脉解锁石 | 5-1 |
 | **Spell** | 虚空裂缝 (Void Rift) | 5-2 |
 | **Spell** | 烛龙之息 (Torch Dragon Breath) | 5-5 boss drop |

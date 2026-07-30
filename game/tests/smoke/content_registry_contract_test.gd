@@ -9,6 +9,7 @@ var _failures: Array[String] = []
 func _init() -> void:
 	_test_default_catalog()
 	_test_registry_lookups()
+	_test_legacy_level_id_compatibility()
 	_test_validator_rejects_broken_contracts()
 	if _failures.is_empty():
 		print("EMBER_ABYSS_CONTENT_REGISTRY_OK")
@@ -42,6 +43,19 @@ func _test_registry_lookups() -> void:
 	_expect(not registry.get_theme(&"theme_celestial_fall").is_empty(), "Celestial Fall theme lookup failed.")
 	opening["display_name"] = "mutated"
 	_expect(registry.get_level(&"level_01_01").get("display_name") != "mutated", "Registry exposed mutable source records.")
+	_expect(registry.get_next_level(&"1-1").get("id") == &"level_01_02", "Legacy next-level lookup failed.")
+	_expect(registry.get_boss_for_level(&"1-5").get("id") == &"boss_giant_gate", "Legacy boss lookup failed.")
+
+
+func _test_legacy_level_id_compatibility() -> void:
+	var registry = ContentRegistryScript.new()
+	for canonical_level in registry.get_levels():
+		var canonical_id := String(canonical_level.get("id", &""))
+		var legacy_id := "%d-%d" % [int(canonical_id.substr(6, 2)), int(canonical_id.substr(9, 2))]
+		_expect(ContentRegistryScript.normalize_level_id(StringName(legacy_id)) == StringName(canonical_id), "Legacy ID %s normalized incorrectly." % legacy_id)
+		_expect(registry.get_level(StringName(legacy_id)) == registry.get_level(StringName(canonical_id)), "Legacy ID %s did not resolve to canonical content." % legacy_id)
+	_expect(ContentRegistryScript.normalize_level_id(&"unknown") == &"unknown", "Unknown level IDs must not silently redirect.")
+	_expect(registry.get_level(&"unknown").is_empty(), "Unknown level lookup must fail closed.")
 
 
 func _test_validator_rejects_broken_contracts() -> void:
@@ -51,6 +65,9 @@ func _test_validator_rejects_broken_contracts() -> void:
 	var missing_reference_content: Dictionary = ContentRegistryScript.default_content()
 	missing_reference_content["levels"][0]["next_level_id"] = &"level_missing"
 	_expect(_contains_error(ContentValidatorScript.validate(missing_reference_content), "missing next level"), "Missing next-level references were not detected.")
+	var legacy_id_content: Dictionary = ContentRegistryScript.default_content()
+	legacy_id_content["levels"][0]["id"] = &"1-1"
+	_expect(_contains_error(ContentValidatorScript.validate(legacy_id_content), "not canonical"), "Legacy level IDs were accepted in canonical content.")
 	var wrong_boss_content: Dictionary = ContentRegistryScript.default_content()
 	wrong_boss_content["bosses"][0]["chapter_id"] = &"chapter_02"
 	_expect(_contains_error(ContentValidatorScript.validate(wrong_boss_content), "wrong chapter"), "Invalid boss-to-chapter mappings were not detected.")

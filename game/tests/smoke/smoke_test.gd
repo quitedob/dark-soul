@@ -12,9 +12,18 @@ static func run(world: Node) -> void:
 	var player: CharacterBody3D = world.get("player") if world.get("player") else world.player
 	var hud: CanvasLayer = world.get("hud") if world.get("hud") else world.hud
 	var enemies: Array = world.get("enemies") if world.get("enemies") else world.enemies
+	var campaign_runtime = world.get("campaign_runtime")
 
 	if player == null or hud == null or enemies.is_empty():
 		push_error("Smoke test failed: systems missing")
+		world.get_tree().quit(1)
+		return
+	if campaign_runtime == null or campaign_runtime.current_level_id != &"level_01_01":
+		push_error("Smoke test failed: canonical Chapter 1 runtime is not active")
+		world.get_tree().quit(1)
+		return
+	if campaign_runtime.current_level == null or campaign_runtime.current_level.get_meta("level_id", &"") != &"level_01_01":
+		push_error("Smoke test failed: Chapter 1 level metadata is missing")
 		world.get_tree().quit(1)
 		return
 	if not is_equal_approx(player.health, player.max_health):
@@ -91,7 +100,9 @@ static func run(world: Node) -> void:
 	player.set_combat_style(0)
 	player.stamina = player.max_stamina
 	player.call("_try_parry")
-	await world.get_tree().create_timer(0.12).timeout
+	var HandEquipmentScript = load("res://scripts/data/hand_equipment.gd")
+	var parry_profile: Dictionary = HandEquipmentScript.get_item(player.left_hand_item).get("parry", {})
+	await world.get_tree().create_timer(float(parry_profile.get("startup", 0.266)) + 0.02).timeout
 	var health_before_parry: float = player.health
 	var parried_enemy = enemies[0]
 	var enemy_state_before: int = int(parried_enemy.state)

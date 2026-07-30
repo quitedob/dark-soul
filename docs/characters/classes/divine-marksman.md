@@ -95,7 +95,7 @@ Nearby hidden enemies, traps, and breakable walls emit a faint glow visible only
 
 ## Story Integration
 
-The Divine Marksman's ancestor was one of the mortal warriors who fought alongside the Soul-Forgers during the Shattering. Their bow was shattered in the battle; the fragments were scattered across the five realms. Collecting all fragments (hidden throughout chapters) unlocks the legendary weapon **落日弓 (Sun-Falling Bow)** — the very bow used by 后羿 in myth.
+The Divine Marksman's ancestor was one of the mortal warriors who fought alongside the Soul-Forgers during the Shattering. Their bow was shattered in the battle; its fragments were scattered across the five fractured regions. Collecting all fragments (hidden throughout chapters) unlocks the legendary weapon **落日弓 (Sun-Falling Bow)** — the very bow used by 后羿 in myth.
 
 ---
 

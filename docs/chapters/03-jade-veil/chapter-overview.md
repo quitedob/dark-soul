@@ -13,7 +13,7 @@
 
 翠微林 (Jade-Green Forest) was once a sacred grove where fox spirits and nature deities lived in harmony with mortal pilgrims. The Illusion Ember corrupted its guardian — a nine-tailed fox spirit — who now weaves the forest into an ever-shifting dreamscape. Travelers who enter see what they most desire or most fear, wandering in circles until they waste away.
 
-The player must navigate environments where **nothing is quite what it seems**. Walls shift, paths loop, enemies appear as friends, and the forest itself seems to remember the player's past lives.
+The player must navigate environments where **nothing is quite what it seems**. Walls shift, paths loop, enemies appear as friends, and the forest projects memories so intimate that the player initially mistakes them for personal past lives.
 
 **Key Mechanic Introduction:** Illusion/reality duality, memory-based puzzles, alternate paths based on perception.
 
@@ -33,7 +33,7 @@ A deceptively peaceful forest entrance. Bamboo groves, gentle streams, the sound
 ---
 
 ### Level 3-2: 记忆回廊 (Memory Corridor)
-A narrow canyon where the walls are covered in **记忆苔 (Memory Moss)** — touching it replays fragments of past lives. The player experiences echoes of their previous incarnations as an Ember Scion, learning backstory through playable flashbacks.
+A narrow canyon where the walls are covered in **记忆苔 (Memory Moss)** — touching it replays fragments carried by the Furnace fragments. The player initially mistakes these for past lives. Here the player frees **忆姬 (Lady of Memories)**, a record-keeper trapped inside the moss, who proves the memories belong to other souls and begins reconstructing the player's actual origin.
 
 **Enemies:** 记忆窃贼 (Memory Thief) ×4 — humanoid figures that drain Focus on hit; 回音灵 (Echo Spirit) ×2 — copies of the player's last attack pattern
 
@@ -91,7 +91,16 @@ The heart of the forest. A circular terrace bathed in eternal moonlight, surroun
 - Phase 3 (30-0%): Nine-Tails takes the form of someone from the player's past (narrative moment). The form shifts between all four classes' mentor figures. Mechanically, she gains access to abilities from the player's non-active classes.
 
 **Unique Mechanic — Memory Gaze:**
-At 50% HP, Nine-Tails freezes the fight and offers the player a vision: a playable flashback showing her corruption from gentle guardian to illusion-weaver. The player sees the Illusion Ember's arrival and the gradual twisting of her purpose. This is not skippable on first playthrough. On NG+, the player can interrupt it to skip to Phase 3 directly.
+At 50% HP, Nine-Tails freezes the fight and reveals the forest before the Illusion Ember arrived. Combat then resumes in Phase 2 until the normal 30% Phase 3 threshold; the gaze does not skip a phase. On NG+, the player can interrupt the memory and resume immediately.
+
+**After Defeat:**
+- Using the 真实之镜 at 30% redeems Nine-Tails (`ch3_nine_tails_fate=redeemed`); otherwise the player seals her remaining spirit after combat (`ch3_nine_tails_fate=sealed`)
+- 忆姬 confirms that the apparent past lives belonged to souls carried by the fragments: the player was forged during the Shattering
+- Redeemed Nine-Tails willingly gives the **天门残印**; the sealed route recovers it from the Moonlit Terrace
+- Absorbing 幻烬 grants truth-sight, allowing the broken Stairway to Heaven to become visible
+- The story continues at `level_04_01`
+
+**Narrative contract:** [Five-Chapter Causality Map](../../story/chapter-bridge-map.md#五章因果链)
 
 ---
 

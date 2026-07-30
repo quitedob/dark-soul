@@ -16,7 +16,7 @@ AshenHollow (Node3D, game_world.gd)
 │   ├── Boss bar, interaction prompts, lock-on marker
 │   ├── Help overlay, messages panel
 │   └── MobileControls (mobile_controls.gd) — touch overlay
-├── Warden (CharacterBody3D, player.gd) — 12-state FSM
+├── Warden (CharacterBody3D, scripts/player/player.gd) — 12-state code-timed FSM
 │   ├── Collision and primitive visual rig (body, cloak, visor)
 │   ├── CombatArea (combat_area.gd) — one-hit-per-swing
 │   ├── Camera pivot / SpringArm3D / Camera3D
@@ -36,7 +36,7 @@ AshenHollow (Node3D, game_world.gd)
 ## Responsibilities
 
 - `game_world.gd`: Composition root, level generation, input registration, enemy registry, checkpoint/death loop, shortcut and victory progression.
-- `player.gd`: Authoritative player state, movement, camera, targeting, stamina, attacks, invulnerability, damage, death, and embers.
+- `scripts/player/player.gd`: Authoritative player state, movement, camera, targeting, stamina, attacks, invulnerability, damage, death, and embers. Package directory: `scripts/player/` (helpers may join this package later).
 - `enemy.gd`: Enemy finite state machine, navigation, telegraphs, attack timing, damage, reset, and rewards.
 - `combat_area.gd`: Reusable `Area3D` damage window that records bodies already hit during a swing.
 - `hud.gd`: Health/stamina/ember display, prompts, lock marker, guardian bar, messages, pause, and help.
@@ -56,18 +56,24 @@ Player attack areas mask enemy bodies. Enemy attack areas mask the player. Attac
 
 ## State Machines
 
-### Player
+### Player — Current Runtime
 
 ```text
 LOCOMOTION -> ATTACK_WINDUP -> ATTACK_ACTIVE -> ATTACK_RECOVERY -> LOCOMOTION
 LOCOMOTION -> DODGE -> LOCOMOTION
 LOCOMOTION -> PARRY -> LOCOMOTION
-LOCOMOTION -> GUARD -> LOCOMOTION
-LOCOMOTION -> CAST -> LOCOMOTION
-LOCOMOTION -> LEAP_WINDUP -> LEAP_ACTIVE -> LEAP_RECOVERY -> LOCOMOTION
+LOCOMOTION -> GUARD_THRUST -> ATTACK_RECOVERY -> LOCOMOTION
+LOCOMOTION -> CAST -> ATTACK_RECOVERY -> LOCOMOTION
+LOCOMOTION -> LEAP_WINDUP -> LEAP_ACTIVE -> ATTACK_RECOVERY -> LOCOMOTION
 ANY_DAMAGEABLE -> STAGGER -> LOCOMOTION
-ANY_DAMAGEABLE -> DEAD -> RESPAWN -> LOCOMOTION
+ANY_DAMAGEABLE -> DEAD -> external respawn -> LOCOMOTION
 ```
+
+`guard_active` is currently a locomotion overlay, not a `GUARD` state. There is no `LEAP_RECOVERY` enum; leap reuses `ATTACK_RECOVERY`. `_change_state()` performs cleanup and state-entry side effects but does not yet reject arbitrary illegal transitions.
+
+### Player — Target Combat Expansion
+
+The execution/guard/poise expansion adds explicit `GUARD_BROKEN`, `PARRY_VULNERABLE`, `WEAK_POINT_EXPOSED`, paired execution, airborne, and grab states only after their Resources and transition contracts exist. See [Combat Execution, Guard & Weapon Arts](systems/combat-execution-guard-weapon-arts.md#目标状态模型) and [Combat Expansion Roadmap](tasks/combat-expansion-roadmap.md).
 
 ### Enemy
 
@@ -79,7 +85,15 @@ ANY_DAMAGEABLE -> DEAD -> RESET -> IDLE
 Boss (Cinder Guardian): Phase 1 → Phase 2 at ≤50% HP (faster windups, higher damage, visual/audio transition)
 ```
 
-Gameplay timers determine damage windows and invulnerability. Procedural poses visualize those states but do not decide whether a hit is valid.
+Gameplay timers determine current damage windows and invulnerability. Procedural poses visualize those states but do not decide whether a hit is valid. The player scene currently has no `AnimationTree`; root motion, paired executions, and grabs remain target architecture.
+
+## Combat Data Ownership
+
+- `CombatStyleData` and five `.tres` files currently own ordinary light/heavy values.
+- Compatibility `STYLE_TIMING` data still owns leap, dodge, and action-armor behavior; this split ownership is tracked as A-02 partial work.
+- `HandEquipment` owns current hand action IDs plus guard/parry dictionaries.
+- `CombatArea` owns the normalized ordinary-hit boundary and one-hit-per-swing deduplication.
+- Future `AttackData`, `MovesetData`, `GuardProfile`, `ExecutionProfile`, and `GrabProfile` ownership is defined in [Attack and Moveset Data Schema](systems/attack-moveset-data-schema.md).
 
 ## Data Flow
 

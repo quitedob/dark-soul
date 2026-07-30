@@ -152,7 +152,7 @@
 
 | 文件 | 行数 | 类/继承 | 用途 |
 |---|---|---|---|
-| `scripts/player.gd` | 1,140 | `CharacterBody3D` | 12状态玩家：LOCOMOTION、ATTACK_WINDUP、ATTACK_ACTIVE、ATTACK_RECOVERY、DODGE、STAGGER、DEAD、PARRY、GUARD、CAST、HEAL、INTERACT |
+| `scripts/player/player.gd` | 1,140 | `CharacterBody3D` | 12状态玩家：LOCOMOTION、ATTACK_WINDUP、ATTACK_ACTIVE、ATTACK_RECOVERY、DODGE、STAGGER、DEAD、PARRY、GUARD、CAST、HEAL、INTERACT |
 | `scripts/hud.gd` | 1,132 | `CanvasLayer` | 完整程序化HUD：生命状态条、Boss条、标题/暂停/死亡/胜利/帮助覆盖层、语言切换（en/zh_CN）、无障碍（UI缩放、文本缩放、减弱动态、高对比度）、移动端控制 |
 | `scripts/game_world.gd` | 962 | `Node3D` | 世界编排器：生成所有实体、连接所有信号、管理保存/加载、检查点逻辑、圣祠升级、死亡/恢复循环、宿主桥接集成、内嵌冒烟测试（140行，由`--smoke-test`控制）|
 | `scripts/enemy.gd` | 704 | `CharacterBody3D` | 8状态敌人FSM：IDLE、CHASE、WINDUP、ACTIVE、RECOVERY、STAGGER、RETURN、DEAD。余烬守护者变体具有第2阶段（≤50% HP）、距离区间攻击选择（3个区间）、武器发光、硬直过渡 |
@@ -179,7 +179,7 @@
 main.tscn
   └── ashen_hollow.tscn (game_world.gd)  ← 单一编排器
         ├── ProceduralAudio (procedural_audio.gd)
-        ├── Warden (player.gd)
+        ├── Warden (scripts/player/player.gd)
         ├── HUD (hud.gd)
         │     └── MobileControls (mobile_controls.gd)
         ├── EmberShrine (checkpoint.gd)

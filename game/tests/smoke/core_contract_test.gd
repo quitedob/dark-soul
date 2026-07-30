@@ -160,6 +160,8 @@ func _test_settings_sanitize_values() -> void:
 		"text_scale": 0.1,
 		"control_opacity": -4.0,
 		"camera_sensitivity": 99.0,
+		"screen_shake_enabled": false,
+		"screen_shake_intensity": 9.0,
 		"quality_preset": "impossible",
 		"target_fps": 41,
 	})
@@ -170,7 +172,16 @@ func _test_settings_sanitize_values() -> void:
 	_expect(is_equal_approx(settings.text_scale, 0.85), "Text scale was not clamped.")
 	_expect(settings.locale == "en", "Empty locale did not fall back to English.")
 	_expect(settings.quality_preset == &"medium", "Unknown quality preset was accepted.")
+	_expect(not settings.screen_shake_enabled, "Screen-shake toggle was not restored.")
+	_expect(is_equal_approx(settings.screen_shake_intensity, 2.0), "Screen-shake intensity was not clamped.")
 	_expect(settings.target_fps == 60, "Target FPS was not normalized.")
+	_expect(settings.combat_tip_mode == false, "Combat tip mode must default off when omitted.")
+	var tip_on = SettingsScript.from_dictionary({
+		"schema_version": 1,
+		"locale": "en",
+		"combat_tip_mode": true,
+	})
+	_expect(tip_on != null and tip_on.combat_tip_mode, "combat_tip_mode true was not restored.")
 
 
 func _test_bridge_contract() -> void:

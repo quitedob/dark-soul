@@ -2,6 +2,7 @@ extends CanvasLayer
 
 signal locale_requested(locale: String)
 signal play_started
+signal combat_tip_mode_requested(enabled: bool)
 
 const MobileControlsScript = preload("res://scripts/ui/mobile_controls.gd")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
@@ -34,6 +35,8 @@ var vitals_panel: PanelContainer
 var health_bar: ProgressBar
 var stamina_bar: ProgressBar
 var focus_bar: ProgressBar
+var poise_bar: ProgressBar
+var poise_row: Control
 var health_value_label: Label
 var stamina_value_label: Label
 var focus_value_label: Label
@@ -56,6 +59,7 @@ var help_overlay: ColorRect
 var play_button: Button
 var resume_button: Button
 var back_button: Button
+var combat_tip_check: CheckButton
 var mobile_controls: Control
 var lock_target: Node3D
 var _message_serial := 0
@@ -161,6 +165,15 @@ func update_focus(current: float, maximum: float) -> void:
 		roundi(maximum),
 	]
 	focus_value_label.text = "%d / %d" % [roundi(current), roundi(maximum)]
+
+
+func update_poise(current: float, maximum: float) -> void:
+	if poise_bar == null or poise_row == null:
+		return
+	poise_bar.max_value = maxf(maximum, 1.0)
+	poise_bar.value = clampf(current, 0.0, poise_bar.max_value)
+	poise_bar.tooltip_text = "Poise: %d / %d" % [roundi(current), roundi(maximum)]
+	poise_row.visible = current < maximum - 0.01
 
 
 func set_combat_style(style_id: int, display_name: String) -> void:
@@ -390,7 +403,7 @@ func _build_top_row() -> HBoxContainer:
 
 	vitals_panel = PanelContainer.new()
 	vitals_panel.name = "VitalsPanel"
-	vitals_panel.custom_minimum_size = Vector2(360.0, 104.0)
+	vitals_panel.custom_minimum_size = Vector2(360.0, 122.0)
 	vitals_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	vitals_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.016, 0.02, 0.027, 0.82), COLOR_BORDER_SOFT, 4, 14.0, 8.0))
 	top_row.add_child(vitals_panel)
@@ -402,6 +415,8 @@ func _build_top_row() -> HBoxContainer:
 	vitals.add_child(_make_bar_row("VIT", COLOR_HEALTH, 21.0, true))
 	vitals.add_child(_make_bar_row("END", COLOR_STAMINA, 13.0, false))
 	vitals.add_child(_make_focus_row())
+	poise_row = _make_poise_row()
+	vitals.add_child(poise_row)
 
 	var top_spacer := Control.new()
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -448,6 +463,22 @@ func _make_bar_row(caption: String, fill_color: Color, height: float, is_health:
 	else:
 		stamina_bar = bar
 		stamina_value_label = value_label
+	return row
+
+
+func _make_poise_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 9)
+	var caption_label := _make_label("POI", 10, COLOR_MUTED)
+	caption_label.custom_minimum_size = Vector2(30.0, 0.0)
+	row.add_child(caption_label)
+	poise_bar = _make_bar(Color("d9903d"), 7.0)
+	poise_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(poise_bar)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(76.0, 0.0)
+	row.add_child(spacer)
+	row.visible = false
 	return row
 
 
@@ -600,6 +631,18 @@ func _build_pause_overlay() -> void:
 	chinese_button.set_meta("base_minimum_size", Vector2(180.0, 48.0))
 	chinese_button.pressed.connect(_request_locale.bind("zh_CN"))
 	language_row.add_child(chinese_button)
+	# 战斗提示模式：默认关闭，仅显示跳劈等教学提示
+	var tip_title := _make_label("COMBAT TIP MODE", 13, COLOR_MUTED)
+	tip_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	content.add_child(tip_title)
+	combat_tip_check = CheckButton.new()
+	combat_tip_check.text = "Show combat tips (charge / grip / context)"
+	combat_tip_check.set_meta("source_text", "Show combat tips (charge / grip / context)")
+	combat_tip_check.button_pressed = false
+	combat_tip_check.focus_mode = Control.FOCUS_ALL
+	combat_tip_check.process_mode = Node.PROCESS_MODE_ALWAYS
+	combat_tip_check.toggled.connect(_on_combat_tip_mode_toggled)
+	content.add_child(combat_tip_check)
 
 
 func _build_title_overlay() -> void:
@@ -922,6 +965,12 @@ func apply_accessibility_settings(settings: Dictionary) -> void:
 	set_high_contrast(bool(settings.get("high_contrast", false)))
 	set_control_opacity(float(settings.get("control_opacity", 0.78)))
 	set_mobile_controls_enabled(_should_use_mobile_controls())
+	if combat_tip_check != null:
+		combat_tip_check.set_pressed_no_signal(bool(settings.get("combat_tip_mode", false)))
+
+
+func _on_combat_tip_mode_toggled(enabled: bool) -> void:
+	combat_tip_mode_requested.emit(enabled)
 
 
 func set_locale(locale: String) -> void:
