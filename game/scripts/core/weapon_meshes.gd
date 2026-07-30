@@ -433,6 +433,23 @@ static func _build_celestial_beads(parent: Node3D, mat: StandardMaterial3D) -> v
 static func _build_cloud_talisman(parent: Node3D, mat: StandardMaterial3D) -> void:
 	_box(parent, Vector3(0.06, 0.4, 0.01), Vector3(0, -0.05, 0), Vector3.ZERO, mat)
 
+static func _build_void_talisman(parent: Node3D, mat: StandardMaterial3D) -> void:
+	# Void/dark themed talisman papers — ethereal, shadow-like strips
+	var void_mat := _material_variant(mat, Color(0.12, 0.1, 0.25), 0.0, 0.9)
+	void_mat.emission_enabled = true
+	void_mat.emission = Color(0.15, 0.12, 0.4)
+	void_mat.emission_energy_multiplier = 1.2
+	void_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	void_mat.albedo_color.a = 0.65
+	var strips := 5
+	for i in range(strips):
+		var x := (float(i) - float(strips - 1) * 0.5) * 0.07
+		var z := sin(float(i) * 1.5) * 0.04
+		_box(parent, Vector3(0.05, 0.5, 0.008), Vector3(x, -0.08, z), Vector3(sin(float(i)) * 0.1, 0, 0), void_mat)
+	# Binding at top — subtle dark band
+	var bind_mat := _material_variant(mat, Color(0.08, 0.06, 0.15), 0.15, 0.85)
+	_box(parent, Vector3(0.16, 0.04, 0.04), Vector3(0, 0.2, 0), Vector3.ZERO, bind_mat)
+
 static func _build_void_sword(parent: Node3D, mat: StandardMaterial3D) -> void:
 	_box(parent, Vector3(0.05, 1.3, 0.03), Vector3(0, 0.98, -0.02), Vector3.ZERO, mat)
 

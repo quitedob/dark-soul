@@ -6,6 +6,7 @@ signal play_started
 const MobileControlsScript = preload("res://scripts/ui/mobile_controls.gd")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
 const InterfaceFont = preload("res://assets/fonts/NotoSansCJKsc-AshenHollow.otf")
+const HudThemeScript = preload("res://scripts/ui/hud_theme.gd")
 
 const COLOR_SURFACE := Color(0.022, 0.027, 0.035, 0.94)
 const COLOR_SURFACE_SOFT := Color(0.035, 0.04, 0.048, 0.9)
@@ -73,11 +74,13 @@ var _reduced_motion := false
 var _high_contrast := false
 var _control_opacity := 0.78
 var _mobile_controls_requested := false
+var _theme: HudTheme
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 20
+	_theme = HudThemeScript.new()
 	_mobile_controls_requested = _should_use_mobile_controls()
 	_build_interface()
 	root.resized.connect(_update_responsive_layout)
@@ -782,22 +785,8 @@ func _make_menu_overlay(title: String, eyebrow: String) -> ColorRect:
 
 
 func _build_theme() -> Theme:
-	var interface_theme := Theme.new()
-	interface_theme.default_font = InterfaceFont
-	var theme_text := Color.WHITE if _high_contrast else COLOR_TEXT
-	var theme_muted_border := Color(0.78, 0.78, 0.72) if _high_contrast else COLOR_BORDER_SOFT
-	interface_theme.set_color("font_color", "Label", theme_text)
-	interface_theme.set_font_size("font_size", "Label", 16)
-	interface_theme.set_color("font_color", "Button", theme_text)
-	interface_theme.set_color("font_hover_color", "Button", Color.WHITE)
-	interface_theme.set_color("font_focus_color", "Button", Color.WHITE)
-	interface_theme.set_font_size("font_size", "Button", 16)
-	interface_theme.set_stylebox("normal", "Button", _panel_style(Color(0.01, 0.01, 0.015, 1.0) if _high_contrast else Color(0.055, 0.06, 0.07, 0.97), theme_muted_border, 4, 12.0, 7.0))
-	interface_theme.set_stylebox("hover", "Button", _panel_style(Color(0.12, 0.09, 0.045, 0.99), COLOR_BORDER, 4, 12.0, 7.0))
-	interface_theme.set_stylebox("pressed", "Button", _panel_style(Color(0.16, 0.1, 0.04, 0.99), COLOR_EMBER.darkened(0.2), 4, 12.0, 7.0))
-	interface_theme.set_stylebox("focus", "Button", _outline_style(COLOR_EMBER, 4, 2))
-	interface_theme.set_stylebox("separator", "HSeparator", _line_style(Color(0.38, 0.31, 0.2, 0.7)))
-	return interface_theme
+	_theme.high_contrast = _high_contrast
+	return _theme.build_theme()
 
 
 func _panel_style(background: Color, border: Color, radius: int, horizontal_margin: float = 12.0, vertical_margin: float = 5.0) -> StyleBoxFlat:

@@ -40,6 +40,9 @@ const HandEquipmentScript = preload("res://scripts/data/hand_equipment.gd")
 const GuardResolverScript = preload("res://scripts/combat/guard_resolver.gd")
 const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
 const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
+const CombatData = preload("res://scripts/data/player_combat_data.gd")
+const PlayerSpellsScript = preload("res://scripts/combat/player_spells.gd")
+const PlayerVisualsScript = preload("res://scripts/core/player_visuals.gd")
 const STATS_EMIT_INTERVAL := 0.1
 const STYLE_NAMES := [
 	"RELIQUARY GUARD",
@@ -50,6 +53,8 @@ const STYLE_NAMES := [
 ]
 
 # ── Spell / Incantation tuning ──────────────────────────────────────────
+	# NOTE: Canonical data now lives in PlayerCombatData (data/player_combat_data.gd).
+	# These const dicts are kept for backward compat; prefer CombatData.SPELL_CONFIG / STYLE_TIMING.
 # Balanced for Soulslike feel: basic spells affordable, powerful spells costly.
 # Range = speed × lifetime (effective distance before projectile expires).
 const SPELL_CONFIG := {
@@ -256,6 +261,8 @@ var camera: Camera3D
 var body_collision: CollisionShape3D
 var body_material: StandardMaterial3D
 var weapon_material: StandardMaterial3D
+var _spells: PlayerSpells
+var _visuals: PlayerVisuals
 
 
 func setup(world, audio, hud) -> void:
@@ -263,6 +270,10 @@ func setup(world, audio, hud) -> void:
 	audio_node = audio
 	hud_node = hud
 	configured = true
+	_spells = PlayerSpellsScript.new()
+	_spells.setup(self, world)
+	_visuals = PlayerVisualsScript.new()
+	_visuals.setup(self)
 	_emit_stats()
 	_emit_focus()
 	embers_changed.emit(embers)
@@ -273,7 +284,11 @@ func setup(world, audio, hud) -> void:
 func _ready() -> void:
 	gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity", 24.0))
 	add_to_group("player")
-	_build_nodes()
+	_spells = PlayerSpellsScript.new()
+	_spells.setup(self, world_node)
+	_visuals = PlayerVisualsScript.new()
+	_visuals.setup(self)
+	_visuals.build_nodes()
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_emit_stats()
@@ -633,7 +648,7 @@ func _update_state(delta: float) -> void:
 			_face_lock_target(delta)
 			if not _cast_resolved and state_time <= 0.18:
 				_cast_resolved = true
-				_resolve_cast()
+				_spells.resolve_cast(_pending_cast)
 			if state_time <= 0.0:
 				_change_state(State.ATTACK_RECOVERY, 0.32)
 		State.STAGGER:
@@ -778,17 +793,17 @@ func _execute_hand_action(hand: String, slot: String) -> void:
 		"colossal_leap":
 			_try_leap_attack(false)
 		"bow_quick_shot":
-			_begin_cast(&"bow_quick_shot", SPELL_CONFIG["bow_quick_shot"]["focus_cost"], SPELL_CONFIG["bow_quick_shot"]["cast_time"])
+			_begin_cast(&"bow_quick_shot", CombatData.SPELL_CONFIG["bow_quick_shot"]["focus_cost"], CombatData.SPELL_CONFIG["bow_quick_shot"]["cast_time"])
 		"bow_power_shot":
-			_begin_cast(&"bow_power_shot", SPELL_CONFIG["bow_power_shot"]["focus_cost"], SPELL_CONFIG["bow_power_shot"]["cast_time"])
+			_begin_cast(&"bow_power_shot", CombatData.SPELL_CONFIG["bow_power_shot"]["focus_cost"], CombatData.SPELL_CONFIG["bow_power_shot"]["cast_time"])
 		"dagger_slash":
 			_try_attack(false, "left", action_id)
 		"seal_bolt":
-			_begin_cast(&"veil_bolt", SPELL_CONFIG["veil_bolt"]["focus_cost"], SPELL_CONFIG["veil_bolt"]["cast_time"])
+			_begin_cast(&"veil_bolt", CombatData.SPELL_CONFIG["veil_bolt"]["focus_cost"], CombatData.SPELL_CONFIG["veil_bolt"]["cast_time"])
 		"seal_burst":
-			_begin_cast(&"seal_burst", SPELL_CONFIG["seal_burst"]["focus_cost"], SPELL_CONFIG["seal_burst"]["cast_time"])
+			_begin_cast(&"seal_burst", CombatData.SPELL_CONFIG["seal_burst"]["focus_cost"], CombatData.SPELL_CONFIG["seal_burst"]["cast_time"])
 		"beads_heal", "ember_rite":
-			_begin_cast(&"ember_rite", SPELL_CONFIG["ember_rite"]["focus_cost"], SPELL_CONFIG["ember_rite"]["cast_time"])
+			_begin_cast(&"ember_rite", CombatData.SPELL_CONFIG["ember_rite"]["focus_cost"], CombatData.SPELL_CONFIG["ember_rite"]["cast_time"])
 		"talisman_strike":
 			_try_attack(false, "left", action_id)
 		"talisman_burst", "stone_pulse":
@@ -885,154 +900,29 @@ func _try_pierce_thrust() -> void:
 
 
 func _try_arcane_barrage() -> void:
-	## 秘法弹幕 — Veilcraft weapon art.
-	## Fires 5 seeking arcane bolts in a spread pattern.
-	var cfg: Dictionary = SPELL_CONFIG["arcane_barrage"]
-	if focus < cfg["focus_cost"]:
-		_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
-		return
-	focus = maxf(focus - cfg["focus_cost"], 0.0)
-	_emit_focus()
-	_pending_cast = &"arcane_barrage"
-	_cast_resolved = false
-	_change_state(State.CAST, 0.55)
+	_spells.try_arcane_barrage()
 
 
 func _try_divine_smite() -> void:
-	## 神圣惩戒 — Ember Rite weapon art.
-	## Fires a slow, seeking golden bolt of divine energy.
-	var cfg: Dictionary = SPELL_CONFIG["divine_smite"]
-	if focus < cfg["focus_cost"]:
-		_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
-		return
-	focus = maxf(focus - cfg["focus_cost"], 0.0)
-	_emit_focus()
-	_pending_cast = &"divine_smite"
-	_cast_resolved = false
-	_change_state(State.CAST, 0.68)
+	_spells.try_divine_smite()
 
 
 func _try_cast_for_style() -> void:
-	match combat_style:
-		CombatStyle.VEILCRAFT:
-			_begin_cast(&"veil_bolt", SPELL_CONFIG["veil_bolt"]["focus_cost"], SPELL_CONFIG["veil_bolt"]["cast_time"])
-		CombatStyle.EMBER_RITE:
-			_begin_cast(&"ember_rite", SPELL_CONFIG["ember_rite"]["focus_cost"], SPELL_CONFIG["ember_rite"]["cast_time"])
-		_:
-			_try_style_skill()
+	if _spells.try_cast_for_style(int(combat_style)) == "":
+		_try_style_skill()
 
 
 func _begin_cast(cast_id: StringName, focus_cost: float, duration: float) -> void:
-	if focus < focus_cost:
-		_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
-		return
-	focus = maxf(focus - focus_cost, 0.0)
-	_emit_focus()
-	if cast_id == &"ember_rite":
-		healing_started.emit()
-	_pending_cast = cast_id
-	_cast_resolved = false
-	_change_state(State.CAST, duration)
+	_spells.begin_cast(cast_id, focus_cost, duration)
 
 
 func _resolve_cast() -> void:
-	var config: Dictionary = SPELL_CONFIG.get(String(_pending_cast), {})
-	match _pending_cast:
-		&"veil_bolt", &"bow_quick_shot", &"bow_power_shot", &"seal_burst":
-			_spawn_spell_projectile(config, String(_pending_cast))
-			_play_audio("recover", -6.0, 1.3)
-		&"arcane_barrage":
-			# Weapon art: five_elements_seal — fires 5 seeking bolts in a spread
-			for i in range(5):
-				var spread_angle := deg_to_rad(-16.0 + float(i) * 8.0)
-				var base_dir := -camera.global_transform.basis.z
-				var spread_dir := base_dir.rotated(Vector3.UP, spread_angle).normalized()
-				var barrage_config := config.duplicate()
-				barrage_config["proj_lifetime"] = config["proj_lifetime"] + randf_range(-0.15, 0.15)
-				_spawn_spell_projectile(barrage_config, "arcane_barrage", spread_dir)
-			_show_message("ARCANE BARRAGE", 0.7)
-			_play_audio("recover", -5.0, 1.1)
-		&"divine_smite":
-			# Weapon art: prayer_beads — fires a seeking golden bolt
-			_spawn_spell_projectile(config, "divine_smite")
-			_show_message("DIVINE SMITE", 0.7)
-			_play_audio("heavy", -5.0, 0.9)
-		&"ember_rite":
-			var heal_amount: float = config.get("heal", 28.0)
-			var aoe_damage: float = config.get("aoe_damage", 22.0)
-			var aoe_stagger: float = config.get("aoe_stagger", 20.0)
-			var aoe_range: float = config.get("aoe_range", 6.0)
-			health = minf(health + heal_amount, max_health)
-			_emit_stats()
-			if world_node != null and world_node.has_method("get_target_candidates"):
-				for candidate in world_node.get_target_candidates():
-					if candidate is Node3D and global_position.distance_to(candidate.global_position) <= aoe_range:
-						var direction: Vector3 = (
-							candidate.global_position - global_position
-						).normalized()
-						candidate.receive_hit(aoe_damage, aoe_stagger, direction, self)
-			_show_message(LocalizationScript.text("EMBER RITE CAST"), 0.75)
-			_play_audio("rest", -4.0, 0.82)
+	_spells.resolve_cast(_pending_cast)
 	_pending_cast = &""
 
 
 func _spawn_spell_projectile(config: Dictionary, action_id: String, override_direction: Vector3 = Vector3.ZERO) -> void:
-	var projectile = SpellProjectileScene.instantiate()
-	var cast_direction := override_direction if override_direction.length_squared() > 0.001 else -camera.global_transform.basis.z
-	if lock_target != null and is_instance_valid(lock_target) and override_direction.length_squared() < 0.001:
-		var target_point: Vector3 = (
-			lock_target.get_target_point()
-			if lock_target.has_method("get_target_point")
-			else lock_target.global_position
-		)
-		cast_direction = (
-			target_point
-			- (global_position + Vector3.UP * 1.25)
-		).normalized()
-
-	var item_id := right_hand_item
-	var proj_damage: float = config.get("damage", 28.0)
-	var proj_stagger: float = config.get("stagger", 18.0)
-
-	# Determine homing target
-	var homing: Node3D = null
-	if bool(config.get("homing", false)) and lock_target != null and is_instance_valid(lock_target):
-		homing = lock_target
-
-	var is_spell := action_id in ["veil_bolt", "seal_burst", "arcane_barrage", "divine_smite"]
-
-	projectile.setup(self, cast_direction, proj_damage, proj_stagger, {
-		"hand": "right",
-		"item_id": item_id,
-		"action_id": action_id,
-		"tags": ["projectile", "spell" if is_spell else "physical"],
-		"blockable": true,
-		"parryable": false,
-		"spell_type": String(config.get("spell_type", "default")),
-		"proj_speed": float(config.get("proj_speed", 15.0)),
-		"proj_lifetime": float(config.get("proj_lifetime", 2.2)),
-		"homing_target": homing,
-		"homing_strength": float(config.get("homing_strength", 0.0)),
-	})
-
-	var projectile_parent: Node = (
-		world_node
-		if world_node != null and world_node.is_inside_tree()
-		else get_tree().current_scene
-	)
-	projectile_parent.add_child(projectile)
-	projectile.global_position = global_position + Vector3.UP * 1.25 + cast_direction * 0.8
-
-	var message_key := "VEIL BOLT"
-	if action_id == "bow_quick_shot" or action_id == "bow_power_shot":
-		message_key = "QUICK SHOT" if action_id == "bow_quick_shot" else "POWER SHOT"
-	elif action_id == "seal_burst":
-		message_key = "SEAL BURST"
-	elif action_id == "arcane_barrage":
-		message_key = "ARCANE BARRAGE"
-	elif action_id == "divine_smite":
-		message_key = "DIVINE SMITE"
-	_show_message(message_key, 0.6)
+	_spells.spawn_spell_projectile(config, action_id, override_direction)
 
 
 func _try_dodge() -> void:
@@ -1335,256 +1225,23 @@ func _play_audio(cue: String, volume_db: float, pitch: float) -> void:
 
 
 func _update_visual_pose() -> void:
-	if visual_root == null or state == State.DEAD:
-		return
-	visual_root.rotation.z = 0.0
-	visual_root.rotation.y = move_toward(visual_root.rotation.y, 0.0, 0.15)
-	weapon_pivot.rotation = Vector3.ZERO
-	if offhand_weapon_pivot != null:
-		offhand_weapon_pivot.rotation = Vector3.ZERO
-	if guard_active and shield_mesh != null and shield_mesh.visible:
-		shield_mesh.position = Vector3(-0.28, 1.36, -0.62)
-		shield_mesh.rotation = Vector3(PI * 0.5, 0.0, -0.18)
-	elif shield_mesh != null:
-		shield_mesh.position = Vector3(-0.5, 1.22, -0.28)
-		shield_mesh.rotation = Vector3(PI * 0.5, 0.0, 0.0)
-	match state:
-		State.ATTACK_WINDUP:
-			var progress := 1.0 - state_time / maxf(state_duration, 0.001)
-			weapon_pivot.rotation.z = lerpf(0.0, -1.35 if attack_heavy else -0.9, progress)
-		State.ATTACK_ACTIVE:
-			var progress := 1.0 - state_time / maxf(state_duration, 0.001)
-			weapon_pivot.rotation.z = lerpf(-1.1, 1.35, progress)
-		State.ATTACK_RECOVERY:
-			weapon_pivot.rotation.z = lerpf(0.2, 0.0, 1.0 - state_time / maxf(state_duration, 0.001))
-		State.DODGE:
-			var progress := 1.0 - state_time / maxf(state_duration, 0.001)
-			visual_root.rotation.x = sin(progress * PI) * -0.55
-		State.PARRY:
-			weapon_pivot.rotation.z = -0.45
-			visual_root.rotation.y = sin(state_time * 18.0) * 0.05
-		State.GUARD_THRUST:
-			weapon_pivot.rotation.x = -PI * 0.5
-			weapon_pivot.rotation.z = -0.15
-		State.LEAP_WINDUP:
-			var progress := 1.0 - state_time / maxf(state_duration, 0.001)
-			weapon_pivot.rotation.z = lerpf(0.0, -1.55, progress)
-			if offhand_weapon_pivot != null:
-				offhand_weapon_pivot.rotation.z = lerpf(0.0, 1.55, progress)
-			visual_root.rotation.x = -0.18
-		State.LEAP_ACTIVE:
-			var progress := 1.0 - state_time / maxf(state_duration, 0.001)
-			weapon_pivot.rotation.z = lerpf(-1.5, 1.35, progress)
-			if offhand_weapon_pivot != null:
-				offhand_weapon_pivot.rotation.z = lerpf(1.5, -1.35, progress)
-			visual_root.rotation.x = 0.22
-		State.CAST:
-			var pulse := sin((state_duration - state_time) * 12.0) * 0.12
-			weapon_pivot.rotation.z = -0.7 + pulse
-			visual_root.rotation.y = pulse * 0.3
-		State.STAGGER:
-			visual_root.rotation.z = sin(state_time * 28.0) * 0.12
-		_:
-			visual_root.rotation.x = move_toward(visual_root.rotation.x, 0.0, 0.12)
-	_update_weapon_trail()
+	_visuals.update_visual_pose()
 
 
 func _update_weapon_trail() -> void:
-	if weapon_trail == null or weapon_pivot == null:
-		return
-	var should_trail := state in [
-		State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.ATTACK_RECOVERY,
-		State.LEAP_WINDUP, State.LEAP_ACTIVE,
-		State.GUARD_THRUST,
-	]
-	if not should_trail:
-		weapon_trail.visible = false
-		_trail_active = false
-		_trail_points.clear()
-		return
-	# Get weapon tip position in global space, then convert to visual_root local
-	var tip_local := weapon_pivot.position + Vector3(0, 1.05, 0)
-	var tip_global := visual_root.to_global(tip_local)
-	var tip_in_visual := visual_root.to_local(tip_global)
-	if _trail_points.is_empty() or _trail_points[_trail_points.size() - 1].distance_to(tip_in_visual) > 0.04:
-		_trail_points.append(tip_in_visual)
-	while _trail_points.size() > MAX_TRAIL_POINTS:
-		_trail_points.pop_front()
-	weapon_trail.visible = _trail_points.size() >= 2
-	if _trail_points.size() >= 2:
-		_build_trail_ribbon(_trail_points)
+	_visuals.update_weapon_trail()
 
 
 func _build_trail_ribbon(points: Array[Vector3]) -> void:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	var width := 0.06
-	for i in range(points.size()):
-		var t := float(i) / maxf(float(points.size() - 1), 1.0)
-		var p := points[i]
-		var right := Vector3.RIGHT if i == points.size() - 1 else (points[i + 1] - points[maxi(i - 1, 0)]).normalized()
-		var across := right.cross(Vector3.UP).normalized() * width
-		st.set_color(Color(1.0, 0.85, 0.5, lerpf(0.55, 0.02, t)))
-		st.add_vertex(p + across)
-		st.set_color(Color(1.0, 0.85, 0.5, lerpf(0.55, 0.02, t)))
-		st.add_vertex(p - across)
-	st.generate_normals()
-	var arr_mesh := st.commit()
-	if arr_mesh != null:
-		weapon_trail.mesh = arr_mesh
+	_visuals._build_trail_ribbon(points)
 
 
 func _build_nodes() -> void:
-	collision_layer = 2
-	collision_mask = 1
-	floor_snap_length = 0.35
-
-	body_collision = CollisionShape3D.new()
-	body_collision.name = "BodyCollision"
-	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.42
-	capsule.height = 1.85
-	body_collision.shape = capsule
-	body_collision.position.y = 0.93
-	add_child(body_collision)
-
-	visual_root = Node3D.new()
-	visual_root.name = "Visuals"
-	add_child(visual_root)
-
-	body_material = StandardMaterial3D.new()
-	body_material.albedo_color = Color("26384a")
-	body_material.roughness = 0.76
-	weapon_material = StandardMaterial3D.new()
-	weapon_material.albedo_color = Color("9aa3aa")
-	weapon_material.metallic = 0.82
-	weapon_material.roughness = 0.28
-
-	# Build composite character model (torso + limbs + head + armor + cloak + visor)
-	var visor_material := _make_material(Color("f36a2f"), 0.25, 0.0)
-	visor_material.emission_enabled = true
-	visor_material.emission = Color("f13c15")
-	visor_material.emission_energy_multiplier = 2.2
-	CharacterMeshFactory.build_player(visual_root, body_material, visor_material)
-	# Keep references for death / state visuals — find them by node path
-	body_mesh = visual_root.get_node_or_null("BodyRoot") as MeshInstance3D
-	if body_mesh == null:
-		body_mesh = MeshInstance3D.new()
-		body_mesh.name = "BodyRoot"
-	cloak_mesh = body_mesh
-	head_mesh = body_mesh
-
-	weapon_pivot = Node3D.new()
-	weapon_pivot.name = "WeaponPivot"
-	weapon_pivot.position = Vector3(0.58, 1.25, -0.15)
-	visual_root.add_child(weapon_pivot)
-	# placeholder mesh — will be replaced by _update_weapon_visuals()
-	weapon_mesh = MeshInstance3D.new()
-	weapon_mesh.name = "WeaponRoot"
-	weapon_mesh.position.y = -0.35
-	weapon_mesh.material_override = weapon_material
-	weapon_pivot.add_child(weapon_mesh)
-	WeaponMeshFactory.build_into_parent(weapon_pivot, "sword", weapon_material)
-
-	offhand_weapon_pivot = Node3D.new()
-	offhand_weapon_pivot.name = "OffhandPivot"
-	offhand_weapon_pivot.position = Vector3(-0.58, 1.25, -0.15)
-	visual_root.add_child(offhand_weapon_pivot)
-	offhand_weapon_mesh = MeshInstance3D.new()
-	offhand_weapon_mesh.name = "OffhandRoot"
-	offhand_weapon_mesh.position.y = -0.35
-	offhand_weapon_mesh.material_override = weapon_material
-	offhand_weapon_pivot.add_child(offhand_weapon_mesh)
-
-	shield_mesh = MeshInstance3D.new()
-	shield_mesh.name = "ShieldRoot"
-	shield_mesh.position = Vector3(-0.5, 1.22, -0.28)
-	shield_mesh.rotation.x = PI * 0.5
-	shield_mesh.material_override = _make_material(Color("614725"), 0.48, 0.72)
-	visual_root.add_child(shield_mesh)
-
-	# Weapon trail mesh
-	_trail_material = StandardMaterial3D.new()
-	_trail_material.albedo_color = Color(1.0, 0.85, 0.5, 0.45)
-	_trail_material.emission_enabled = true
-	_trail_material.emission = Color(1.0, 0.7, 0.2)
-	_trail_material.emission_energy_multiplier = 1.2
-	_trail_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_trail_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_trail_material.no_depth_test = true
-	weapon_trail = MeshInstance3D.new()
-	weapon_trail.name = "WeaponTrail"
-	weapon_trail.visible = false
-	weapon_trail.material_override = _trail_material
-	visual_root.add_child(weapon_trail)
-
-	combat_area = CombatAreaScript.new()
-	combat_area.name = "CombatArea"
-	combat_area.position = Vector3(0.0, 1.0, -1.0)
-	add_child(combat_area)
-	combat_area.configure(self, 1.25, 1.45)
-
-	camera_rig = Node3D.new()
-	camera_rig.name = "CameraRig"
-	add_child(camera_rig)
-	camera_rig.top_level = true
-	camera_rig.global_position = global_position + Vector3.UP * 1.45
-	camera_rig.rotation.y = 0.0
-
-	camera_pitch = Node3D.new()
-	camera_pitch.name = "Pitch"
-	camera_pitch.rotation.x = -0.2
-	camera_rig.add_child(camera_pitch)
-
-	spring_arm = SpringArm3D.new()
-	spring_arm.name = "SpringArm3D"
-	spring_arm.spring_length = 5.2
-	spring_arm.margin = 0.25
-	spring_arm.collision_mask = 1
-	camera_pitch.add_child(spring_arm)
-
-	camera = Camera3D.new()
-	camera.name = "Camera3D"
-	camera.current = true
-	camera.fov = 68.0
-	spring_arm.add_child(camera)
-	_update_weapon_visuals()
+	_visuals.build_nodes()
 
 
 func _update_weapon_visuals() -> void:
-	if weapon_pivot == null or offhand_weapon_pivot == null or shield_mesh == null:
-		return
-	# Build composite weapon meshes from equipment specs
-	var right_shape := HandEquipmentScript.get_mesh_shape(right_hand_item)
-	var right_color := HandEquipmentScript.get_mesh_color(right_hand_item)
-	var left_shape := HandEquipmentScript.get_mesh_shape(left_hand_item)
-	var left_color := HandEquipmentScript.get_mesh_color(left_hand_item)
-
-	var right_mat := _make_material(right_color, 0.28, 0.82)
-	var left_mat := _make_material(left_color, 0.28, 0.82)
-	weapon_material.albedo_color = right_color
-	weapon_material.metallic = 0.82
-	weapon_material.roughness = 0.28
-
-	WeaponMeshFactory.build_into_parent(weapon_pivot, right_shape, right_mat)
-
-	# Offhand visibility and mesh
-	var offhand_visible := left_hand_item in [
-		"xingtian_axe_left",
-		"marksman_dagger",
-		"talisman_papers",
-		"spirit_stone",
-	]
-	offhand_weapon_pivot.visible = offhand_visible
-	if offhand_visible:
-		WeaponMeshFactory.build_into_parent(offhand_weapon_pivot, left_shape, left_mat)
-
-	# Shield visibility and mesh
-	var shield_visible := left_hand_item == "reliquary_shield"
-	shield_mesh.visible = shield_visible
-	if shield_visible:
-		var shield_mat := _make_material(left_color, 0.48, 0.72)
-		WeaponMeshFactory.build_shield(shield_mesh, shield_mat)
+	_visuals.update_weapon_visuals()
 
 
 func _update_combat_style_visuals() -> void:
@@ -1594,4 +1251,4 @@ func _update_combat_style_visuals() -> void:
 
 
 func _make_material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
-	return ProceduralUtils.make_material(color, roughness, metallic)
+	return _visuals.make_material(color, roughness, metallic)

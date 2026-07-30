@@ -83,7 +83,9 @@ static func normalize_locale(locale: String) -> StringName:
 	return &"zh_CN" if locale.to_lower().begins_with("zh") else &"en"
 
 
-static func text(source: String, locale: String = TranslationServer.get_locale()) -> String:
-	if normalize_locale(locale) == &"zh_CN":
+static func text(source: String, locale: String = "") -> String:
+	# Resolve locale at call-time — default-param freezes at class-load otherwise.
+	var effective_locale: String = locale if not locale.is_empty() else TranslationServer.get_locale()
+	if normalize_locale(effective_locale) == &"zh_CN":
 		return String(ZH_CN.get(source, source))
 	return source

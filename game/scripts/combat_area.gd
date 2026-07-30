@@ -11,9 +11,9 @@ var already_hit: Dictionary = {}
 
 
 func _ready() -> void:
-	monitoring = true
 	monitorable = false
 	body_entered.connect(_on_body_entered)
+	# monitoring is deferred to configure() to avoid race with collision-shape setup
 
 
 func configure(new_source: Node, radius: float, height: float = 1.2) -> void:

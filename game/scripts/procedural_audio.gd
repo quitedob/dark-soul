@@ -4,6 +4,7 @@ var library: Dictionary = {}
 var players: Array[AudioStreamPlayer] = []
 var _shutting_down := false
 var _audio_enabled := true
+var _next_voice := 0
 
 
 func _ready() -> void:
@@ -32,13 +33,15 @@ func _ready() -> void:
 func play_cue(cue: String, volume_db: float = -7.0, pitch: float = 1.0) -> void:
 	if not _audio_enabled or _shutting_down or players.is_empty() or not library.has(cue):
 		return
-	var player := players[0]
+	# Round-robin: prefer an idle voice; if none idle, steal from _next_voice and advance.
+	var player := players[_next_voice % players.size()]
 	for candidate in players:
 		if not candidate.playing:
 			player = candidate
 			break
 	if player.playing:
 		player.stop()
+		_next_voice += 1
 	player.stream = null
 	player.stream = library[cue]
 	player.volume_db = volume_db

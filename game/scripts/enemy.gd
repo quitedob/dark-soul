@@ -56,6 +56,7 @@ var attack_index := 0
 var _phase := 1
 var _phase_transition_played := false
 var _phase_two_played := false
+var _heal_speed_id := 0
 const PHASE_TWO_THRESHOLD := 0.5
 const PHASE_THREE_THRESHOLD := 0.25
 var attack_windup := 0.55
@@ -152,6 +153,7 @@ func reset_enemy() -> void:
 	_phase = 1
 	_phase_transition_played = false
 	_phase_two_played = false
+	_heal_speed_id += 1  # invalidate any pending heal-speed timer
 	navigation_refresh = 0.0
 	_cached_has_target = false
 	_cached_target_position = global_position
@@ -179,9 +181,9 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 	health = maxf(health - incoming_damage, 0.0)
 	health_changed.emit(health, max_health)
 	_play_audio("hurt", -8.0, 0.82 if guardian else 1.0)
-	if guardian and not _phase_transition_played and _current_phase() == 2:
+	if guardian and not _phase_transition_played and get_health_ratio() <= PHASE_TWO_THRESHOLD:
 		_trigger_phase_transition()
-	if guardian and not _phase_two_played and _current_phase() == 3:
+	if guardian and not _phase_two_played and get_health_ratio() <= PHASE_THREE_THRESHOLD:
 		_trigger_phase_transition()
 	if health <= 0.0:
 		_die()
@@ -230,9 +232,11 @@ func on_player_healing() -> void:
 	elif not guardian:
 		var original_speed := move_speed
 		move_speed *= 1.5
+		_heal_speed_id += 1
+		var current_id := _heal_speed_id
 		var restore_timer := get_tree().create_timer(1.8)
 		restore_timer.timeout.connect(func():
-			if is_instance_valid(self):
+			if is_instance_valid(self) and _heal_speed_id == current_id:
 				move_speed = original_speed
 		)
 
@@ -485,7 +489,8 @@ func _apply_long_range_attack() -> void:
 
 func _trigger_phase_transition() -> void:
 	var new_phase := _current_phase()
-	if new_phase == 2:
+	# Use `if` (not `elif`) so both phases cascade when a single hit crosses two thresholds.
+	if new_phase >= 2 and not _phase_transition_played:
 		_phase_transition_played = true
 		_phase = 2
 		# Phase 2: weapon ignites in fiery orange
@@ -500,7 +505,7 @@ func _trigger_phase_transition() -> void:
 				if candidate is Node3D and _horizontal_distance(global_position, candidate.global_position) <= 4.5:
 					var dir: Vector3 = (candidate.global_position - global_position).normalized()
 					candidate.receive_hit(22.0, 28.0, dir, self)
-	elif new_phase == 3:
+	if new_phase >= 3 and not _phase_two_played:
 		_phase_two_played = true
 		_phase = 3
 		# Phase 3: weapon burns white-hot, body glows with ember cracks

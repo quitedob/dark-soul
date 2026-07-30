@@ -51,9 +51,7 @@ func _recover(player: Node) -> void:
 		return
 	_claimed = true
 	monitoring = false
-	if get_signal_connection_list(&"recovered").is_empty():
-		if player.has_method("recover_embers"):
-			player.recover_embers(amount)
+	# Let the signal handler call recover_embers so we don't double-recover.
 	recovered.emit(amount, player)
 	var tween := create_tween()
 	tween.set_parallel(true)
@@ -61,8 +59,11 @@ func _recover(player: Node) -> void:
 	tween.tween_property(core, "transparency", 1.0, 0.24)
 	tween.tween_property(ring, "transparency", 1.0, 0.24)
 	tween.tween_property(glow, "light_energy", 0.0, 0.24)
+	if not is_instance_valid(self):
+		return
 	await tween.finished
-	queue_free()
+	if is_instance_valid(self):
+		queue_free()
 
 
 func _process(delta: float) -> void:
