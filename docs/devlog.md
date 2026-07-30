@@ -1,6 +1,121 @@
 # Ashen Hollow Development Log
 
-## 2026-07-30 — Codebase Health Audit Fixes Applied
+## 2026-07-30 — 烬渊 (Ember Abyss) Complete Game Design Created
+
+### Scope
+
+Created a comprehensive 5-chapter Chinese dark fantasy soulslike game design — 烬渊 (Ember Abyss) — with 30 design documents across 6 organized folders under `docs/`. The design re-themes Ashen Hollow's Godot 4.7.1 codebase into an original Chinese mythology-inspired world with 4 character classes, 28 levels, 32 enemy types, 15 elite monsters, 14 side quests, 40+ weapons, and 32 unique spells/prayers. All existing research documents (`research-dark-souls-design.md`, `research-dark-souls-weapons.md`) were referenced to ensure Soulslike design fidelity.
+
+### Story & Worldbuilding
+
+- Created `docs/story/main-story.md`: Complete 5-chapter narrative arc with 3 endings (薪火相传 / 守炉人 / 大寂灭) and a hidden 4th ending requiring completion of 3 major side quest chains.
+- Created `docs/story/lore.md`: Full cosmology — Three Realms (天界/人间/冥界), Celestial Furnace (天之炉), 12 Soul-Forgers (铸魂者), the Shattering (大破碎), 5 Ember Fragments, factions (烬裔/失魂者/堕仙), soul classification system, timeline spanning 10,000+ years.
+
+### 5 Chapter Designs (28 Levels Total)
+
+Each chapter has: `chapter-overview.md` (level layouts, enemy roster, unique items), `bosses.md` or boss section, `levels/` detail, and `chapter-supplement.md` (elite monsters, side quests, scenery, music).
+
+| # | Chapter | Theme | Levels | Boss | Enemies | Elite | Side Quests |
+|---|---------|-------|--------|------|---------|-------|-------------|
+| 1 | 灵墟·觉醒 | Han Dynasty Ruined Temple | 5 | 巨阙 (Furnace-Keeper Construct) | 4 types | 2 | 2 |
+| 2 | 血铁·战歌 | Ming Dynasty Mountain Fortress | 6 | 刑天 (Headless War God) | 6 types | 3 | 3 |
+| 3 | 玉障·迷心 | Classical Garden Jade Forest | 6 | 九尾 (Nine-Tailed Fox Spirit) | 9 types | 3 | 3 |
+| 4 | 天崩·陨落 | Tang Dynasty Floating Sky City | 6 | 玄霄 (Fallen Immortal, 2 sub-bosses) | 7 types | 3 | 3 |
+| 5 | 烬座·归墟 | Cosmic Void / Furnace Core | 5 | 烛阴 (Torch Dragon, 4 phases) | 6 types + 4 boss echoes | 3 | 3 |
+
+### Character System (4 Classes)
+
+Created under `docs/characters/classes/`:
+- **神射手 (Divine Marksman):** Ranged DPS with 羿弓术 archery style, elemental arrows (Fire/Ice/Lightning/Spirit), Hou Yi myth lineage.
+- **狂战士 (Frenzied Warrior):** Melee tank/DPS with 刑天斧 dual-axe style, Rage meter mechanic, Xíng Tiān bloodline, hyper armor.
+- **玄法师 (Mystic Mage):** Caster with 五行术 Five Elements system (Fire/Water/Wood/Metal/Earth), generation/overcoming cycles, Taoist spellcraft.
+- **祝祷师 (Invocation Master):** Support/healer with 天祝术 prayer style, Karmic Debt stacking mechanic (业力), 5 spirit summons, Buddhist/folk religious roots.
+
+Supporting systems:
+- `docs/characters/upgrade-system.md`: 道行 cultivation leveling, 经脉 8-meridian system, Soul Vessel reinforcement, weapon forging (+10 tiers).
+- `docs/characters/switching-system.md`: Class switching at Ember Shrines with proportional stat conversion, independent equipment loadouts, 4 unlockable hybrid classes.
+- `docs/characters/talent-skills.md`: 3-tier talent trees per class (9 talents each), cross-class synergies, respec system.
+
+### Bestiary & Equipment Compendiums
+
+- `docs/bestiary/enemies-master.md`: 32 enemy types with full stats, behavior, weaknesses. Classification by Chinese spiritual type (失魂/妖/精/鬼/仙堕/神兽/神).
+- `docs/bestiary/bosses-master.md`: 5 main bosses + 2 sub-bosses + 4 boss echoes. All with multi-phase mechanics, Soul Vessel drops, boss weapons, lore integration.
+- `docs/systems/weapons-compendium.md`: 40+ weapons across 9 categories, 5 legendary boss weapons, 3 cross-chapter legendary weapons, upgrade material tree.
+- `docs/systems/spells-compendium.md`: 18 spells + 14 prayers — 32 unique Focus abilities with cultural naming.
+- `docs/systems/equipment-compendium.md`: 30+ armor pieces with weight classes, 10 chapter-unique consumables, full progression economy with Ember estimates (~6,800 total per NG).
+
+### Level Design & Systems
+
+- `docs/systems/level-design-patterns.md`: 20 puzzle types across 5 categories, 15 trap types with environmental tells, shrine placement guidelines, shortcut patterns.
+- `docs/systems/combat-styles.md`: 5 combat styles (from Ashen Hollow) re-themed to Chinese cultural context with class associations.
+- `docs/00-master-index.md`: Master navigation index for all 30 design documents.
+
+### Perplexity MCP Windows Fix
+
+- Diagnosed and fixed a Windows compatibility bug in `perplexity-subscription-mcp` package: 7 hardcoded `/tmp/perplexity_debug.log` paths replaced with `tempfile.gettempdir()` in cached `client.py` at `C:\Users\SHUAIBI\AppData\Local\uv\cache\archive-v0\rsHKYOI2pVD76qPpj5_GM\Lib\site-packages\perplexity_subscription_mcp\client.py`.
+- Added `import os`, `import tempfile` and defined `_DEBUG_LOG = os.path.join(tempfile.gettempdir(), "perplexity_debug.log")`.
+- Perplexity MCP reconnected successfully after patch.
+
+### Codebase Scan Findings (for future implementation)
+
+Deployed an Explore subagent to scan `game/scripts/` thoroughly. Key findings documented:
+- 3 enemy types implemented with clean enum + tuning pattern in `enemy.gd`
+- 5 combat styles with data-driven `STYLE_TIMING` dictionaries in `player.gd`
+- Single-scene procedural level generation in `game_world.gd` — multi-level support would need architectural addition
+- Zero quest/NPC/dialogue infrastructure — would need to be built from scratch
+- Procedural audio synthesis in `procedural_audio.gd` (9 cues, 6 voice channels) — no music streaming support yet; `music_volume` setting exists but is not wired to any audio bus
+- Potential bug: `upgrade_tier` and `play_time_ms` missing from `from_dictionary()` deserialization in `run_state.gd`
+- `game_settings.gd` already has `music_volume` field (default 0.7) — ready to wire
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `docs/00-master-index.md` | **NEW** — master navigation index for all design documents |
+| `docs/story/main-story.md` | **NEW** — complete 5-chapter narrative with 3+1 endings |
+| `docs/story/lore.md` | **NEW** — full cosmology, factions, timeline |
+| `docs/chapters/01-spirit-awakening/chapter-overview.md` | **NEW** — Chapter 1: 5 levels, 4 enemies, tutorial boss |
+| `docs/chapters/01-spirit-awakening/bosses.md` | **NEW** — 巨阙 boss design (2 phases, tutorial purpose) |
+| `docs/chapters/01-spirit-awakening/levels/01-levels-detail.md` | **NEW** — Chapter 1 level-by-level design |
+| `docs/chapters/01-spirit-awakening/chapter-supplement.md` | **NEW** — Ch.1 elite monsters (2), side quests (2), scenery, music |
+| `docs/chapters/02-blood-iron/chapter-overview.md` | **NEW** — Chapter 2: 6 levels, 6 enemies, war fortress |
+| `docs/chapters/02-blood-iron/chapter-supplement.md` | **NEW** — Ch.2 elite monsters (3), side quests (3), scenery, music |
+| `docs/chapters/03-jade-veil/chapter-overview.md` | **NEW** — Chapter 3: 6 levels, 9 enemies, illusion forest |
+| `docs/chapters/03-jade-veil/chapter-supplement.md` | **NEW** — Ch.3 elite monsters (3), side quests (3), scenery, music |
+| `docs/chapters/04-celestial-fall/chapter-overview.md` | **NEW** — Chapter 4: 6 levels, 7 enemies, sky city + 2 sub-bosses |
+| `docs/chapters/04-celestial-fall/chapter-supplement.md` | **NEW** — Ch.4 elite monsters (3), side quests (3), scenery, music |
+| `docs/chapters/05-throne-of-ashes/chapter-overview.md` | **NEW** — Chapter 5: 5 levels, 6 enemies, cosmic final boss (4 phases) |
+| `docs/chapters/05-throne-of-ashes/chapter-supplement.md` | **NEW** — Ch.5 elite monsters (3), side quests (3), scenery, music |
+| `docs/characters/classes/README.md` | **NEW** — class overview with hybrid paths |
+| `docs/characters/classes/divine-marksman.md` | **NEW** — 神射手 class: stats, playstyle, talent tree, lore |
+| `docs/characters/classes/frenzied-warrior.md` | **NEW** — 狂战士 class: stats, Rage mechanic, talent tree, lore |
+| `docs/characters/classes/mystic-mage.md` | **NEW** — 玄法师 class: Five Elements system, talent tree, lore |
+| `docs/characters/classes/invocation-master.md` | **NEW** — 祝祷师 class: Karmic Debt, spirit summons, talent tree |
+| `docs/characters/upgrade-system.md` | **NEW** — 4 upgrade systems: cultivation, meridians, soul vessels, forging |
+| `docs/characters/switching-system.md` | **NEW** — class switching mechanics, hybrid unlocks, mastery bonuses |
+| `docs/characters/talent-skills.md` | **NEW** — talent point economy, tier structure, cross-class synergies |
+| `docs/bestiary/enemies-master.md` | **NEW** — 32 enemy types with full stats and behavior |
+| `docs/bestiary/bosses-master.md` | **NEW** — 5 bosses + sub-bosses with multi-phase mechanics |
+| `docs/systems/combat-styles.md` | **NEW** — 5 styles re-themed to Chinese cultural context |
+| `docs/systems/weapons-compendium.md` | **NEW** — 40+ weapons, upgrade tree, legendary weapons |
+| `docs/systems/spells-compendium.md` | **NEW** — 18 spells + 14 prayers compendium |
+| `docs/systems/equipment-compendium.md` | **NEW** — armor, consumables, progression economy |
+| `docs/systems/level-design-patterns.md` | **NEW** — puzzle/trap catalog, shrine placement, shortcuts |
+
+### Validation
+
+- All 30 design documents created with cross-references verified
+- Perplexity MCP Windows compatibility bug diagnosed and patched; MCP reconnected successfully
+- Codebase scan completed — identified architecture for future multi-level, quest, and music system implementation
+- Design constraints checklist in `docs/00-master-index.md` — all items met
+- No runtime files modified — this is a documentation-only change
+
+### Coordination
+
+- Design documents only. No Godot runtime files modified.
+- The `upgrade_tier` serialization bug in `run_state.gd` is documented for future fix.
+- Multi-level support, quest infrastructure, NPC dialogue, and music streaming are identified as the next implementation priorities.
+- The existing Ashen Hollow codebase (5 combat styles, 3 enemy types, procedural level, save/load, HUD, audio) serves as the technical foundation for 烬渊.
 
 ### Scope
 
