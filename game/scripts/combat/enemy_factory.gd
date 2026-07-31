@@ -47,6 +47,9 @@ static func _build_body_for_type(parent: Node3D, body_type: String, body_materia
 			Chapter5EnemyFactory.build_body(parent, body_type, body_material)
 		"armored_heavy", "massive_golem", "ethereal_elite", "floating_dress_elite", "reflection_knight", "floating_knight", "gravity_mage", "void_knight", "ancient_titan":
 			_build_elite_body(parent, body_type, body_material)
+		"hanging_bell":
+			# 盲钟·听烬：5m 悬垂青铜编钟（吊耳 + 锥形钟身 + 钟口光环 + 双侧钟舌）
+			_build_hanging_bell(parent, body_material)
 		_:
 			_build_default_humanoid(parent, body_material)
 
@@ -77,6 +80,10 @@ static func _dispatch_weapon(weapon_pivot: Node3D, weapon_id: String, weapon_mat
 			WeaponMeshFactory.build_shield(weapon_pivot, weapon_material)
 		"beacon_bow":
 			WeaponMeshFactory.build_into_parent(weapon_pivot, "bow", weapon_material)
+		"bell_tongue":
+			# 盲钟·听烬：短挂杆 + 钟舌铁球（cast-iron，攻击前摇随 WeaponPivot 摆荡）
+			cyl(weapon_pivot, 0.05, 0.05, 0.75, Vector3(0, 0.05, 0), Vector3.ZERO, weapon_material)
+			sph(weapon_pivot, 0.24, 0.42, Vector3(0, -0.42, 0), weapon_material)
 		"stone_fist", "commander_sword", "chain_hook", "memory_scythe", "bridal_veil", "mirror_blade", "celestial_sword", "elixir_vial", "scripture_tome", "void_blade", "gravity_staff", "soul_forge_hammer":
 			_build_elite_weapon(weapon_pivot, weapon_id, weapon_material)
 		_:
@@ -190,6 +197,26 @@ static func _build_elite_weapon(p: Node3D, weapon_id: String, m: StandardMateria
 			cyl(p, 0.06, 0.08, 1.4, Vector3(0, 0.3, 0), Vector3.ZERO, m)
 			var sf := mat_emissive(StandardMaterial3D.new(), Color(1.0, 0.8, 0.3), Color(1.0, 0.6, 0.1), 5.0)
 			box(p, Vector3(0.22, 0.28, 0.22), Vector3(0, 1.05, 0), Vector3.ZERO, sf)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Optional boss body: hanging bronze bell (盲钟·听烬)
+# ═══════════════════════════════════════════════════════════════════════════
+
+static func _build_hanging_bell(parent: Node3D, mat: StandardMaterial3D) -> void:
+	# 青铜钟身（7a6a4a，金属 ~0.85）：顶部吊耳 + 锥形钟身 + 钟口光环 + 双侧钟舌
+	var bronze := mat_variant(mat, Color("7a6a4a"), 0.85, 0.32)
+	# 顶部吊耳（挂链）
+	cyl(parent, 0.12, 0.14, 0.5, Vector3(0, 3.15, 0), Vector3.ZERO, mat)
+	# 锥形钟身：钟口朝下，底部最宽（编钟形）
+	cyl(parent, 0.42, 0.95, 2.4, Vector3(0, 1.75, 0), Vector3.ZERO, bronze)
+	# 钟口音孔光环（烬色 emissive，弱点在钟口）
+	var mouth_mat := mat_emissive(StandardMaterial3D.new(), Color("7a6a4a"), Color("ffcc44"), 3.0)
+	cyl(parent, 0.9, 0.98, 0.28, Vector3(0, 0.45, 0), Vector3.ZERO, mouth_mat)
+	# 双侧悬垂钟舌：细杆 + 铁球（既是"手臂"也是武器）
+	for side in [-1.0, 1.0]:
+		cyl(parent, 0.045, 0.045, 0.9, Vector3(side * 0.55, 1.6, 0), Vector3(0.0, 0.0, side * PI * 0.5), mat)
+		sph(parent, 0.16, 0.3, Vector3(side * 1.0, 1.15, 0), bronze)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

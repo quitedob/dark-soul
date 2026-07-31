@@ -6,7 +6,7 @@ const REQUIRED_CHAPTER_COUNTS := {
 	&"chapter_02": 6,
 	&"chapter_03": 6,
 	&"chapter_04": 6,
-	&"chapter_05": 5,
+	&"chapter_05": 6,
 }
 const REQUIRED_LEVEL_FIELDS := ["id", "display_name", "chapter_id", "topology", "theme_id", "kind", "purpose", "boss_id", "next_level_id"]
 
@@ -23,8 +23,8 @@ static func validate(content: Dictionary) -> Array[String]:
 	var boss_by_id := _index_records(bosses, "boss", errors)
 	if chapters.size() != 5:
 		errors.append("Expected 5 chapters, found %d." % chapters.size())
-	if levels.size() != 28:
-		errors.append("Expected 28 levels, found %d." % levels.size())
+	if levels.size() != 29:
+		errors.append("Expected 29 levels, found %d." % levels.size())
 	if themes.size() != 5:
 		errors.append("Expected 5 themes, found %d." % themes.size())
 	_validate_chapters(chapters, level_by_id, theme_by_id, boss_by_id, errors)

@@ -56,6 +56,27 @@ func activate(level_root: Node3D) -> void:
 					_wire_illusion_marker(module as Node3D)
 				&"gravity_visual_zone":
 					_wire_gravity_visual_zone(module as Node3D)
+				# —— L-16/L-17 扩充谜题族 ——
+				&"mirror_light":
+					_wire_mirror_light(module as Node3D)
+				&"valve_shutoff":
+					_wire_valve_shutoff(module as Node3D)
+				&"celestial_dial":
+					_wire_celestial_dial(module as Node3D)
+				&"alchemy_ingredients":
+					_wire_alchemy_ingredients(module as Node3D)
+				&"gravity_anchor":
+					_wire_gravity_anchor(module as Node3D)
+				&"gravity_inversion":
+					_wire_gravity_inversion(module as Node3D)
+				&"riddle_gate":
+					_wire_riddle_gate(module as Node3D)
+				&"stealth_passage":
+					_wire_stealth_passage(module as Node3D)
+				&"memory_verification":
+					_wire_memory_verification(module as Node3D)
+				&"soul_forger_trial":
+					_wire_soul_forger_trial(module as Node3D)
 	_wire_shortcut_fold(level_root)
 
 
@@ -318,7 +339,7 @@ func _wire_illusion_marker(module: Node3D) -> void:
 
 
 func _wire_gravity_visual_zone(module: Node3D) -> void:
-	# 重力示意区：进入时轻提示 + 短暂垂直速度偏置（非完整重力改写）
+	# 重力操作区（L-16）：进入真正倒置玩家重力（取反号），离开恢复；速度偏置保留为次级效果
 	var area := module.get_node_or_null("GravityVisualZone") as Area3D
 	if area == null:
 		return
@@ -335,7 +356,515 @@ func _wire_gravity_visual_zone(module: Node3D) -> void:
 		if body is CharacterBody3D:
 			var cb := body as CharacterBody3D
 			cb.velocity += direction.normalized() * 2.4
+			_set_gravity_inverted(cb, true, module)
 	)
+	area.body_exited.connect(func(body: Node3D) -> void:
+		if body != _player:
+			return
+		if body is CharacterBody3D:
+			_set_gravity_inverted(body as CharacterBody3D, false, module)
+	)
+
+
+func _wire_gravity_inversion(module: Node3D) -> void:
+	# L-16 专属重力倒置区：纯翻转，不含速度偏置
+	var area := module.get_node_or_null("InvertZone") as Area3D
+	if area == null:
+		return
+	area.monitoring = true
+	area.collision_mask = 2
+	area.body_entered.connect(func(body: Node3D) -> void:
+		if body != _player:
+			return
+		if body is CharacterBody3D:
+			_set_gravity_inverted(body as CharacterBody3D, true, module)
+			_notify(LocalizationScript.text("GRAVITY INVERTED"), 1.3)
+			_play("rest", -7.0, 0.9)
+	)
+	area.body_exited.connect(func(body: Node3D) -> void:
+		if body != _player:
+			return
+		if body is CharacterBody3D:
+			_set_gravity_inverted(body as CharacterBody3D, false, module)
+	)
+
+
+func _set_gravity_inverted(player: CharacterBody3D, inverted: bool, module: Node3D) -> void:
+	# 玩家 gravity 是普通 var（DEFAULT_GRAVITY 24.0）：进入倒置时取反号，退出还原
+	if player == null or not ("gravity" in player):
+		return
+	if not module.has_meta("gravity_original_sign"):
+		module.set_meta("gravity_original_sign", signf(float(player.gravity)))
+	var magnitude := absf(float(player.gravity))
+	var original := signf(float(module.get_meta("gravity_original_sign", 1.0)))
+	player.set("gravity", magnitude * (-original if inverted else original))
+
+
+func _wire_mirror_light(module: Node3D) -> void:
+	# 镜光谜题：转动镜面点亮光束，玩家站在光束内充能后开启受光之门
+	var mirror := module.get_node_or_null("MirrorBody") as StaticBody3D
+	var beam := module.get_node_or_null("LightBeam") as Area3D
+	var marker := module.get_node_or_null("ReceptorMarker") as Marker3D
+	if mirror == null or beam == null:
+		return
+	var charge_seconds := maxf(float(module.get_meta("charge_seconds", 1.6)), 0.4)
+	var gate := _make_gate_barrier(module, "MirrorGate", marker, Vector3(3.0, 3.0, 0.5))
+	var state := {"beam_on": false, "charging": false, "accum": 0.0, "opened": false}
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var interact: Area3D = ExitScript.new()
+	interact.name = "MirrorInteract"
+	interact.collision_layer = 8
+	interact.collision_mask = 0
+	interact.monitoring = false
+	interact.monitorable = true
+	interact.add_to_group("interactable")
+	interact.prompt_text = LocalizationScript.text("Rotate the mirror")
+	interact.world_callback = func(_a: Node, _p: Node) -> void:
+		if bool(state["opened"]):
+			return
+		state["beam_on"] = not bool(state["beam_on"])
+		if bool(state["beam_on"]):
+			beam.monitoring = true
+			beam.collision_mask = 2
+			_notify(LocalizationScript.text("A LIGHT CUTS ACROSS THE HALL"), 1.4)
+			_play("rest", -6.0, 1.2)
+		else:
+			beam.monitoring = false
+			beam.collision_mask = 0
+			state["charging"] = false
+			state["accum"] = 0.0
+			_notify(LocalizationScript.text("THE MIRROR TURNS DARK"), 1.0)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.6, 1.6, 1.6)
+	shape.shape = box
+	shape.position.y = 1.1
+	interact.add_child(shape)
+	module.add_child(interact)
+	_wired.append(interact)
+	beam.body_entered.connect(func(body: Node3D) -> void:
+		if body != _player or not bool(state["beam_on"]) or bool(state["opened"]):
+			return
+		state["charging"] = true
+	)
+	beam.body_exited.connect(func(body: Node3D) -> void:
+		if body == _player:
+			state["charging"] = false
+			state["accum"] = 0.0
+	)
+	var charge_tween := create_tween().set_loops().bind_node(gate)
+	charge_tween.tween_interval(0.2)
+	charge_tween.tween_callback(func() -> void:
+		if bool(state["opened"]):
+			return
+		if not bool(state["charging"]) or not beam.get_overlapping_bodies().has(_player):
+			state["accum"] = 0.0
+			return
+		state["accum"] = float(state["accum"]) + 0.2
+		if float(state["accum"]) >= charge_seconds:
+			state["opened"] = true
+			_open_barrier(gate)
+			_notify(LocalizationScript.text("THE LIGHT RECEIVES THE BEAM"), 1.8)
+			_play("rest", -5.0, 1.1)
+	)
+
+
+func _wire_valve_shutoff(module: Node3D) -> void:
+	# 阀门谜题：转动阀门关闭本模块的毒雾/危险区
+	var valve := module.get_node_or_null("ValveBody") as StaticBody3D
+	var zone := module.get_node_or_null("ValveHazardZone") as Area3D
+	if valve == null or zone == null:
+		return
+	zone.monitoring = true
+	zone.collision_mask = 2
+	zone.set_meta("hazard_dps", float(module.get_meta("damage_per_second", 8.0)))
+	zone.set_meta("hazard_active", true)
+	_wired.append(zone)
+	var shut := {"off": false}
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var interact: Area3D = ExitScript.new()
+	interact.name = "ValveInteract"
+	interact.collision_layer = 8
+	interact.collision_mask = 0
+	interact.monitoring = false
+	interact.monitorable = true
+	interact.add_to_group("interactable")
+	interact.prompt_text = LocalizationScript.text("Turn the valve")
+	interact.world_callback = func(_a: Node, _p: Node) -> void:
+		if bool(shut["off"]):
+			return
+		shut["off"] = true
+		zone.monitoring = false
+		zone.collision_mask = 0
+		zone.set_meta("hazard_active", false)
+		_set_area_visible(zone, false)
+		_notify(LocalizationScript.text("THE VAPOR SEALS"), 1.8)
+		_play("rest", -5.0, 1.1)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.4, 1.6, 1.4)
+	shape.shape = box
+	shape.position.y = 1.0
+	interact.add_child(shape)
+	module.add_child(interact)
+	_wired.append(interact)
+
+
+func _wire_celestial_dial(module: Node3D) -> void:
+	# 天仪谜题：转动天仪至星位对齐，解开对应星门
+	var dial := module.get_node_or_null("DialBody") as StaticBody3D
+	var gate := module.get_node_or_null("CelestialGate") as StaticBody3D
+	if dial == null:
+		return
+	var required := maxi(int(module.get_meta("required_turns", 3)), 1)
+	var state := {"turns": 0}
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var interact: Area3D = ExitScript.new()
+	interact.name = "DialInteract"
+	interact.collision_layer = 8
+	interact.collision_mask = 0
+	interact.monitoring = false
+	interact.monitorable = true
+	interact.add_to_group("interactable")
+	interact.prompt_text = LocalizationScript.text("Turn the celestial dial")
+	interact.world_callback = func(_a: Node, _p: Node) -> void:
+		state["turns"] = int(state["turns"]) + 1
+		if int(state["turns"]) < required:
+			_notify(LocalizationScript.text("THE DIAL ALIGNS  %d / %d") % [int(state["turns"]), required], 1.2)
+			_play("rest", -7.0, 1.2)
+			return
+		if gate != null and is_instance_valid(gate):
+			_set_static_colliders_enabled(gate, false)
+			gate.visible = false
+		_notify(LocalizationScript.text("THE CELESTIAL GATE OPENS"), 1.8)
+		_play("rest", -5.0, 1.1)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(2.2, 1.6, 2.2)
+	shape.shape = box
+	shape.position.y = 1.1
+	interact.add_child(shape)
+	module.add_child(interact)
+	_wired.append(interact)
+
+
+func _wire_alchemy_ingredients(module: Node3D) -> void:
+	# 炼丹配料谜题：交互炉台投入配料，集齐后丹炉开启
+	var station := module.get_node_or_null("IngredientStation") as StaticBody3D
+	var gate := module.get_node_or_null("AlchemyGate") as StaticBody3D
+	if station == null:
+		return
+	var required := maxi(int(module.get_meta("required_count", 3)), 1)
+	var state := {"count": 0}
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var interact: Area3D = ExitScript.new()
+	interact.name = "IngredientInteract"
+	interact.collision_layer = 8
+	interact.collision_mask = 0
+	interact.monitoring = false
+	interact.monitorable = true
+	interact.add_to_group("interactable")
+	interact.prompt_text = LocalizationScript.text("Add an ingredient")
+	interact.world_callback = func(_a: Node, _p: Node) -> void:
+		state["count"] = int(state["count"]) + 1
+		if int(state["count"]) < required:
+			_notify(LocalizationScript.text("INGREDIENTS  %d / %d") % [int(state["count"]), required], 1.2)
+			_play("rest", -7.0, 1.3)
+			return
+		if gate != null and is_instance_valid(gate):
+			_set_static_colliders_enabled(gate, false)
+			gate.visible = false
+		_notify(LocalizationScript.text("THE ELIXIR BREWS"), 1.8)
+		_play("rest", -5.0, 1.1)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.8, 1.8, 1.8)
+	shape.shape = box
+	shape.position.y = 1.0
+	interact.add_child(shape)
+	module.add_child(interact)
+	_wired.append(interact)
+
+
+func _wire_gravity_anchor(module: Node3D) -> void:
+	# 重力锚谜题：激活锚点使目标区域的重力倒置生效/失效（L-16）
+	var anchor := module.get_node_or_null("AnchorBody") as StaticBody3D
+	var target := module.get_node_or_null("AnchorTarget") as Area3D
+	if anchor == null or target == null:
+		return
+	target.monitoring = true
+	target.collision_mask = 2
+	target.set_meta("gravity_active", true)
+	var active := {"state": true}
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var interact: Area3D = ExitScript.new()
+	interact.name = "AnchorInteract"
+	interact.collision_layer = 8
+	interact.collision_mask = 0
+	interact.monitoring = false
+	interact.monitorable = true
+	interact.add_to_group("interactable")
+	interact.prompt_text = LocalizationScript.text("Deactivate the gravity anchor")
+	interact.world_callback = func(_a: Node, _p: Node) -> void:
+		active["state"] = not bool(active["state"])
+		target.set_meta("gravity_active", bool(active["state"]))
+		if bool(active["state"]):
+			target.monitoring = true
+			target.collision_mask = 2
+			interact.prompt_text = LocalizationScript.text("Deactivate the gravity anchor")
+			_notify(LocalizationScript.text("THE ANCHOR HOLDS THE SKY"), 1.6)
+			_play("rest", -6.0, 1.2)
+		else:
+			target.monitoring = false
+			target.collision_mask = 0
+			if _player != null and target.get_overlapping_bodies().has(_player):
+				_set_gravity_inverted(_player as CharacterBody3D, false, module)
+			interact.prompt_text = LocalizationScript.text("Activate the gravity anchor")
+			_notify(LocalizationScript.text("GRAVITY RETURNS"), 1.4)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.6, 1.8, 1.6)
+	shape.shape = box
+	shape.position.y = 1.0
+	interact.add_child(shape)
+	module.add_child(interact)
+	_wired.append(interact)
+	target.body_entered.connect(func(body: Node3D) -> void:
+		if body != _player:
+			return
+		if bool(target.get_meta("gravity_active", true)):
+			_set_gravity_inverted(body as CharacterBody3D, true, module)
+			_notify(LocalizationScript.text("GRAVITY INVERTED"), 1.2)
+			_play("rest", -7.0, 0.9)
+	)
+	target.body_exited.connect(func(body: Node3D) -> void:
+		if body == _player:
+			_set_gravity_inverted(body as CharacterBody3D, false, module)
+	)
+
+
+func _wire_riddle_gate(module: Node3D) -> void:
+	# 九尾谜语之门：向答题石交互，答对开启（答案存于 config）
+	var gate := module.get_node_or_null("RiddleGate") as StaticBody3D
+	if gate == null:
+		return
+	var correct := int(module.get_meta("correct_index", 0))
+	var opened := {"done": false}
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	for child in module.get_children():
+		if not child is Marker3D or not String(child.name).begins_with("Answer"):
+			continue
+		var answer_index := int(child.get_meta("answer_index", -1))
+		var answer_text := String(child.get_meta("answer_text", "?"))
+		var interact: Area3D = ExitScript.new()
+		interact.name = "AnswerInteract%d" % answer_index
+		interact.collision_layer = 8
+		interact.collision_mask = 0
+		interact.monitoring = false
+		interact.monitorable = true
+		interact.add_to_group("interactable")
+		interact.position = child.position
+		interact.prompt_text = answer_text
+		interact.world_callback = func(_a: Node, _p: Node) -> void:
+			if bool(opened["done"]):
+				return
+			if answer_index == correct:
+				opened["done"] = true
+				_set_static_colliders_enabled(gate, false)
+				gate.visible = false
+				_notify(LocalizationScript.text("THE NINE-TAILS ACCEPTS YOUR ANSWER"), 1.8)
+				_play("rest", -5.0, 1.1)
+			else:
+				if _player != null and _player.has_method("receive_hit"):
+					_player.receive_hit(8.0, 0.25, Vector3.ZERO, interact)
+				_notify(LocalizationScript.text("THE RIDDLE REJECTS YOU"), 1.4)
+				_play("hit", -10.0, 1.5)
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(1.6, 1.6, 1.6)
+		shape.shape = box
+		shape.position.y = 1.0
+		interact.add_child(shape)
+		module.add_child(interact)
+		_wired.append(interact)
+
+
+func _wire_stealth_passage(module: Node3D) -> void:
+	# 潜行通道：进入警报区被察觉；未被察觉抵达出口则开启通道
+	var alarm := module.get_node_or_null("AlarmZone") as Area3D
+	var gate := module.get_node_or_null("StealthGate") as StaticBody3D
+	var exit_marker := module.get_node_or_null("StealthExit") as Marker3D
+	if alarm == null or gate == null:
+		return
+	var alarm_damage := float(module.get_meta("alarm_damage", 10.0))
+	var seen := {"state": false, "opened": false}
+	alarm.monitoring = true
+	alarm.collision_mask = 2
+	alarm.body_entered.connect(func(body: Node3D) -> void:
+		if body != _player or bool(seen["opened"]):
+			return
+		seen["state"] = true
+		if _player != null and _player.has_method("receive_hit"):
+			_player.receive_hit(alarm_damage, 0.2, Vector3.ZERO, alarm)
+		_notify(LocalizationScript.text("YOU HAVE BEEN SEEN"), 1.4)
+		_play("hit", -10.0, 1.6)
+	)
+	alarm.body_exited.connect(func(body: Node3D) -> void:
+		if body == _player and not bool(seen["opened"]):
+			seen["state"] = false
+	)
+	var exit_area := Area3D.new()
+	exit_area.name = "StealthExitCheck"
+	exit_area.monitoring = true
+	exit_area.collision_mask = 2
+	var exit_shape := CollisionShape3D.new()
+	var exit_box := BoxShape3D.new()
+	exit_box.size = Vector3(2.5, 2.5, 2.5)
+	exit_shape.shape = exit_box
+	exit_area.add_child(exit_shape)
+	exit_area.position = exit_marker.position if exit_marker != null else Vector3(0.0, 0.0, -5.0)
+	module.add_child(exit_area)
+	_wired.append(exit_area)
+	exit_area.body_entered.connect(func(body: Node3D) -> void:
+		if body != _player or bool(seen["opened"]):
+			return
+		if bool(seen["state"]):
+			_notify(LocalizationScript.text("THE SENTRY WATCHES YOU"), 1.4)
+			_play("rest", -8.0, 1.2)
+			return
+		seen["opened"] = true
+		_set_static_colliders_enabled(gate, false)
+		gate.visible = false
+		_notify(LocalizationScript.text("THE PATH REMAINS HIDDEN"), 1.8)
+		_play("rest", -5.0, 1.1)
+	)
+
+
+func _wire_memory_verification(module: Node3D) -> void:
+	# 记忆验证：选择 真/假 印记，答对开启
+	var gate := module.get_node_or_null("VerificationGate") as StaticBody3D
+	if gate == null:
+		return
+	var correct := String(module.get_meta("correct_choice", "true"))
+	var opened := {"done": false}
+	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
+	var choices: Array = [
+		{"node": module.get_node_or_null("TrueMarker"), "label": "true"},
+		{"node": module.get_node_or_null("FalseMarker"), "label": "false"},
+	]
+	for choice in choices:
+		var marker := choice["node"] as Marker3D
+		if marker == null:
+			continue
+		var label := String(choice["label"])
+		var interact: Area3D = ExitScript.new()
+		interact.name = "MemoryInteract%s" % label.capitalize()
+		interact.collision_layer = 8
+		interact.collision_mask = 0
+		interact.monitoring = false
+		interact.monitorable = true
+		interact.add_to_group("interactable")
+		interact.position = marker.position
+		interact.prompt_text = LocalizationScript.text("Affirm this memory (%s)") % label
+		interact.world_callback = func(_a: Node, _p: Node) -> void:
+			if bool(opened["done"]):
+				return
+			if label == correct:
+				opened["done"] = true
+				_set_static_colliders_enabled(gate, false)
+				gate.visible = false
+				_notify(LocalizationScript.text("THE MEMORY HOLDS TRUE"), 1.8)
+				_play("rest", -5.0, 1.1)
+			else:
+				if _player != null and _player.has_method("receive_hit"):
+					_player.receive_hit(6.0, 0.2, Vector3.ZERO, interact)
+				_notify(LocalizationScript.text("THE MEMORY REJECTS YOU"), 1.4)
+				_play("hit", -10.0, 1.5)
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(1.6, 1.6, 1.6)
+		shape.shape = box
+		shape.position.y = 1.0
+		interact.add_child(shape)
+		module.add_child(interact)
+		_wired.append(interact)
+
+
+func _wire_soul_forger_trial(module: Node3D) -> void:
+	# 铸魂试炼：入场封场，试炼区域内承受压力，撑过时长后开封印
+	var trigger := module.get_node_or_null("TrialTrigger") as Area3D
+	var seal := module.get_node_or_null("TrialSeal") as StaticBody3D
+	var aura := module.get_node_or_null("TrialAura") as Area3D
+	if trigger == null or aura == null:
+		return
+	var duration := maxf(float(module.get_meta("trial_duration", 12.0)), 2.0)
+	var dps := float(module.get_meta("trial_dps", 6.0))
+	if seal != null:
+		_set_static_colliders_enabled(seal, false)
+		seal.visible = false
+	var state := {"active": false}
+	trigger.monitoring = true
+	trigger.collision_mask = 2
+	trigger.body_entered.connect(func(body: Node3D) -> void:
+		if body != _player or bool(state["active"]):
+			return
+		state["active"] = true
+		if seal != null and is_instance_valid(seal):
+			_set_static_colliders_enabled(seal, true)
+			seal.visible = true
+		aura.monitoring = true
+		aura.collision_mask = 2
+		aura.set_meta("hazard_dps", dps)
+		aura.set_meta("hazard_active", true)
+		if aura not in _wired:
+			_wired.append(aura)
+		_notify(LocalizationScript.text("THE TRIAL BEGINS"), 1.4)
+		_play("rest", -6.0, 1.2)
+		var timer := get_tree().create_timer(duration)
+		timer.timeout.connect(func() -> void:
+			if not is_instance_valid(module):
+				return
+			state["active"] = false
+			aura.set_meta("hazard_active", false)
+			aura.monitoring = false
+			if seal != null and is_instance_valid(seal):
+				_set_static_colliders_enabled(seal, false)
+				seal.visible = false
+			_notify(LocalizationScript.text("THE SOUL-FORGERS ACCEPT YOU"), 1.8)
+			_play("rest", -4.0, 1.2)
+		)
+	)
+
+
+func _make_gate_barrier(module: Node3D, barrier_name: String, marker: Marker3D, size: Vector3) -> StaticBody3D:
+	# 在指定标记处生成封闭门体（默认封死，解开时禁用碰撞并隐藏）
+	var barrier := StaticBody3D.new()
+	barrier.name = barrier_name
+	barrier.collision_layer = 1
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	shape.position = marker.position if marker != null else Vector3(0.0, 1.5, 4.0)
+	barrier.add_child(shape)
+	module.add_child(barrier)
+	_wired.append(barrier)
+	return barrier
+
+
+func _open_barrier(barrier: StaticBody3D) -> void:
+	if not is_instance_valid(barrier):
+		return
+	_set_static_colliders_enabled(barrier, false)
+	barrier.visible = false
+
+
+func _set_area_visible(area: Area3D, visible_value: bool) -> void:
+	for child in area.get_children():
+		if child is CollisionShape3D:
+			(child as CollisionShape3D).disabled = not visible_value
+		elif child is MeshInstance3D:
+			(child as MeshInstance3D).visible = visible_value
 
 
 func _wire_shortcut_fold(level_root: Node3D) -> void:

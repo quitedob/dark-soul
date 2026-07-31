@@ -7,9 +7,9 @@
 | **Chapter Main Boss** | 5 | 巨阙、刑天、九尾、玄霄、烛阴 | One per chapter; each controls a Furnace fragment and writes a chapter outcome flag |
 | **Sub-Boss** | 2 | 玄霄·嗔念、玄霄·执念 | Mandatory Chapter 4 personality fragments; their HP is not part of the main boss pool |
 | **Boss Echo** | 4 | 5-3 memories of 巨阙、刑天、九尾、玄霄 | Reduced narrative rematches used to validate stored history; no duplicate Soul Vessel or fragment reward |
-| **Optional Boss** | 0 currently specified | — | Reserved classification. Elite enemies and Soul-Forger trials do not count as optional bosses |
+| **Optional Boss** | 1 · 盲钟·听烬 (Blind Bell · Hearer) | 无目钟塔（隐藏区域） | Standalone, no story flag, no fragment; full spec in [boss-blind-bell-hearer.md](boss-blind-bell-hearer.md). Elite enemies and Soul-Forger trials still do not count as optional bosses |
 
-This table is the authority for boss counts. “5 main + 2 sub-bosses + 4 echoes” describes 11 encounters but only 7 unique registered boss identities.
+This table is the authority for boss counts. “5 main + 2 sub-bosses + 4 echoes” describes 11 encounters but only 7 unique registered chapter boss identities, plus 1 registered optional boss (盲钟·听烬) = 8 unique registered boss identities.
 
 ## Main Boss Narrative Outcomes
 
@@ -352,3 +352,4 @@ The three base actions are always available. The fourth action requires completi
 | 九尾 | 3 | 450 | 3 | Fox Spirit | Medium-Hard | Memory Gaze unskippable cutscene |
 | 玄霄 | 4 | 520 | 3 | Fallen Immortal | Hard | Post-boss escape sequence |
 | 烛阴 | 5 | 800 | 4 | Cosmic Dragon | Very Hard | Ending determined by player action |
+| 盲钟·听烬 | Optional | 520 | 2 | Object Spirit (精) | Medium | Sound & silence — blind, audio-only tells; ember-pickup fixation; decoy bells |

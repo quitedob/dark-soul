@@ -10,6 +10,8 @@ const STAGE_FAILED := &"failed"
 
 ## 内置竖切任务：云游道人指引
 const QUEST_CLOUD_WANDERER := &"quest_cloud_wanderer"
+## 支线·桥头的供茶：桥头供茶（烬茶倌之约）
+const QUEST_BRIDGE_TEA := &"quest_bridge_tea"
 
 
 ## 任务阶段键名

@@ -42,6 +42,17 @@ extends Resource
 @export var repeat_hit_interval_seconds := 0.0
 ## 下落类：主动段可持续到落地（受 active_seconds 上限约束）
 @export var hitbox_until_land := false
+@export_group("Combo Chain")
+## L-07：下一段轻击 action_id（空 = 无链；可在 moveset 中按此 id 查招，否则派生）
+@export var next_light: StringName = &""
+## L-07：下一段重击 action_id（空 = 无链）
+@export var next_heavy: StringName = &""
+## L-07：链窗开（秒，自攻击开始计）；0.0 表示按 windup+active 推导
+@export var chain_open_seconds := 0.0
+## L-07：链窗关（秒，自攻击开始计）；0.0 表示按 windup+active+recovery 推导
+@export var chain_close_seconds := 0.0
+## L-07：链续需命中（挥空则不可续招）
+@export var chain_requires_hit := false
 
 
 ## 按攻击阶段读取 ActionArmorModifier（windup/active/recovery）

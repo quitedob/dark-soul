@@ -106,11 +106,19 @@ func _rebuild_buttons(options: Array) -> void:
 	for child in _buttons.get_children():
 		child.queue_free()
 	for opt in options:
-		var value := String(opt.get("id", ""))
-		var label := String(opt.get("label", value))
-		var hint := String(opt.get("hint", ""))
-		var btn := _make_option_button("%s\n%s" % [label, hint], value)
-		_buttons.add_child(btn)
+		_add_option(String(opt.get("id", "")), String(opt.get("label", "")), String(opt.get("hint", "")))
+
+
+## L-04：追加额外选项（隐藏结局"共铸新炉"），不重建已有按钮
+func add_extra_option(value: String, label: String, hint: String = "") -> void:
+	_add_option(value, label, hint)
+
+
+func _add_option(value: String, label: String, hint: String) -> void:
+	if value.is_empty():
+		return
+	var btn := _make_option_button("%s\n%s" % [label, hint], value)
+	_buttons.add_child(btn)
 
 
 func _make_option_button(text: String, value: String) -> Button:

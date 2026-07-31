@@ -8,7 +8,11 @@
 
 ### 2026-07-31
 
+- [**全链路 Subagent 编排复盘：P0/P1 接线 + Docs 同步（操作思考与工具规范）**](2026-07-31/11-full-stack-subagent-orchestration.md)
+- [人间事件改编 + 可选 Boss + 模型提示词（Subagent 编排工作流）](2026-07-31/10-quest-optional-boss-subagent-workflow.md)
 - [Completed Audits Archived](2026-07-31/99-completed-audits-archived.md)
+- [**P1 细节收口：L-07…L-17 全量落地**](2026-07-31/09-p1-wave-l-07-l-17.md)
+- [**L 系列 P0 接线：L-01…L-06 闭环落地**](2026-07-31/08-l-p0-wiring-l-01-l-06.md)
 - [**Delivery Summary**](2026-07-31/delivery-summary.md)
 - [模型提示词库（md→图片→3D 流水线上游）](2026-07-31/07-model-prompts-library.md)
 - [Docs Folder Reorg（分类目录 + 按日 Devlog）](2026-07-31/06-docs-folder-reorg.md)

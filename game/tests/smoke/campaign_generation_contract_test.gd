@@ -12,7 +12,7 @@ func _init() -> void:
 	var runtime := Runtime.new()
 	root.add_child(runtime)
 	var levels := registry.get_levels()
-	_expect(levels.size() == 28, "Campaign registry must contain 28 levels.")
+	_expect(levels.size() == 29, "Campaign registry must contain 29 levels.")
 	var themes: Dictionary = {}
 	var signatures: Dictionary = {}
 	for level_data in levels:
@@ -46,10 +46,10 @@ func _init() -> void:
 	_expect(runtime.current_level_id == &"level_01_01", "Legacy runtime lookup did not retain the canonical ID.")
 	runtime.unload_level()
 	_expect(themes.size() == 5, "Campaign must expose five visual themes.")
-	_expect(signatures.size() == 28, "Not every level produced a signature.")
+	_expect(signatures.size() == 29, "Not every level produced a signature.")
 	runtime.free()
 	if _failures.is_empty():
-		print("CAMPAIGN_GENERATION_OK: 28 levels, 5 themes")
+		print("CAMPAIGN_GENERATION_OK: 29 levels, 5 themes")
 		quit(0)
 		return
 	for failure in _failures:

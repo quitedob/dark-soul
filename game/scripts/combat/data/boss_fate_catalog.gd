@@ -50,6 +50,14 @@ static func all_entries() -> Dictionary:
 				{"id": "void", "label": "大寂灭", "hint": "击碎烬座，结束轮回"},
 			],
 		},
+		&"bridge_tea_fate": {
+			"title": "桥头 · 月圆之判",
+			"subtitle": "悼念的魂已围住茶摊，等你落笔。",
+			"options": [
+				{"id": "exposed", "label": "证伪", "hint": "揭穿贪烬鬼，渡茶救魂"},
+				{"id": "mob", "label": "随波", "hint": "顺众怒封魂，吞下怒烬"},
+			],
+		},
 	}
 
 

@@ -76,6 +76,11 @@ const ExecutionSolverScript = preload("res://scripts/combat/execution_solver.gd"
 const ExecutionProfileScript = preload("res://scripts/combat/data/execution_profile.gd")
 const ExecutionPairedDirectorScript = preload("res://scripts/combat/execution_paired_director.gd")
 const PlayerAnimationBridgeScript = preload("res://scripts/combat/player_animation_bridge.gd")
+const StatusEffectScript = preload("res://scripts/combat/data/status_effect.gd")
+const TalentDataScript = preload("res://scripts/player/talent_data.gd")
+const TalentSystemScript = preload("res://scripts/player/talent_system.gd")
+const MeridianDataScript = preload("res://scripts/player/meridian_data.gd")
+const MeridianSystemScript = preload("res://scripts/player/meridian_system.gd")
 const STYLE_RESOURCES := {
 	CombatStyle.RELIQUARY_GUARD: preload("res://resources/combat_styles/reliquary_guard.tres"),
 	CombatStyle.TWIN_COLOSSI: preload("res://resources/combat_styles/twin_colossi.tres"),
@@ -200,6 +205,8 @@ const LOCK_ANGULAR_ACCELERATION := 12.0
 const DEFAULT_GRAVITY := 24.0
 const STAMINA_REGEN_RATE := 30.0
 const FOCUS_REGEN_RATE := 4.0
+# L-06：白鹤童子在场时专注回复 ×1.5
+var focus_regen_multiplier := 1.0
 const SPRINT_STAMINA_DRAIN := 18.0
 const DODGE_SPEED := 8.4
 const DODGE_DURATION := 0.58
@@ -275,6 +282,78 @@ var _camera_recover_timer := 0.0
 var _backstep_attack_window := 0.0
 const CHARGE_MAX_HOLD := 2.2
 const CHARGE_STAMINA_DRAIN := 6.0
+# L-01：命运抉择瞬时增益（刑天·吸收 → 爆发 +25% 伤害）
+var _fate_damage_multiplier := 1.0
+var _fate_damage_boost_until := -1.0
+# L-05：铁心工坊武器锻造等级（+5%/级，最高 +10）
+const FORGE_DAMAGE_PER_LEVEL := 0.05
+const FORGE_MAX_LEVEL := 10
+var _forge_level := 0
+
+## L-07：连段链状态（仅中立轻/重击可链；context 攻击不入链）
+var _combo_chain_index := 0          # 0=中立起手, 1..=派生段
+var _combo_chain_length := 0         # 当前链总段数（<=1 表示无链）
+var _combo_chain_kind := &""         # &"light" | &"heavy"
+var _combo_chain_id := &""           # 基招语义 action_id（如 sword_light）
+var _combo_chain_attacks: Array[AttackData] = []
+var _combo_chain_hit_landed := false # chain_requires_hit 命中门闩
+var _combo_chain_hit_connected := false
+
+## L-07：无 authored next_light 时的兜底轻击链长（按语义 action_id 优先，再按武器类别）
+const CHAIN_LIGHT_ACTION_IDS := {
+	"sword_light": 3,
+	"right_axe_strike": 2, "left_axe_strike": 2,
+	"dagger_slash": 3,
+	"talisman_strike": 2,
+}
+const CHAIN_LIGHT_LENGTH_BY_TYPE := {
+	&"sword": 3, &"curved": 3, &"fist": 4, &"dagger": 3,
+	&"greatsword": 2, &"axe": 2, &"spear": 2, &"hammer": 2,
+	&"ultra": 1, &"shield": 1, &"talisman": 2, &"bow": 1,
+}
+
+## L-09：职业/天赋
+var talent_points := 0
+var talent_spent: Dictionary = {}    # class_id(String) -> Array[String] 天赋 id（重复=级数）
+var _talent_bonus_health := 0.0
+var _talent_bonus_stamina := 0.0
+var _talent_bonus_focus := 0.0
+var _talent_armor_bonus := 0.0
+var _talent_damage_mult := 1.0
+var _talent_speed_mult := 1.0
+var _talent_focus_regen_mult := 1.0
+var _talent_parry_mult := 1.0
+var _talent_dodge_iframe_mult := 1.0
+var _talent_summon_reserve := 0
+
+## L-09：经脉等级（meridian_id → level 0..5；存档侧权威在 run_state.progression_values）
+var meridian_levels: Dictionary = {}
+var _meridian_hp_bonus := 0.0
+var _meridian_stamina_bonus := 0.0
+var _meridian_focus_bonus := 0.0
+var _meridian_armor_bonus := 0.0
+var _meridian_damage_mult := 1.0
+var _meridian_speed_mult := 1.0
+var _meridian_focus_regen_mult := 1.0
+var _meridian_roll_tier := 0
+
+## L-10：状态效果（status_bar: status_id → {"stacks","elapsed","tick_accum"}）
+var status_bar: Dictionary = {}
+var _status_accum := 0.0
+const STATUS_TICK_INTERVAL := 0.5
+## L-10：翻滚档（light/mid/fat）派生倍率
+const ARMOR_WEIGHT_SCORES := {"light": 1, "medium": 2, "heavy": 3}
+const WEIGHT_CLASS_MULT := {
+	"light": {"speed": 1.0, "roll": 1.0, "stamina_penalty": 0.0},
+	"mid": {"speed": 1.0, "roll": 0.9, "stamina_penalty": 0.05},
+	"fat": {"speed": 0.8, "roll": 0.8, "stamina_penalty": 0.12},
+}
+var _weight_class := "light"
+var _weight_speed_mult := 1.0
+var _weight_roll_mult := 1.0
+var _weight_stamina_penalty := 0.0
+## L-14：玩家抓投距离
+const PLAYER_GRAB_RANGE := 2.4
 
 
 func setup(world, audio, hud) -> void:
@@ -283,6 +362,7 @@ func setup(world, audio, hud) -> void:
 	hud_node = hud
 	configured = true
 	_ensure_combat_subsystems(world)
+	_refresh_weight_class()
 	_emit_stats()
 	_emit_focus()
 	poise_changed.emit(poise_health, max_poise_health)
@@ -298,7 +378,9 @@ func _ready() -> void:
 	_ensure_combat_subsystems(world_node)
 	if _visuals != null:
 		_visuals.build_nodes()
+	_connect_combat_area_hit()  # L-07：链续命中门闩
 	_configure_spring_arm_collision()  # F-01：关卡几何层 mask 校验与固化
+	_refresh_weight_class()
 	_anim_bridge = PlayerAnimationBridgeScript.new()
 	_anim_bridge.setup(self)
 	_connect_animation_bridge()
@@ -327,6 +409,19 @@ func _connect_animation_bridge() -> void:
 		_anim_bridge.combo_window_closed.connect(_on_anim_combo_closed)
 	if not _anim_bridge.forward_impulse_requested.is_connected(_on_anim_forward_impulse):
 		_anim_bridge.forward_impulse_requested.connect(_on_anim_forward_impulse)
+
+
+## L-07：共享命中体积命中 → 链续命中门闩（chain_requires_hit）
+func _connect_combat_area_hit() -> void:
+	if combat_area == null or _combo_chain_hit_connected:
+		return
+	if not combat_area.hit_landed.is_connected(_on_combat_area_hit_landed):
+		combat_area.hit_landed.connect(_on_combat_area_hit_landed)
+	_combo_chain_hit_connected = true
+
+
+func _on_combat_area_hit_landed(_target: Node3D, _is_heavy: bool) -> void:
+	_combo_chain_hit_landed = true
 
 
 ## AnimationPlayer method track 转发到桥（占位轨路径指向玩家）
@@ -421,6 +516,7 @@ func _physics_process(delta: float) -> void:
 			_update_stamina(delta)
 			_update_poise(delta)
 			_update_context_windows(delta)
+			_tick_statuses(delta)
 		_was_on_floor = is_on_floor()
 		_previous_vertical_velocity = velocity.y
 		# B-11：下落加倍重力；G-06 局部时间膨胀只乘本实体
@@ -438,6 +534,12 @@ func _physics_process(delta: float) -> void:
 		_check_void_recovery()
 	_flush_stats(delta)
 	_update_visual_pose()
+	# L-01：命运增益计时器到期复位
+	if _fate_damage_boost_until > 0.0:
+		_fate_damage_boost_until -= delta
+		if _fate_damage_boost_until <= 0.0:
+			_fate_damage_boost_until = 0.0
+			_fate_damage_multiplier = 1.0
 	# B-03：debug / combat tip 下刷新输入缓冲可视化
 	_update_input_buffer_debug()
 
@@ -532,6 +634,9 @@ func respawn_at(at: Vector3) -> void:
 	stamina_delay = 0.0
 	poise_health = max_poise_health
 	_poise_delay_timer = 0.0
+	# L-10：复活清空状态
+	status_bar.clear()
+	_status_accum = 0.0
 	visible = true
 	body_collision.set_deferred("disabled", false)
 	visual_root.rotation = Vector3.ZERO
@@ -598,6 +703,8 @@ func receive_hit_payload(payload: Dictionary) -> void:
 		_play_audio(cue, -5.0, 1.35)
 		_change_state(State.LOCOMOTION)
 		return
+	# L-10：受击附带状态（敌方 status_inflict / status:* 标签）→ 叠层/爆发
+	_apply_status_from_payload(payload)
 
 	var guard_profile: Dictionary = HandEquipmentScript.get_guard_profile(left_hand_item)
 	if not guard_profile.is_empty():
@@ -661,6 +768,91 @@ func receive_hit_payload(payload: Dictionary) -> void:
 		_change_state(State.STAGGER, clampf(0.28 + incoming_stagger * 0.006, 0.28, 0.68))
 
 
+## L-10：施加状态（bleed 阈值爆发即时结算到 health）
+func apply_status(status_id: StringName, stacks: float, source: Node = null) -> void:
+	if state == State.DEAD or stacks <= 0.0:
+		return
+	var event := StatusEffectScript.apply(status_bar, status_id, stacks)
+	var burst_damage := float(event.get("burst_damage", 0.0))
+	if burst_damage > 0.0:
+		health = maxf(health - burst_damage, 0.0)
+		_emit_stats()
+		_play_audio("hurt", -5.0, 1.0)
+		if health <= 0.0:
+			_die()
+			return
+	if has_status(&"confusion"):
+		_show_message(LocalizationScript.text("CONFUSED"), 0.6)
+
+
+## L-10：每 STATUS_TICK_INTERVAL 推进一次状态（DoT / 衰减 / 过期）
+func _tick_statuses(delta: float) -> void:
+	if status_bar.is_empty():
+		_status_accum = 0.0
+		return
+	_status_accum += delta
+	if _status_accum < STATUS_TICK_INTERVAL:
+		return
+	var elapsed := _status_accum
+	_status_accum = 0.0
+	var events := StatusEffectScript.tick(status_bar, elapsed)
+	for event in events:
+		var damage := float(event.get("damage", 0.0))
+		if damage <= 0.0:
+			continue
+		health = maxf(health - damage, 0.0)
+		_emit_stats()
+		_play_audio("hurt", -6.0, 1.1)
+		if health <= 0.0:
+			_die()
+			return
+
+
+func has_status(status_id: StringName) -> bool:
+	return StatusEffectScript.has_status(status_bar, status_id)
+
+
+func get_status_stacks(status_id: StringName) -> float:
+	return StatusEffectScript.get_stacks(status_bar, status_id)
+
+
+func clear_status(status_id: StringName) -> void:
+	StatusEffectScript.clear_status(status_bar, status_id)
+
+
+## L-10：受击 payload → 状态施加。来源：payload.status_inflict、敌方 source.status_inflict、status:* 标签。
+func _apply_status_from_payload(payload: Dictionary) -> void:
+	var inflict: Dictionary = {}
+	var raw: Variant = payload.get("status_inflict")
+	if raw is Dictionary:
+		for key in raw:
+			inflict[key] = raw[key]
+	# status:* 标签（敌方攻击标签，最低优先级）
+	var tags: Variant = payload.get("tags", [])
+	if tags is Array:
+		for tag in tags:
+			var tag_str := String(tag)
+			if tag_str.begins_with("status:"):
+				var sid := tag_str.substr(7)
+				if not inflict.has(sid):
+					inflict[sid] = 1.0
+	# 敌方节点自带状态（含栈数与触发概率）
+	var source = payload.get("source")
+	if source is Node:
+		var src_status: Variant = source.get("status_inflict")
+		if src_status is Dictionary:
+			for key in src_status:
+				if not inflict.has(key):
+					inflict[key] = src_status[key]
+	if inflict.is_empty():
+		return
+	for key in inflict:
+		var norm := StatusEffectScript.normalize_inflict_entry(inflict[key])
+		if float(norm["chance"]) <= 0.0 or randf() > float(norm["chance"]):
+			continue
+		apply_status(StringName(String(key)), float(norm["stacks"]), source)
+
+
 func heal_full() -> void:
 	health = max_health
 	stamina = max_stamina
@@ -668,6 +860,12 @@ func heal_full() -> void:
 	stamina_delay = 0.0
 	_emit_stats()
 	_emit_focus()
+
+
+## L-06：外部治疗入口（往生莲等）
+func heal(amount: float) -> void:
+	health = minf(health + amount, max_health)
+	_emit_stats()
 
 
 func get_lock_target():
@@ -699,8 +897,23 @@ func set_embers(amount: int) -> void:
 	embers_changed.emit(embers)
 
 
+## L-01：命运抉择爆发增益（如刑天·吸收），multiplier>1 为增伤
+func grant_fate_damage_boost(multiplier: float, duration: float) -> void:
+	_fate_damage_multiplier = maxf(multiplier, 1.0)
+	_fate_damage_boost_until = maxf(duration, 0.0)
+
+
 func get_upgrade_tier() -> int:
 	return _upgrade_tier
+
+
+## L-05：铁心工坊锻造等级（存档侧权威；本方法仅同步运行时）
+func get_forge_level() -> int:
+	return _forge_level
+
+
+func set_forge_level(level: int) -> void:
+	_forge_level = clampi(level, 0, FORGE_MAX_LEVEL)
 
 
 func set_upgrade_tier(tier: int) -> void:
@@ -725,6 +938,167 @@ func try_upgrade_max_health() -> bool:
 	embers_changed.emit(embers)
 	_emit_stats()
 	return true
+
+
+## L-09：可用天赋点（L-15 道行升级由 game_world 写入；此处仅读/改）
+func get_talent_points() -> int:
+	return talent_points
+
+
+func set_talent_points(amount: int) -> void:
+	talent_points = maxi(amount, 0)
+
+
+func add_talent_points(amount: int) -> void:
+	talent_points = maxi(talent_points + amount, 0)
+
+
+## L-09：消费 1 点学习天赋（委托 TalentSystem；成功后幂等重算派生数值）
+func spend_talent(class_id: StringName, talent_id: StringName) -> bool:
+	return TalentSystemScript.spend_point(class_id, talent_id, self)
+
+
+## L-09：只读校验（HUD/测试查询）
+func can_spend_talent(class_id: StringName, talent_id: StringName) -> Dictionary:
+	return TalentSystemScript.can_spend(class_id, talent_id, self)
+
+
+## L-09：返还某职业全部天赋点（烬龛洗点）；返回返还数
+func respec_talent_class(class_id: StringName) -> int:
+	return TalentSystemScript.respec_class(class_id, self)
+
+
+## L-09：已解锁职业 id 列表（基础恒解锁；混合按双亲阈值）
+func unlocked_classes() -> Array:
+	return TalentSystemScript.unlocked_classes(talent_spent)
+
+
+## L-09：混合职业解锁进度 0..1
+func class_unlock_ratio() -> float:
+	return TalentSystemScript.class_unlock_ratio(talent_spent)
+
+
+## L-09：当前生效天赋增益（HUD 展示用）
+func get_talent_bonuses() -> Dictionary:
+	return {
+		"max_health": _talent_bonus_health,
+		"max_stamina": _talent_bonus_stamina,
+		"max_focus": _talent_bonus_focus,
+		"damage_mult": _talent_damage_mult,
+		"armor_pdr": _talent_armor_bonus,
+		"move_speed": _talent_speed_mult,
+		"focus_regen": _talent_focus_regen_mult,
+		"parry_window": _talent_parry_mult,
+		"dodge_i_frames": _talent_dodge_iframe_mult,
+		"summon_reserve": _talent_summon_reserve,
+	}
+
+
+## L-09：召唤物额外槽位（供 player_spells/L-06 后续接线）
+func get_summon_reserve_bonus() -> int:
+	return _talent_summon_reserve
+
+
+## L-09：按战斗 style 切职业。0..4 = 既有 5 风格自由切换；
+## 5..8 = 混合虚拟 style，未解锁则拒绝并提示；越界返回 false。
+func try_switch_class(style_id: int) -> bool:
+	if style_id < CombatStyle.size():
+		set_combat_style(style_id)
+		return true
+	var cls := TalentDataScript.class_for_style(style_id)
+	if cls.is_empty():
+		return false
+	if not TalentSystemScript.unlocks_for(StringName(cls["id"]), _points_by_class()):
+		_show_message(LocalizationScript.text("CLASS LOCKED"), 0.9)
+		return false
+	set_combat_style(int(cls["base_style"]))
+	_show_message(LocalizationScript.text(String(cls["name"])), 1.0)
+	return true
+
+
+## L-09：幂等重算天赋派生数值并落地到扁平变量（talent_spent 驱动，重复调用安全）
+func _apply_talent_stats() -> void:
+	var b := TalentSystemScript.compute_bonuses(talent_spent)
+	var natural_health := max_health - _talent_bonus_health
+	_talent_bonus_health = float(b["max_health"])
+	max_health = natural_health + _talent_bonus_health
+	health = minf(health, max_health)
+	var natural_stamina := max_stamina - _talent_bonus_stamina
+	_talent_bonus_stamina = float(b["max_stamina"])
+	max_stamina = natural_stamina + _talent_bonus_stamina
+	stamina = minf(stamina, max_stamina)
+	var natural_focus := max_focus - _talent_bonus_focus
+	_talent_bonus_focus = float(b["max_focus"])
+	max_focus = natural_focus + _talent_bonus_focus
+	focus = minf(focus, max_focus)
+	var natural_armor := armor_pdr - _talent_armor_bonus
+	_talent_armor_bonus = float(b["armor_pdr"])
+	armor_pdr = natural_armor + _talent_armor_bonus
+	_talent_damage_mult = float(b["damage_mult"])
+	_talent_speed_mult = float(b["move_speed"])
+	_talent_focus_regen_mult = float(b["focus_regen"])
+	_talent_parry_mult = float(b["parry_window"])
+	_talent_dodge_iframe_mult = float(b["dodge_i_frames"])
+	_talent_summon_reserve = int(b["summon_reserve"])
+	_emit_stats()
+	_emit_focus()
+
+
+## L-09：经脉等级只读（HUD/overlay 查询）
+func get_meridian_level(meridian_id: String) -> int:
+	return int(meridian_levels.get(meridian_id, 0))
+
+
+## L-09：从 run_state 同步经脉等级并幂等落地（game_world 在加载/升级后调用）
+func apply_meridian_levels(levels: Dictionary) -> void:
+	meridian_levels = levels.duplicate(true)
+	apply_meridian_bonuses()
+
+
+## L-09：幂等重算经脉增益并落地到扁平变量（meridian_levels 驱动，重复调用安全）。
+## 与 _apply_talent_stats 同构：先剥旧增量再加新增量，避免重复叠加。
+func apply_meridian_bonuses() -> void:
+	var b := MeridianSystemScript.compute_bonuses(meridian_levels)
+	var natural_health := max_health - _meridian_hp_bonus
+	_meridian_hp_bonus = float(b["max_health"])
+	max_health = natural_health + _meridian_hp_bonus
+	health = minf(health, max_health)
+	var natural_stamina := max_stamina - _meridian_stamina_bonus
+	_meridian_stamina_bonus = float(b["max_stamina"])
+	max_stamina = natural_stamina + _meridian_stamina_bonus
+	stamina = minf(stamina, max_stamina)
+	var natural_focus := max_focus - _meridian_focus_bonus
+	_meridian_focus_bonus = float(b["max_focus"])
+	max_focus = natural_focus + _meridian_focus_bonus
+	focus = minf(focus, max_focus)
+	var natural_armor := armor_pdr - _meridian_armor_bonus
+	_meridian_armor_bonus = float(b["armor_pdr"])
+	armor_pdr = natural_armor + _meridian_armor_bonus
+	_meridian_damage_mult = float(b["damage_mult"])
+	_meridian_speed_mult = float(b["move_speed"])
+	_meridian_focus_regen_mult = float(b["focus_regen"])
+	_meridian_roll_tier = int(b["roll_tier"])
+	_refresh_weight_class()
+	_emit_stats()
+	_emit_focus()
+
+
+## L-09：当前经脉增益汇总（HUD/overlay 展示用）
+func get_meridian_bonuses() -> Dictionary:
+	return {
+		"max_health": _meridian_hp_bonus,
+		"max_stamina": _meridian_stamina_bonus,
+		"max_focus": _meridian_focus_bonus,
+		"damage_mult": _meridian_damage_mult,
+		"armor_pdr": _meridian_armor_bonus,
+		"move_speed": _meridian_speed_mult,
+		"focus_regen": _meridian_focus_regen_mult,
+		"roll_tier": _meridian_roll_tier,
+	}
+
+
+func _points_by_class() -> Dictionary:
+	return TalentSystemScript.points_by_class(talent_spent)
 
 
 func set_focus(amount: float) -> void:
@@ -811,7 +1185,7 @@ func _handle_action_input() -> void:
 	elif _action_just_pressed(&"right_secondary", [&"heavy_attack", &"heavy_attack_alt"]):
 		_execute_hand_action("right", "secondary")
 	elif _action_just_pressed(&"right_primary", [&"light_attack", &"light_attack_alt"]):
-		if _try_execution():
+		if _try_execution() or _try_player_grab():
 			return
 		_execute_hand_action("right", "primary")
 	elif _action_just_pressed(&"left_primary", [&"guard"]):
@@ -875,7 +1249,7 @@ func _dispatch_queued_action(action: String) -> void:
 		"right_secondary":
 			_execute_hand_action("right", "secondary")
 		"right_primary":
-			if not _try_execution():
+			if not _try_execution() and not _try_player_grab():
 				_execute_hand_action("right", "primary")
 		"left_primary":
 			_execute_hand_action("left", "primary")
@@ -992,11 +1366,15 @@ func _update_state(delta: float) -> void:
 		State.ATTACK_WINDUP:
 			_slow_horizontal(delta, acceleration * 1.8)
 			_face_lock_target(delta)
+			if _try_chain_advance():
+				return
 			if state_time <= 0.0:
 				var active_duration := _current_attack.active_seconds if _current_attack != null else _style_value(&"active", attack_heavy)
 				_change_state(State.ATTACK_ACTIVE, active_duration)
 		State.ATTACK_ACTIVE:
 			_update_attack_active_motion(delta)
+			if _try_chain_advance():
+				return
 			# 下落攻：hitbox 持续到落地或超时
 			var falling_done := false
 			if _current_attack != null and _current_attack.hitbox_until_land:
@@ -1008,10 +1386,12 @@ func _update_state(delta: float) -> void:
 				_change_state(State.ATTACK_RECOVERY, recovery_duration)
 		State.ATTACK_RECOVERY:
 			_slow_horizontal(delta, acceleration)
+			if _try_chain_advance():
+				return
 			if state_time <= 0.0:
 				_change_state(State.LOCOMOTION)
 		State.DODGE:
-			var dodge_speed := BACKSTEP_SPEED if _dodge_is_backstep else DODGE_SPEED
+			var dodge_speed := BACKSTEP_SPEED if _dodge_is_backstep else DODGE_SPEED * _weight_roll_mult
 			velocity.x = dodge_direction.x * dodge_speed
 			velocity.z = dodge_direction.z * dodge_speed
 			if state_time <= 0.0:
@@ -1112,7 +1492,8 @@ func _update_state(delta: float) -> void:
 
 
 func _update_locomotion(delta: float) -> void:
-	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# L-10：迷心状态反转水平输入轴；翻滚档（fat）降低移速
+	var input_vector := _get_move_input()
 	var camera_forward := -camera.global_transform.basis.z
 	camera_forward.y = 0.0
 	camera_forward = camera_forward.normalized()
@@ -1122,7 +1503,7 @@ func _update_locomotion(delta: float) -> void:
 	var direction := (camera_right * input_vector.x + camera_forward * -input_vector.y).normalized()
 	var sprinting := _wants_sprint() and direction.length_squared() > 0.0 and stamina > 0.0
 	var dilation := _g06_dilation()
-	var target_speed := (sprint_speed if sprinting else move_speed) * dilation
+	var target_speed := (sprint_speed if sprinting else move_speed) * _talent_speed_mult * _meridian_speed_mult * _weight_speed_mult * dilation
 	# B-12：按状态取加速度
 	var accel: float = _get_current_acceleration()
 	if sprinting:
@@ -1195,6 +1576,89 @@ func _try_execution() -> bool:
 	execution_started.emit(kind, target)
 	_change_state(State.EXECUTE_WINDUP, profile.windup_seconds)
 	return true
+
+
+## L-14：玩家抓投（复用处决配对框架）。在 `_try_execution` 之后兜底：
+## 处决不覆盖的正面硬直人型敌 → 短前摇锁定、事件点伤害、释放。
+func _try_player_grab() -> bool:
+	if state != State.LOCOMOTION or not is_on_floor():
+		return false
+	if world_node == null or not world_node.has_method("get_target_candidates"):
+		return false
+	var target: Node3D = _nearest_grabbable_enemy()
+	if target == null:
+		return false
+	return try_player_grab(target)
+
+
+func _nearest_grabbable_enemy() -> Node3D:
+	var best: Node3D = null
+	var best_dist := INF
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	forward = forward.normalized() if forward.length_squared() > 0.001 else Vector3.ZERO
+	for raw in world_node.get_target_candidates():
+		if raw == self or not (raw is Node3D):
+			continue
+		var candidate := raw as Node3D
+		if not candidate.has_method("can_be_grabbed") or not bool(candidate.can_be_grabbed()):
+			continue
+		var to_target := candidate.global_position - global_position
+		to_target.y = 0.0
+		var dist := to_target.length()
+		if dist > PLAYER_GRAB_RANGE:
+			continue
+		# 需大致正面（dot < -0.15 视为在身后，应走背刺）
+		if forward.length_squared() > 0.001 and to_target.length_squared() > 0.001:
+			if forward.dot(to_target.normalized()) < -0.15:
+				continue
+		if dist < best_dist:
+			best_dist = dist
+			best = candidate
+	return best
+
+
+func try_player_grab(target: Node3D) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	if not target.has_method("can_be_grabbed") or not bool(target.can_be_grabbed()):
+		return false
+	if not target.has_method("try_claim_execution"):
+		return false
+	var profile := _make_player_grab_profile()
+	if not target.try_claim_execution(self, profile.claim_seconds):
+		return false
+	_execution_target = target
+	_execution_profile = profile
+	_execution_kind = &"grab"
+	_execution_damage_applied = false
+	guard_active = false
+	_execution_director = ExecutionPairedDirectorScript.new()
+	_execution_director.begin(self, target, profile, &"grab", _anim_bridge, true)
+	_show_combat_tip("GRAB", 0.55)
+	_play_audio("heavy", -5.0, 0.85)
+	execution_started.emit(&"grab", target)
+	_change_state(State.EXECUTE_WINDUP, profile.windup_seconds)
+	return true
+
+
+## L-14：玩家抓投 Profile —— 短前摇、中等致命倍率的人型抓取
+func _make_player_grab_profile() -> Resource:
+	var profile = ExecutionProfileScript.new()
+	profile.profile_id = &"player_grab"
+	profile.execution_type = ExecutionProfile.ExecutionType.FRONT_RIPOSTE
+	profile.allowed_vulnerability = &"stagger"
+	profile.interaction_distance = PLAYER_GRAB_RANGE
+	profile.interaction_angle_degrees = 60.0
+	profile.critical_multiplier = 1.9
+	profile.windup_seconds = 0.22
+	profile.active_seconds = 0.42
+	profile.recovery_seconds = 0.5
+	profile.damage_event_seconds = 0.16
+	profile.required_anchor = &"chest"
+	profile.allow_lethal_damage = true
+	profile.claim_seconds = 2.2
+	return profile
 
 
 func begin_grabbed(grabber: Node, duration: float = 1.4) -> void:
@@ -1295,6 +1759,219 @@ func _finish_execution() -> void:
 	_execution_damage_applied = false
 
 
+## L-07：重置连段链（新起手 / 离开攻击态 / 无链招式）
+func _reset_combo_chain() -> void:
+	_combo_chain_index = 0
+	_combo_chain_length = 0
+	_combo_chain_kind = &""
+	_combo_chain_id = &""
+	_combo_chain_attacks = []
+	_combo_chain_hit_landed = false
+
+
+## L-07：中立轻/重击起手时建立链（仅 neutral 招式可链）
+func _begin_combo_chain(heavy: bool, hand: String, semantic_id: String) -> void:
+	_combo_chain_index = 0
+	_combo_chain_kind = &"heavy" if heavy else &"light"
+	_combo_chain_id = StringName(semantic_id)
+	_combo_chain_hit_landed = false
+	_combo_chain_attacks = []
+	if _current_attack == null:
+		_combo_chain_length = 0
+		return
+	var chain := _build_combo_chain(heavy, hand)
+	if chain.size() < 2:
+		_combo_chain_length = 0
+		return
+	_combo_chain_attacks = chain
+	_combo_chain_length = chain.size()
+
+
+## L-07：构建链段 AttackData 序列。优先跟随 authored next_*；否则按语义 id / 武器类别兜底派生。
+func _build_combo_chain(heavy: bool, hand: String) -> Array[AttackData]:
+	var moveset := _current_moveset()
+	if moveset == null:
+		return []
+	var base: AttackData = moveset.neutral_heavy if heavy else moveset.neutral_light
+	if base == null:
+		return []
+	var length := _chain_length_for(heavy, hand)
+	if length <= 1:
+		return [base]
+	var chain: Array[AttackData] = [base]
+	var authored_id := _current_attack.next_heavy if heavy else _current_attack.next_light
+	for step in range(1, length):
+		var next_id: StringName = authored_id
+		if next_id == &"":
+			next_id = StringName("%s_%d" % [_combo_chain_id, step + 1])
+		var next := _find_attack_by_action_id(moveset, next_id) if authored_id != &"" else null
+		if next == null:
+			next = _derive_chain_attack(base, heavy, next_id, step)
+		chain.append(next)
+	return chain
+
+
+## L-07：派生链段（逐段提升伤害/削韧，精力与后摇收敛，节奏加快）
+func _derive_chain_attack(base: AttackData, heavy: bool, next_id: StringName, step: int) -> AttackData:
+	var attack := base.duplicate() as AttackData
+	attack.action_id = next_id
+	attack.display_name_key = next_id
+	var mul := _chain_step_multiplier(heavy, step)
+	attack.damage = maxf(base.damage * mul, 1.0)
+	attack.poise_damage = maxf(base.poise_damage * mul, 1.0)
+	attack.stamina_cost = maxf(base.stamina_cost * (1.0 - step * 0.06), 8.0)
+	attack.windup_seconds = maxf(base.windup_seconds * _chain_windup_multiplier(step), 0.1)
+	attack.active_seconds = maxf(base.active_seconds, 0.08)
+	attack.recovery_seconds = maxf(base.recovery_seconds * _chain_recovery_multiplier(step), 0.12)
+	attack.authored_displacement = base.authored_displacement * _chain_lunge_multiplier(step)
+	attack.hitbox_until_land = false
+	# 派生段不继续携带 next_*，避免无限延伸（链长由兜底表/起手段决定）
+	attack.next_light = &""
+	attack.next_heavy = &""
+	return attack
+
+
+## L-07：链段伤害倍率（后段更狠；重击链收敛更快）
+func _chain_step_multiplier(heavy: bool, step: int) -> float:
+	if heavy:
+		return 1.05 + step * 0.06
+	return 1.0 + step * 0.12
+
+
+func _chain_windup_multiplier(step: int) -> float:
+	return maxf(0.9 - step * 0.06, 0.7)
+
+
+func _chain_recovery_multiplier(step: int) -> float:
+	return maxf(0.85 - step * 0.08, 0.6)
+
+
+func _chain_lunge_multiplier(step: int) -> float:
+	return maxf(1.0 - step * 0.12, 0.6)
+
+
+## L-07：按 authored next_* 或兜底表取链长
+func _chain_length_for(heavy: bool, hand: String) -> int:
+	if heavy:
+		return 2 if _current_attack != null and _current_attack.next_heavy != &"" else 1
+	if _current_attack != null and _current_attack.next_light != &"":
+		return maxi(2, _fallback_chain_length(String(_combo_chain_id), _hand_weapon_type(hand)))
+	return _fallback_chain_length(String(_combo_chain_id), _hand_weapon_type(hand))
+
+
+## L-07：兜底轻击链长（语义 action_id 优先，其次武器类别）
+func _fallback_chain_length(semantic_id: String, weapon_type: StringName) -> int:
+	var by_id := int(CHAIN_LIGHT_ACTION_IDS.get(semantic_id, 0))
+	if by_id > 0:
+		return by_id
+	return int(CHAIN_LIGHT_LENGTH_BY_TYPE.get(weapon_type, 1))
+
+
+## L-07：moveset 中按 action_id 查招（authored 链）
+func _find_attack_by_action_id(moveset: MovesetData, action_id: StringName) -> AttackData:
+	for slot in [
+		moveset.neutral_light, moveset.neutral_heavy, moveset.sprint_attack,
+		moveset.roll_attack, moveset.backstep_attack, moveset.jump_attack,
+		moveset.falling_attack, moveset.weapon_art_light, moveset.weapon_art_heavy,
+	]:
+		if slot != null and slot.action_id == action_id:
+			return slot
+	return null
+
+
+## L-07：链窗开（秒，自攻击开始计）；0.0 → windup+active
+func _chain_window_open(attack: AttackData) -> float:
+	if attack.chain_open_seconds > 0.0:
+		return attack.chain_open_seconds
+	return attack.windup_seconds + attack.active_seconds
+
+
+## L-07：链窗关（秒，自攻击开始计）；0.0 → windup+active+recovery
+func _chain_window_close(attack: AttackData) -> float:
+	if attack.chain_close_seconds > 0.0:
+		return attack.chain_close_seconds
+	return attack.windup_seconds + attack.active_seconds + attack.recovery_seconds
+
+
+## L-07：链输入是否已入缓冲（不消费）
+func _chain_input_pending(action: StringName) -> bool:
+	if action_queued(action, false):
+		return true
+	return _buffered_action == String(action) and _buffer_timer > 0.0
+
+
+## L-07：消费链输入（多槽 + 单槽双清）
+func _consume_chain_input(action: StringName) -> void:
+	action_queued(action, true)
+	if _buffered_action == String(action):
+		_buffered_action = ""
+		_buffer_timer = 0.0
+
+
+## L-07：链窗内检测缓冲轻/重击 → 推进到下一段（仅在攻击态由 _update_state 调用）
+func _try_chain_advance() -> bool:
+	if _combo_chain_length <= 0 or _combo_chain_index >= _combo_chain_length - 1:
+		return false
+	if _current_attack == null:
+		return false
+	var elapsed := state_duration - state_time
+	var open := _chain_window_open(_current_attack)
+	var close := _chain_window_close(_current_attack)
+	if elapsed < open or elapsed > close:
+		return false
+	if _current_attack.chain_requires_hit and not _combo_chain_hit_landed:
+		return false
+	var want_light := _chain_input_pending(&"right_primary")
+	var want_heavy := _chain_input_pending(&"right_secondary")
+	if not want_light and not want_heavy:
+		return false
+	var heavy := want_heavy and not want_light
+	if heavy != (_combo_chain_kind == &"heavy"):
+		return false
+	var next: AttackData = _combo_chain_attacks[_combo_chain_index + 1]
+	if next == null:
+		return false
+	if not _commit_chain_attack(next, heavy, attack_hand):
+		return false
+	_combo_chain_index += 1
+	_consume_chain_input(&"right_secondary" if heavy else &"right_primary")
+	if _combo_chain_index > 0:
+		_show_combat_tip("COMBO %d" % (_combo_chain_index + 1), 0.4)
+	return true
+
+
+## L-07：提交链段（保留链状态；不重置链）
+func _commit_chain_attack(attack: AttackData, heavy: bool, hand: String) -> bool:
+	if state in [State.DEAD, State.STAGGER, State.GRABBED]:
+		return false
+	if attack == null:
+		return false
+	var cost := attack.stamina_cost
+	var focus_cost := attack.focus_cost
+	if stamina < cost:
+		_show_message("NOT ENOUGH STAMINA", 0.8)
+		return false
+	if focus_cost > 0.0 and focus < focus_cost:
+		_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
+		return false
+	_current_attack = attack
+	attack_cost = cost
+	_spend_stamina(cost, 0.85)
+	if focus_cost > 0.0:
+		focus = maxf(focus - focus_cost, 0.0)
+		_emit_focus()
+	attack_heavy = heavy or _attack_has_tag(_current_attack, &"heavy")
+	attack_hand = hand
+	attack_action_id = String(_current_attack.action_id)
+	attack_damage = _current_attack.damage
+	attack_stagger = _current_attack.poise_damage
+	_combo_chain_hit_landed = false
+	if _anim_bridge != null and _anim_bridge.enabled and not attack_heavy and is_on_floor():
+		_anim_bridge.travel_light_attack()
+	_change_state(State.ATTACK_WINDUP, _current_attack.windup_seconds)
+	return true
+
+
 func _try_attack(heavy: bool, hand := "right", action_id := "") -> void:
 	if state == State.DEAD:
 		return
@@ -1350,6 +2027,11 @@ func _commit_attack(
 	if not is_on_floor() and _current_attack.launch_velocity_y < 0.0:
 		velocity.y = minf(velocity.y, _current_attack.launch_velocity_y)
 	_announce_context_attack(_current_attack)
+	# L-07：仅中立轻/重击建链；context 招式重置链
+	if resolved == moveset.neutral_light or resolved == moveset.neutral_heavy:
+		_begin_combo_chain(heavy, hand, attack_action_id)
+	else:
+		_reset_combo_chain()
 	if _anim_bridge != null and _anim_bridge.enabled and not attack_heavy and is_on_floor():
 		_anim_bridge.travel_light_attack()
 	_change_state(State.ATTACK_WINDUP, _current_attack.windup_seconds)
@@ -1520,7 +2202,7 @@ func _is_sprint_context() -> bool:
 	if not _wants_sprint():
 		return false
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z).length()
-	return horizontal >= move_speed * 1.05
+	return horizontal >= move_speed * _talent_speed_mult * _meridian_speed_mult * 1.05
 
 
 ## B-10：冲刺意图（经典 sprint 键或 dodge 长按）
@@ -1528,6 +2210,14 @@ func _wants_sprint() -> bool:
 	if _ds_sprinting:
 		return true
 	return Input.is_action_pressed("sprint")
+
+
+## L-10：移动输入读取（迷心时反转水平轴；仅影响移动，不影响镜头/交互）
+func _get_move_input() -> Vector2:
+	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if has_status(&"confusion"):
+		input_vector = Vector2(-input_vector.x, -input_vector.y)
+	return input_vector
 
 
 ## B-12：按状态线加速度（缺省回站立基准）
@@ -1612,6 +2302,7 @@ func set_hand_loadout(right_hand_id: String, left_hand_id: String) -> bool:
 	combat_style = HandEquipmentScript.get_style_for_loadout(right_hand_item, left_hand_item) as CombatStyle
 	_apply_default_grip_for_style()
 	guard_active = false
+	_refresh_weight_class()
 	_update_weapon_visuals()
 	var display_name := _style_display_name()
 	combat_style_changed.emit(combat_style, display_name)
@@ -1680,6 +2371,33 @@ func _grip_display_name() -> String:
 		GripMode.TWO_HANDED: return "TWO-HANDED"
 		GripMode.PAIRED: return "PAIRED"
 	return "ONE-HANDED"
+
+
+## L-10：翻滚档 —— 基础体 + 左手防具重量合计
+## light=正常翻滚；mid=翻滚距离 -10%；fat=无无敌帧 + 移速 -20%
+func _get_weight_class() -> String:
+	var armor := HandEquipmentScript.get_armor_weight(left_hand_item)
+	var armor_class := String(armor.get("weight_class", "light"))
+	var score := 1 + int(ARMOR_WEIGHT_SCORES.get(armor_class, 1))
+	if score <= 2:
+		return "light"
+	if score <= 3:
+		return "mid"
+	return "fat"
+
+
+## L-10：装备变化后刷新重量派生倍率（移速 / 翻滚距离 / 精力回复惩罚）
+func _refresh_weight_class() -> void:
+	_weight_class = _get_weight_class()
+	var mult: Dictionary = WEIGHT_CLASS_MULT[_weight_class]
+	_weight_speed_mult = float(mult["speed"])
+	_weight_roll_mult = float(mult["roll"])
+	_weight_stamina_penalty = float(mult["stamina_penalty"])
+	# L-09：带脉（roll_tier）每级 +5% 翻滚距离 / 恢复 3% 精力惩罚 / +2% 移速，抵消重量档劣势
+	if _meridian_roll_tier > 0:
+		_weight_roll_mult = minf(_weight_roll_mult + 0.05 * _meridian_roll_tier, 1.2)
+		_weight_stamina_penalty = maxf(_weight_stamina_penalty - 0.03 * _meridian_roll_tier, 0.0)
+		_weight_speed_mult = minf(_weight_speed_mult + 0.02 * _meridian_roll_tier, 1.1)
 
 
 func _grip_mode_from_key(key: StringName) -> GripMode:
@@ -1844,6 +2562,11 @@ func _execute_hand_action(hand: String, slot: String) -> void:
 			_begin_cast(&"seal_burst", CombatData.SPELL_CONFIG["seal_burst"]["focus_cost"], CombatData.SPELL_CONFIG["seal_burst"]["cast_time"])
 		"beads_heal", "ember_rite":
 			_begin_cast(&"ember_rite", CombatData.SPELL_CONFIG["ember_rite"]["focus_cost"], CombatData.SPELL_CONFIG["ember_rite"]["cast_time"])
+		"spirit_summon":
+			# L-06：灵符召唤当前选定灵
+			_spells.try_summon(_spells.active_summon_spell_id())
+		"spirit_dismiss":
+			_spells.dismiss_all()
 		"talisman_strike":
 			_try_attack(false, "left", action_id)
 		"talisman_burst", "stone_pulse":
@@ -2013,7 +2736,8 @@ func _try_dodge() -> void:
 	if stamina < cost:
 		_show_message("NOT ENOUGH STAMINA", 0.8)
 		return
-	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# L-10：迷心同样反转翻滚方向；翻滚档（mid/fat）影响翻滚距离
+	var input_vector := _get_move_input()
 	var forward := -camera.global_transform.basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
@@ -2048,6 +2772,12 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 	if state in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE] \
 			and new_state not in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE]:
 		combat_area.end_swing()
+	# L-07：离开攻击态即结束连段链（DODGE/CAST/LOCOMOTION 等）
+	if new_state not in [
+		State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.ATTACK_RECOVERY,
+		State.GUARD_THRUST, State.LEAP_WINDUP, State.LEAP_ACTIVE,
+	]:
+		_reset_combo_chain()
 	if new_state != State.LOCOMOTION:
 		guard_active = false
 	state = new_state
@@ -2119,7 +2849,11 @@ func _begin_melee_swing() -> void:
 		combat_area.set_socket_follow(weapon_pivot, _current_attack.hitbox_offset)
 	else:
 		combat_area.clear_socket_follow()
-	combat_area.begin_swing(attack_damage, attack_stagger, _attack_metadata())
+	combat_area.begin_swing(
+		attack_damage * _fate_damage_multiplier * (1.0 + _forge_level * FORGE_DAMAGE_PER_LEVEL) * _talent_damage_mult * _meridian_damage_mult,
+		attack_stagger,
+		_attack_metadata()
+	)
 
 
 func _attack_metadata() -> Dictionary:
@@ -2146,11 +2880,13 @@ func _attack_metadata() -> Dictionary:
 
 
 func _is_invulnerable() -> bool:
-	# 后撤步无全身无敌帧
+	# L-10：重翻滚无无敌帧；后撤步无全身无敌帧
+	if _weight_class == "fat":
+		return false
 	if state != State.DODGE or state_duration <= 0.0 or _dodge_is_backstep:
 		return false
 	var elapsed := state_duration - state_time
-	return elapsed >= DODGE_INVULN_START and elapsed <= DODGE_INVULN_END
+	return elapsed >= DODGE_INVULN_START and elapsed <= DODGE_INVULN_END * _talent_dodge_iframe_mult
 
 
 func _is_parry_active() -> bool:
@@ -2162,7 +2898,7 @@ func _is_parry_active() -> bool:
 	var elapsed := state_duration - state_time
 	var startup := float(parry_profile.get("startup", 0.266))
 	var active := float(parry_profile.get("active", 0.266))
-	return elapsed >= startup and elapsed <= startup + active
+	return elapsed >= startup and elapsed <= startup + active * _talent_parry_mult
 
 
 func _is_guarding_hit(hit_direction: Variant) -> bool:
@@ -2221,12 +2957,13 @@ func _update_stamina(delta: float) -> void:
 			stamina_delay -= delta
 		else:
 			var previous := stamina
-			stamina = minf(stamina + stamina_regen * dilation * delta, max_stamina)
+			# L-10：防具重量档对精力回复的惩罚（中甲 -5%、重甲 -12%）
+			stamina = minf(stamina + stamina_regen * (1.0 - _weight_stamina_penalty) * dilation * delta, max_stamina)
 			if not is_equal_approx(previous, stamina):
 				_queue_stats_update()
 		if focus < max_focus:
 			var previous_focus_int := floori(focus)
-			focus = minf(focus + FOCUS_REGEN_RATE * dilation * delta, max_focus)
+			focus = minf(focus + FOCUS_REGEN_RATE * focus_regen_multiplier * _talent_focus_regen_mult * _meridian_focus_regen_mult * dilation * delta, max_focus)
 			if floori(focus) != previous_focus_int:
 				_emit_focus()
 

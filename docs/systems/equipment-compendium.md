@@ -126,9 +126,9 @@
 | System | Total Cost to Max (One Path) |
 |--------|------------------------------|
 | Cultivation (Level 60 soft cap) | ~183,000 Embers |
-| Meridians (all 8 at Lv.5) | Materials, not Embers |
-| Soul Vessels (all 5 at +5) | 38,500 Embers |
-| One Weapon (+10) | Materials, not Embers |
+| Meridians (all 8 at Lv.5) | 烬递增成本代偿（每脉 5 级合计 2,320 烬；设计材料灵气结晶/纯阳石/龙脉精髓待掉落系统落地后替换）(L-09) |
+| Soul Vessels (all 5 at +5) | 单轨 `vessel_level` +1..+5，共 7,700 Embers（实现为单轨；设计 5 魂器各 +5 待扩展）(L-15) |
+| One Weapon (+10) | 铁心锻造走烬：+1..+10 各阶 120…2,600，共 9,290 Embers (L-15) |
 | Talent Points | From levels (free), not purchased |
 
 ### NG+ Economy

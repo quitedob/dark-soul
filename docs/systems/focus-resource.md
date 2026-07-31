@@ -54,6 +54,14 @@ Canonical costs — `PlayerCombatData.SPELL_CONFIG`:
 | `bow_quick_shot` | 0 | Crescent bow uses stamina economy elsewhere |
 | `bow_power_shot` | 0 | Same |
 
+> `SPELL_CONFIG` 已扩展至 **39 条**（原 7 个兼容 cast + 32 新增）；详见下方（L-11）与 [player_combat_data.gd](../../game/scripts/data/player_combat_data.gd)。
+
+### 召唤占位 Focus 与法术 CD (L-11)
+
+- **`SUMMON_CONFIG`（5 灵）**：除即时 `focus_cost` 外，另有 **`reserved_focus` 占位** —— 施放即时扣取一次，灵消失/死亡时返还。护法灵童(16)/金甲力士(24)/往生莲(12)/怨灵(20)/白鹤童子(16)。
+- **`resolve_cast` 新增分支**：**buff**（war_cry/iron_skin/furnace_oath/fox_blessing/ascension_prayer 等）、**传送**（void_step/mirror_moon_swap）、**AoE**（furnace_fire_ring/heavenly_thunder/void_rift/soul_release/final_flame）、**召唤**（beacon_signal/hero_spirit/mirror_clone/illusion_phantoms）、**超度/终末**（soul_release/ksitigarbha_vow/final_flame）。
+- **`_cooldowns` CD 表**：施法真正释放时记入冷却（`resolve_cast` 先查 `cooldown` 再 `_set_cooldown`）。示例：`torch_dragon_breath` 60s、`great_silence` 15s、`final_flame` 120s、`immortality_mantra` 300s。
+
 ### 2. Spell-style melee (`AttackData.focus_cost`)
 
 `CompatibilityMovesetFactory` for `veilcraft` / `ember_rite`:

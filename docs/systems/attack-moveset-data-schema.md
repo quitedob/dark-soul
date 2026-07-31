@@ -111,6 +111,7 @@ extends Resource
 @export var next_heavy: AttackData
 @export var on_hit_followup: AttackData
 @export var on_guard_followup: AttackData
+@export var chain_requires_hit := false   # L-07: chain continues only if the hit lands; whiffed swings do not chain
 ```
 
 ### Validation
@@ -382,7 +383,7 @@ Checked against `game/scripts/combat/data/` and player commit path:
 | `MovesetData` | `moveset_data.gd` | Present — context resolve + charged heavy |
 | `ChargeProfile` | `charge_profile.gd` | Present — tier hold thresholds |
 | `WeaponData` | `weapon_data.gd` | Present — grip flags + moveset slots |
-| `WeaponArtData` | `weapon_art_data.gd` | Present — class exists; not all arts fully migrated off `match` |
+| `WeaponArtData` | `weapon_art_data.gd` + `weapon_arts_catalog.gd` | Present — 9 authored `.tres` (`resources/weapon_arts/`, L-13); `_execute_weapon_art` `match` dispatch retained (A-06 still open) |
 | `ExecutionProfile` | `execution_profile.gd` | Present |
 | `GuardProfile` | `guard_profile.gd` | Present — still dual-owned with HandEquipment dicts |
 | `GrabProfile` | `grab_profile.gd` | Present — runtime via `GrabPairedDirector` + independent capture Area3D |
@@ -394,6 +395,7 @@ Related runtime (not Resource schemas, but combat polish):
 
 - `CombatCameraDirector` + `CameraShotProfile` — Boss exclusive shots
 - `BossFateCatalog` + `FateChoiceOverlay` — story floor → string `choice_flags`
+- `WeaponArtsCatalog` — per-class `WeaponArtData` lookup over 9 authored `.tres` (L-13)
 
 Remaining gaps (tracked elsewhere):
 

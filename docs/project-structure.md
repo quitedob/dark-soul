@@ -44,13 +44,34 @@ game/
 │   └── world/                   # Playable world scenes
 ├── scripts/
 │   ├── app/                     # Godot-to-host communication bridge
+│   ├── boss/                    # Boss 相变与流程
+│   ├── camera/                  # 战斗相机镜头（抓投/弱点/命运）
+│   ├── combat/                  # 战斗系统（spirit_summon.gd、data/ 兵器诀/状态目录）
 │   ├── components/              # Reusable combat/projectile behavior
 │   ├── core/                    # Save state, settings, and localization
-│   ├── player/                  # Player controller package (player.gd entry)
-│   ├── ui/                      # Auxiliary UI behavior
+│   ├── data/                    # 数据 schema 与目录（weapon_arts_catalog.gd）
+│   ├── enemy/                   # 敌人 AI / AttackData 目录
+│   ├── fx/                      # 战斗/环境特效
+│   ├── levels/                  # 关卡逻辑（29 关）
+│   ├── player/                  # Player controller（player.gd 入口；talent/meridian 数据）
+│   ├── story/                   # 叙事（dialogue_runner.gd）
+│   ├── tools/                   # CLI 校验入口
+│   ├── ui/                      # UI（fast_travel_overlay.gd、inventory_overlay.gd）
+│   ├── world/                   # 世界物（furnace_memory_crystal.gd）
 │   └── *.gd                     # Remaining gameplay composition and actor scripts
+├── resources/                   # Resource 数据树（.tres 资产）
+│   ├── combat_styles/           # 五兼容 loadout（5 件 .tres）
+│   ├── weapons/                 # 武器数据（class_*.tres 9 件）
+│   ├── movesets/                # moveset 资源（2 件）
+│   ├── guards/                  # 格挡 profile（6 件）
+│   ├── enemies/                 # 敌人数据（hollow_sentinel/）
+│   ├── weapon_arts/             # 兵器诀（9 件 .tres）
+│   └── boss/                    # Boss 配置（heal_punish_defaults.gd）
 └── tests/
-    └── smoke/                   # Headless contract and smoke checks
+    ├── unit/                    # GUT 单元测试（combat/state_machines/systems）
+    ├── smoke/                   # Headless contract and smoke checks（34 个 .gd 文件）
+    │     例如：chapter1_slice / chapter2_slice / chapter3_5_wiring / boss_weakpoint / combat_style_resource / grip_charge / guard_execution / heal_punish …
+    └── run_tests.ps1 / run_tests.sh
 ```
 
 The scene folders communicate runtime meaning. Actor scripts may live in packages under `scripts/` (for example `scripts/player/player.gd`); coordinated moves must preserve `.uid` files, update every `res://` reference, and pass Godot import and smoke validation.
@@ -139,6 +160,6 @@ Before reorganizing files:
 3. Move scripts together with their `.uid` files.
 4. Update scenes, scripts, tests, documentation, and build commands in one change.
 5. Run Godot editor import, script parsing, contract tests, and gameplay smoke tests.
-6. Record only the verified result in `devlog.md`.
+6. Record only the verified result in `docs/devlog/index.md`（逐日条目按 `docs/devlog/<日期>/` 目录记录）.
 
 Do not reorganize runtime files while another agent is editing them unless that work is explicitly coordinated.

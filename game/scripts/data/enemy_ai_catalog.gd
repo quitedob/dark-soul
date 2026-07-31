@@ -68,6 +68,9 @@ static func _nav_for_body(body_type: String) -> Dictionary:
 			return {"radius": 0.36, "height": 1.65, "target_desired": 1.2, "body_r": 0.34, "body_h": 1.6, "body_y": 0.8}
 		"flying_small", "swarm":
 			return {"radius": 0.32, "height": 1.4, "target_desired": 1.1, "body_r": 0.3, "body_h": 1.35, "body_y": 0.7}
+		"hanging_bell":
+			# 盲钟·听烬：悬垂巨钟 —— 宽 / 高 / 高身材（合理导航与仇恨体型）
+			return {"radius": 1.0, "height": 2.6, "target_desired": 2.2, "body_r": 1.0, "body_h": 2.6, "body_y": 1.3}
 		_:
 			return {"radius": 0.48, "height": 1.9, "target_desired": 1.5, "body_r": 0.45, "body_h": 1.9, "body_y": 0.95}
 

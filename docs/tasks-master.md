@@ -27,10 +27,20 @@
 | D-01 | AnimationTree 真蒙皮 / 根骨资产替换占位骨架 | P1 | 🟡 PARTIAL | POC + Physics callback 已有；缺生产动画 |
 | D-03 | 锁敌 strafe BlendSpace2D | P2 | ⬜ PENDING | 依赖真位移动画 |
 | D-05 | 刑天跃击 root-motion 作者化动画路径 | P2 | ⬜ PENDING | 程序化 leap + RM 接入已有 |
-| H-04 | 28 关模块族行为抛光（Ch.2–5） | P1 | 🟡 PARTIAL | 模块可生成；章节行为未全量抛光 |
+| H-04 | 29 关模块族行为抛光（Ch.2–5） | P1 | 🟡 PARTIAL | 模块可生成；章节行为未全量抛光 |
 | — | LimboAI 真 GDExtension 替换 `compat_macro` | P3 | ⬜ PENDING | G-01 兼容层已 DONE |
-| — | Ch.3–5 遭遇工厂 + 跨章 NPC 迁移 / 隐藏结局证物 | P2 | ⬜ PENDING | Ch.1 云游竖切 + Ch.2 遭遇已接 |
 | — | 敌人攻击更多磁盘 `.tres` 作者化 | P3 | ⬜ PENDING | Catalog + 哨兵样例已有 |
+
+### L 系列缺口（2026-07-31 四路 subagent 审计新增）
+
+> 明细见 [tasks/content-gap-backlog.md](tasks/content-gap-backlog.md)。P0 接线（L-01…L-06）与 P1（L-07…L-17）已全部闭环，见 [devlog 09](devlog/2026-07-31/09-p1-wave-l-07-l-17.md)。
+
+| 优先级 | 要点 | 状态 |
+|--------|------|------|
+| P0 | **L-01** 命运抉择闭环 / **L-02** Ch.3–5 遭遇接线 / **L-03** Ch.3–5 Boss 生成 / **L-04** 隐藏结局 flag 链 / **L-05** 跨章 NPC（含锻造）/ **L-06** 召唤物 | ✅ DONE（2026-07-31，[devlog 08](devlog/2026-07-31/08-l-p0-wiring-l-01-l-06.md)） |
+| P1 | **L-07** 连段 / **L-08** 逐类 moveset / **L-09** 职业天赋成长（含经脉）/ **L-10** 装备状态（含背包 UI）/ **L-11** 法术 7→32 / **L-12** 快速旅行 / **L-13** 兵器诀 / **L-14** 抓投扩展 / **L-15** 锻造扩展 / **L-16** 重力倒悬 / **L-17** 谜题 | ✅ DONE（2026-07-31，[devlog 09](devlog/2026-07-31/09-p1-wave-l-07-l-17.md)） |
+| P2 | **L-18** 真模型资产 / **L-19** Boss 攻击 type 全覆盖 / **L-20** 弱点骨骼锚点 / **L-21** .tres 作者化 / **L-22** 精英对齐文档 | ⬜ PENDING |
+| 工程 | **L-23** 测试补齐 / **L-24** uid + devlog/数据口径修正 | ⬜ PENDING |
 
 战斗扩展里程碑总览仍见 [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md)。
 
@@ -64,7 +74,8 @@
 | ✅ DONE | ~96 |
 | 🟡 PARTIAL | 2（D-01, H-04） |
 | ⬜ PENDING（主表内） | 2（D-03, D-05） |
-| 后续内容债（无旧 ID） | LimboAI 真插件、Ch.3–5、跨章叙事填充 |
+| 后续内容债（无旧 ID） | LimboAI 真插件、Ch.3–5 专属 Boss 流程、跨章叙事填充 |
+| L 系列缺口（2026-07-31 审计） | P0 6 项 + P1 11 项 ✅ DONE；P2 5 项 + 工程 2 项 ⬜ PENDING → [content-gap-backlog](tasks/content-gap-backlog.md) |
 
 ---
 

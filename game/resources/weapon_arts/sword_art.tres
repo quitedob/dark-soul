@@ -1,0 +1,72 @@
+[gd_resource type="Resource" script_class="WeaponArtData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/weapon_art_data.gd" id="1_art"]
+[ext_resource type="Script" path="res://scripts/combat/data/attack_data.gd" id="2_atk"]
+
+[sub_resource type="Resource" id="Resource_entry"]
+script = ExtResource("2_atk")
+action_id = &"zhenhuo_entry"
+display_name_key = &"zhenhuo_entry"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"guard_break"])
+windup_seconds = 0.18
+active_seconds = 0.12
+recovery_seconds = 0.42
+stamina_cost = 24.0
+damage = 36.0
+poise_damage = 44.0
+guard_power = 51.4
+authored_displacement = Vector3(0, 0, 2.6)
+poise_modifier_windup = 0.05
+poise_modifier_active = 0.2
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_light"]
+script = ExtResource("2_atk")
+action_id = &"zhenhuo_light"
+display_name_key = &"zhenhuo_light"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"counter"])
+windup_seconds = 0.16
+active_seconds = 0.14
+recovery_seconds = 0.38
+stamina_cost = 16.0
+damage = 30.0
+poise_damage = 30.0
+guard_power = 40.5
+authored_displacement = Vector3(0, 0, 1.8)
+poise_modifier_windup = 0.0
+poise_modifier_active = 0.2
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_heavy"]
+script = ExtResource("2_atk")
+action_id = &"zhenhuo_heavy"
+display_name_key = &"zhenhuo_heavy"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"guard_break"])
+windup_seconds = 0.34
+active_seconds = 0.16
+recovery_seconds = 0.62
+stamina_cost = 30.0
+damage = 40.0
+poise_damage = 48.0
+guard_power = 56.8
+authored_displacement = Vector3(0, 0, 2.2)
+poise_modifier_windup = 0.14
+poise_modifier_active = 0.4
+poise_modifier_recovery = 0.0
+
+[resource]
+script = ExtResource("1_art")
+art_id = &"zhenhuo_stance"
+art_kind = &"pierce_thrust"
+stance_animation = &"sword_guard_stance"
+entry_attack = SubResource("Resource_entry")
+light_branch = SubResource("Resource_light")
+heavy_branch = SubResource("Resource_heavy")
+focus_cost = 8.0
+stamina_cost = 24.0
+windup_seconds = 0.18
+recovery_seconds = 0.42
+interruptible = true
+cooldown_seconds = 6.0
+uses_per_rest = 5
+art_tags = Array[StringName]([&"guard_break", &"counter"])

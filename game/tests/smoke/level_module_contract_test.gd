@@ -1,5 +1,5 @@
 extends SceneTree
-## H-04/H-05：十类模块覆盖全部 28 关 + shortcut 空间折叠合约
+## H-04/H-05：二十类模块覆盖全部 29 关 + shortcut 空间折叠合约
 
 const ContentRegistryScript = preload("res://scripts/core/content_registry.gd")
 const LevelModulesScript = preload("res://scripts/levels/procedural_level_modules.gd")
@@ -44,9 +44,9 @@ func _init() -> void:
 			_expect(fold_node == null, "Level %s disabled fold but ShortcutFold present." % level_id)
 		generated.free()
 
-	_expect(LevelModulesScript.MODULE_IDS.size() == 10, "Module registry must expose ten families.")
+	_expect(LevelModulesScript.MODULE_IDS.size() == 20, "Module registry must expose twenty families.")
 	for module_id in LevelModulesScript.MODULE_IDS:
-		_expect(seen_modules.has(String(module_id)), "Module family %s unused across 28 levels." % String(module_id))
+		_expect(seen_modules.has(String(module_id)), "Module family %s unused across 29 levels." % String(module_id))
 	_expect(fold_count >= 18, "Expected most non-boss levels to enable shortcut fold (got %d)." % fold_count)
 	_expect(LevelModulesScript.build(&"not_a_module", {}, null) == null, "Unknown module unexpectedly resolved.")
 

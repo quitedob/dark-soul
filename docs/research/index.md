@@ -16,6 +16,7 @@
 | [soulslike/design.md](soulslike/design.md) | 12 主题设计审计、垂直切片清单、勿照搬项 | 缓冲/锁敌循环/Boss 相位/治疗惩罚等已落地；跨章内容仍开放 |
 | [soulslike/weapons.md](soulslike/weapons.md) | 分风格武器手感、卡肉、霸体、音频建议 | 分风格帧/体力、本地 HitStop、Poise/WAM **已落地**；真蒙皮动画仍缺 |
 | [soulslike/mechanics.md](soulslike/mechanics.md) | 帧数据、招架窗、韧性公式、Godot 模式 | PoiseResolver / GuardProfile / 招架矩阵 **已落地** |
+| [soulslike/story-fat-cat-event.md](soulslike/story-fat-cat-event.md) | 2024 胖猫事件检索 → 烬渊支线「桥头的供茶」（第三章）去实名改编 + 寓言层 | 设计已并入 chapter-supplement 支线 4；运行时已实现（quest_bridge_tea/npc_bridge_tea_soul/bridge_tea_fate/贪烬鬼 elite，见 devlog 10） |
 
 ### Godot（引擎与工程）
 

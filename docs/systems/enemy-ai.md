@@ -140,6 +140,45 @@ Covered by `tests/smoke/death_loop_contract_test.gd` and GUT `tests/unit/systems
 
 ---
 
+## 召唤物与敌 FSM 互认 (L-16)
+
+`spirit_summon.gd` 召唤物实现敌 FSM 的通用目标接口，敌方会主动锁定、追击并结算伤害：
+
+| 接口 | 行为 |
+|------|------|
+| `receive_hit(damage, stagger, hit_direction, source)` | 敌方命中入口：直接扣血，血尽走 `_die()` |
+| `is_targetable()` | 存活且实例有效时才可被锁定 |
+| `get_target_point()` | 返回 `global_position + UP*1.2`，供弹道/近战瞄准 |
+
+- **5 灵行为差异**（`KIND_DATA`）：护法灵童近战坦/嘲讽、金甲力士重坦、往生莲原地治疗图腾（不攻击）、怨灵高伤快攻、白鹤童子浮空。
+- 白鹤童子场时 **`player.focus_regen_multiplier = 1.5`**；离场/消失经 `_restore_boons()` 还原为 1.0。
+- 召唤为临时盟友：无独立 AI 状态机，靠 `taunt_radius` / 攻击间隔 / 生命周期（`lifetime`）驱动。
+
+---
+
+## 人型抓投 (L-14)
+
+`enemy.gd` 的 `can_grab` 决定是否尝试抓投：
+
+- **content 显式键**：`content.can_grab` 为 bool 时直接采用。
+- **体型启发式**：守护默认 `can_grab = true`；人型按 `body_type` 子串推断（`armored`/`armor`/`beast_humanoid`/`guard`/`knight`/`soldier`/`rebel`）。
+- **人型短前摇**：非守护人型走 `_ensure_human_grab_profile()`（telegraph 1.05s，短前摇区间 0.9–1.2s；独立抓取体积，不走 CombatArea）。
+- **Boss 路径保留**：守护者抓投仍走 Boss `_grab_profile` 分支，抓取判定不退化。
+
+---
+
+## 敌端状态效果 (L-10)
+
+`enemy.gd` 拥有自己的状态面板（与玩家状态系统共用 `StatusEffectScript`）：
+
+- `status_bar: Dictionary`：叠层容器。
+- `apply_status(status_id, stacks, source)`：叠加并 emit `status_changed`；`bleed` 阈值爆发即时结算伤害。
+- `status_changed(status_id, stacks)`：`0` 表示结束/清空；`StatusEffectScript.tick` 周期结算。
+- 敌方自带状态按 `body_type` 推断（`STATUS_INFLICT_BY_BODY`）：出血/狐火/迷心/中毒（如 `hound_spectral`→bleed、`lantern_float`→foxfire、`shadow_form`→poison）。
+- **附加到玩家**：敌方攻击载荷携带 `status:*` 标签，命中玩家后同样叠层（出血/狐火/迷心/中毒）；玩家命中敌人时，武器的 `status_inflict` / `status:*` 标签经 `_apply_status_from_payload` 叠到敌方 `status_bar`。
+
+---
+
 ## Related
 
 - [combat-execution-guard-weapon-arts.md](combat-execution-guard-weapon-arts.md) — 脆弱窗 / 处决  

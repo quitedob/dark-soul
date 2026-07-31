@@ -31,12 +31,21 @@ func _test_five_boss_profiles() -> void:
 		"boss_giant_gate", "boss_xing_tian", "boss_nine_tails", "boss_xuan_xiao", "boss_zhu_yin"
 	]
 	var profiles := Catalog.all_profiles()
-	_expect(profiles.size() == 5, "Need exactly 5 main boss break profiles.")
+	_expect(profiles.size() == 6, "Need 5 main + 1 optional boss break profiles.")
 	for boss_id in ids:
 		var p = Catalog.profile_for_boss_id(boss_id)
 		_expect(p != null, "Missing profile for %s" % boss_id)
 		_expect(p.validate().is_empty(), "Invalid profile %s: %s" % [boss_id, str(p.validate())])
 		_expect(float(p.story_floor_ratio) > 0.0, "%s needs story floor." % boss_id)
+	# 可选 Boss 盲钟·听烬：致死处决、零剧情地板、空命运旗标（不触发 fate overlay）
+	var optional = Catalog.profile_for_boss_id("boss_blind_bell")
+	_expect(optional != null, "Missing optional profile for boss_blind_bell.")
+	if optional != null:
+		_expect(optional.validate().is_empty(), "Invalid optional profile: %s" % str(optional.validate()))
+		_expect(is_equal_approx(float(optional.story_floor_ratio), 0.0), "Optional boss must have zero story floor.")
+		_expect(bool(optional.allow_lethal_on_execution), "Optional boss must be lethal on execution.")
+		_expect(optional.story_flag.is_empty(), "Optional boss must have an empty story flag.")
+		_expect(optional.weak_point_anchor == &"bell_mouth", "Optional boss weak-point anchor must be bell_mouth.")
 	_expect(is_equal_approx(float(Catalog.make_nine_tails().story_floor_ratio), 0.30), "九尾 floor must be 30%.")
 	_expect(is_equal_approx(float(Catalog.make_zhu_yin().story_floor_ratio), 0.10), "烛阴 floor must be 10%.")
 

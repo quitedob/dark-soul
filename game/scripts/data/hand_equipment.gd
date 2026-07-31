@@ -23,8 +23,18 @@ const GUARD_PROFILE_PATHS := {
 }
 
 ## WeaponData Resource 路径（逐步迁移；缺省仍可用 ITEMS）
+## L-08/L-13：9 类武器类别数据驱动化；moveset 由 CompatibilityMovesetFactory.create_weapon_for_type 运行时填充
 const WEAPON_DATA_PATHS := {
 	"guardian_sword": "res://resources/weapons/reliquary_guard_weapon.tres",
+	"class_sword": "res://resources/weapons/class_sword_weapon.tres",
+	"class_greatsword": "res://resources/weapons/class_greatsword_weapon.tres",
+	"class_ultra": "res://resources/weapons/class_ultra_weapon.tres",
+	"class_spear": "res://resources/weapons/class_spear_weapon.tres",
+	"class_axe": "res://resources/weapons/class_axe_weapon.tres",
+	"class_curved": "res://resources/weapons/class_curved_weapon.tres",
+	"class_fist": "res://resources/weapons/class_fist_weapon.tres",
+	"class_dagger": "res://resources/weapons/class_dagger_weapon.tres",
+	"class_shield": "res://resources/weapons/class_shield_weapon.tres",
 }
 
 ## 展示/动作标签/网格与弹反馈（非战斗权威数值）
@@ -68,32 +78,38 @@ const ITEMS := {
 		"weapon_type": "fist",
 		"parry": {"startup": 0.266, "active": 0.266, "recovery": 0.50, "miss_penalty": 1.2, "cost": 6.0},
 		"parry_feedback": {"cue": "parry_fist", "message": "FIST PARRY", "vfx_scale": 0.45},
+		"status_inflict": {"confusion": 15},
 		"mesh_shape": "default", "mesh_color": "8b6f5a",
 	},
 	"xingtian_axe_right": {
 		"hand": "right", "primary": "right_axe_strike", "secondary": "colossal_leap",
 		"primary_label": "RIGHT AXE", "secondary_label": "AXE LEAP",
-		"weapon_type": "axe", "mesh_shape": "axe_right", "mesh_color": "858b91",
+		"weapon_type": "axe", "status_inflict": {"bleed": 22},
+		"mesh_shape": "axe_right", "mesh_color": "858b91",
 	},
 	"xingtian_axe_left": {
 		"hand": "left", "primary": "left_axe_strike", "secondary": "left_axe_heavy",
 		"primary_label": "LEFT AXE", "secondary_label": "LEFT HEAVY",
-		"weapon_type": "axe", "mesh_shape": "axe_left", "mesh_color": "858b91",
+		"weapon_type": "axe", "status_inflict": {"bleed": 22},
+		"mesh_shape": "axe_left", "mesh_color": "858b91",
 	},
 	"marksman_bow": {
 		"hand": "right", "primary": "bow_quick_shot", "secondary": "bow_power_shot",
 		"primary_label": "QUICK SHOT", "secondary_label": "POWER SHOT",
-		"weapon_type": "bow", "mesh_shape": "bow", "mesh_color": "b1a88d",
+		"weapon_type": "bow", "status_inflict": {"poison": 20},
+		"mesh_shape": "bow", "mesh_color": "b1a88d",
 	},
 	"marksman_dagger": {
 		"hand": "left", "primary": "dagger_slash", "secondary": "dagger_feint",
 		"primary_label": "DAGGER", "secondary_label": "FEINT",
-		"weapon_type": "dagger", "mesh_shape": "dagger", "mesh_color": "b1a88d",
+		"weapon_type": "dagger", "status_inflict": {"bleed": 18},
+		"mesh_shape": "dagger", "mesh_color": "b1a88d",
 	},
 	"five_elements_seal": {
 		"hand": "right", "primary": "seal_bolt", "secondary": "seal_burst",
 		"primary_label": "SEAL BOLT", "secondary_label": "SEAL BURST",
-		"weapon_type": "seal", "mesh_shape": "staff_seal", "mesh_color": "668ee0",
+		"weapon_type": "seal", "status_inflict": {"foxfire": 12},
+		"mesh_shape": "staff_seal", "mesh_color": "668ee0",
 	},
 	"spirit_stone": {
 		"hand": "left", "primary": "spell_shield", "secondary": "stone_pulse",
@@ -111,7 +127,34 @@ const ITEMS := {
 		"primary_label": "TALISMAN", "secondary_label": "TALISMAN BURST",
 		"weapon_type": "talisman", "mesh_shape": "talisman_papers", "mesh_color": "d07a32",
 	},
+	"spirit_talisman": {
+		"hand": "right", "primary": "spirit_summon", "secondary": "spirit_dismiss",
+		"primary_label": "SPIRIT SUMMON", "secondary_label": "DISMISS",
+		"weapon_type": "talisman", "mesh_shape": "talisman_papers", "mesh_color": "88ccff",
+	},
 }
+
+## L-10：防具重量档（左手持握物）。weight_class 决定翻滚档；physical_reduction 供展示/后续减伤。
+const ARMOR_DATA := {
+	"jade_buckler": {"weight_class": "light", "physical_reduction": 0.06, "stamina_penalty": 0.0},
+	"reliquary_shield": {"weight_class": "medium", "physical_reduction": 0.14, "stamina_penalty": 0.05},
+	"furnace_greatshield": {"weight_class": "heavy", "physical_reduction": 0.24, "stamina_penalty": 0.12},
+	"fist_guard": {"weight_class": "light", "physical_reduction": 0.04, "stamina_penalty": 0.0},
+	"xingtian_axe_left": {"weight_class": "medium", "physical_reduction": 0.10, "stamina_penalty": 0.05},
+}
+
+
+## L-10：读取物品附带的状态效果（{status_id: stacks} 或 {status_id: {stacks, chance}}）
+static func get_status_inflict(item_id: String) -> Dictionary:
+	var raw: Variant = ITEMS.get(item_id, {}).get("status_inflict", {})
+	if raw is Dictionary:
+		return raw.duplicate(true)
+	return {}
+
+
+## L-10：读取左手持握物的防具重量档（无防具返回 {}）
+static func get_armor_weight(item_id: String) -> Dictionary:
+	return ARMOR_DATA.get(item_id, {}).duplicate(true)
 
 
 ## 加载 GuardProfile Resource（权威）

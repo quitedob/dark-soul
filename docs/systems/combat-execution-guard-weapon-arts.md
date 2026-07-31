@@ -2,7 +2,7 @@
 
 > **文档职责：** 本文件定义《焰渊》的原创近战战斗目标。它抽象借鉴类魂游戏对距离、朝向、精力和硬直窗口的重视，但不复刻任何既有作品的动作资产、逐帧数据、招式命名或数值。
 >
-> **实现状态：** 当前原型已具备轻/重击、**蓄力重击（三档）**、闪避、跑/翻滚/后撤/跳/下落攻、**单持/双持/成对持握切换**、**Guard Meter / 玩家破防**、**人型弹反易处决与背刺**、**五主 Boss Execution Break + 弱点处决（叙事血量地板）**、**GrabPairedDirector 程序化抓投配对**、**CombatCameraDirector 专属镜头**、**命运选择 UI（字符串 choice_flags）**、装备化格挡与弹反、敌人简化韧性、霸体和五种 **WeaponArtData** 兵器诀；**直剑 AnimationTree root-motion POC** 已接入；真实 `.glb` 配对动画与阶段转场 VFX 仍可继续打磨。
+> **实现状态：** 当前原型已具备轻/重击、**蓄力重击（三档）**、闪避、跑/翻滚/后撤/跳/下落攻、**单持/双持/成对持握切换**、**Guard Meter / 玩家破防**、**人型弹反易处决与背刺**、**五主 Boss Execution Break + 弱点处决（叙事血量地板）**、**GrabPairedDirector 程序化抓投配对**、**CombatCameraDirector 专属镜头**、**命运选择 UI（字符串 choice_flags）**、装备化格挡与弹反、敌人简化韧性、霸体和 9 类 **WeaponArtData** 兵器诀（resources/weapon_arts/ + weapon_arts_catalog.gd，L-13）；**直剑 AnimationTree root-motion POC** 已接入；真实 `.glb` 配对动画与阶段转场 VFX 仍可继续打磨。
 
 ## 核心原则
 
@@ -73,6 +73,17 @@
 ```
 
 处决必须要求明确交互输入或“攻击键在处决候选内”的二次确认，避免玩家只想普通攻击却被吸附到错误目标。
+
+### 连段链（L-07，当前原型）
+
+轻/重攻击由 `AttackData` 的 chain 字段串成连段，无需全局连招表：
+
+- `combat/data/attack_data.gd`：`next_light` / `next_heavy`（下一段 action_id，空 = 无链）、`chain_open_seconds` / `chain_close_seconds`（链窗开/关，0.0 表示按 windup+active+recovery 推导）、`chain_requires_hit`（链续需命中，挥空则不可续招）。
+- `player/player.gd`：`_combo_chain_*` 状态缓存当前链（`_combo_chain_index` / `_combo_chain_length` / `_combo_chain_kind` / `_combo_chain_id` / `_combo_chain_attacks` / `_combo_chain_hit_landed`）。中立轻/重起手建档；链窗内再次输入由 `_try_chain_advance()` 缓冲推进，`_commit_chain_attack()` 落地下一段。
+- 动作族推导兜底：无显式 `next_*` 时按 `semantic_id` + 武器类别推导链长（`_fallback_chain_length`）。
+- 重置条件：冲刺、翻滚、跳跃、蓄力均清空连段缓存。
+
+连段不是“无限复读”：`chain_requires_hit` 要求命中才能续招，链窗关闭后不可再补输入。
 
 ## 单持、双持与成对持握
 
@@ -327,6 +338,16 @@ Boss 处决应是阶段奖励和叙事节点，而不是重复的人型暴击动
 
 抓投使用独立 `Area3D` 或 `ShapeCast3D`。命中后进入 `GRAB_INITIATOR` / `GRABBED` 配对状态，临时关闭常规移动与普通碰撞推挤；不得把 `grab` 当作普通伤害标签后继续走通用 Hitbox。
 
+### 玩家抓投（L-14，当前原型）
+
+玩家在 `LOCOMOTION` 地面状态下按抓投输入，经 `try_player_grab` 就近选择横前 `PLAYER_GRAB_RANGE`（2.4u）内、`can_be_grabbed()` 为真且大致正面（前向点积 > -0.15，身后目标走背刺）的踉跄人型目标，复用 `ExecutionPairedDirector` 执行配对抓取（`_execution_kind = &"grab"`，`critical_multiplier` ×1.9，短前摇 0.22s）。玩家主动抓取走 ExecutionProfile 结算，不进入敌人抓投的 GrabProfile 路径。
+
+### 人型敌人抓投（L-14，当前原型）
+
+- `enemy.gd` 的 `can_grab` 取 content 键 `can_grab`（显式 bool）> 守护默认 true > `body_type` 体型启发式（`_body_type_can_grab`）。
+- 非守护人型使用短前摇抓投：`_ensure_human_grab_profile()` 生成 `GrabProfile`，`telegraph_seconds = 1.05s`，随后进入 `GRAB_WINDUP`；命中概率 `HUMAN_GRAB_CHANCE = 0.10`。
+- Boss（守护）仍保留原有 `GrabPairedDirector` 配对路径（`_setup_boss_break_profile` 依 `grab_enabled` 生成 Boss 默认抓投）。
+
 ## 目标状态模型
 
 当前原型的状态枚举仍以攻击三阶段、闪避、弹反、战技和硬直为主；格挡是 locomotion overlay。目标模型应明确区分易处决和配对动作状态：
@@ -352,12 +373,25 @@ LOCOMOTION
 
 格挡可以继续作为 locomotion overlay，但 `GUARD_BROKEN` 必须是独立受控状态。若后续支持移动举盾、盾戳和格挡转兵器诀，应升级为层级状态或并行状态层，而不是继续增加布尔组合。
 
+### 状态效果（L-10，当前原型）
+
+`combat/data/status_effect.gd` 以纯逻辑（`RefCounted`，无场景依赖）定义四种状态，玩家与敌人双端持 `status_bar`（`status_id → {"stacks", "elapsed", "tick_accum"}`），由调用方驱动 `apply()` / `tick()`：
+
+| 状态 | 规则 |
+|---|---|
+| 出血 bleed | 叠层累积，达 `burst_threshold`（100）触发爆发伤害并清零（含剩余层加权） |
+| 狐火 foxfire | 按 stack 秒伤 DoT（tick 间隔 1s，持续 3s） |
+| 迷心 confusion | 短暂反转玩家水平移动输入（仅影响移动，不影响镜头/交互），持续 2s |
+| 中毒 poison | 低秒伤 DoT（tick 间隔 1s，持续 10s） |
+
+敌方可自带 `status_inflict`（content 显式 > body_type 推断），命中后按 `normalize_inflict_entry` 规范化应用（支持 `{id: 数值}` 与 `{id: {stacks, chance}}`）。
+
 ## 当前实现与目标差距
 
 | 子系统 | 当前原型 | 目标 |
 |---|---|---|
 | 普通攻击 | 每风格一组 light/heavy 标量 | 武器类别 + 姿态 + 上下文的 Moveset |
-| 特殊攻击 | 五个代码分发的兼容战技 | 数据驱动兵器诀与分支 |
+| 特殊攻击 | 9 类 WeaponArtData 已落盘；`_execute_weapon_art` match 分发保留（A-06） | 数据驱动兵器诀与分支 |
 | 格挡 | 朝向、吸收、稳定性、精力不足破防 | 增加 Guard Meter、直接冲击阈值和处决候选 |
 | 弹反 | 装备化窗口；成功使敌人长硬直 | 独立 `PARRY_VULNERABLE` 与正面处决 |
 | 韧性 | 敌人累计值；玩家二值霸体 | 玩家/敌人连续 Poise，Boss 独立 Execution Break |

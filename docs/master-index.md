@@ -36,6 +36,7 @@
 | [planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md) | **类魂缺口权威** |
 | [tasks-master.md](tasks-master.md) | 仍开放项 + 已完成维度摘要 |
 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md) | 战斗里程碑对照 |
+| [tasks/content-gap-backlog.md](tasks/content-gap-backlog.md) | **内容/功能缺口 backlog（L-01…L-24）** |
 
 ### 调研
 
@@ -73,9 +74,9 @@
 
 ## 当前实现边界
 
-- **已设计：** 五章因果、28 关、Boss/选择/NPC/结局规格。
-- **已进代码：** 战役壳、Ch.1–2 遭遇、处决/抓投/镜头、命运旗标、云游叙事竖切；战斗/AI/测试见 [devlog](devlog/index.md)。
-- **仍开放：** 真蒙皮动画、LimboAI 真插件、Ch.3–5 抛光、跨章 NPC 与隐藏结局证物。权威：[planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md)。
+- **已设计：** 五章因果、29 关、Boss/选择/NPC/结局规格。
+- **已进代码：** 战役壳、Ch.1–2 遭遇 + Ch.3–5 接线、处决/抓投/镜头、命运旗标、云游叙事竖切；P1 系统全落地——连段/9 类 moveset、职业天赋经脉、状态与背包、法术 39、快速旅行、兵器诀、锻造道行魂器、抓投扩展、重力倒悬、20 谜题模块族；战斗/AI/测试见 [devlog](devlog/index.md)。
+- **仍开放：** 真蒙皮动画、LimboAI 真插件、Ch.3–5 专属 Boss 流程 / P2 真资产与 .tres 作者化。权威：[planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md)。
 
 ---
 

@@ -25,9 +25,9 @@ func _test_default_catalog() -> void:
 	var errors: Array[String] = registry.validate()
 	_expect(errors.is_empty(), "Default content registry failed validation: %s" % [errors])
 	_expect(registry.get_chapters().size() == 5, "Registry must contain exactly five chapters.")
-	_expect(registry.get_levels().size() == 28, "Registry must contain exactly 28 levels.")
+	_expect(registry.get_levels().size() == 29, "Registry must contain exactly 29 levels.")
 	_expect(registry.get_themes().size() == 5, "Registry must contain exactly five themes.")
-	var expected_counts := [5, 6, 6, 6, 5]
+	var expected_counts := [5, 6, 6, 6, 6]
 	for chapter_number in range(1, 6):
 		var chapter_id := StringName("chapter_%02d" % chapter_number)
 		_expect(registry.get_levels_for_chapter(chapter_id).size() == expected_counts[chapter_number - 1], "Wrong level count for %s." % chapter_id)

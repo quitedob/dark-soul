@@ -48,29 +48,53 @@
 
 ## NPC 迁移
 
-| NPC | 初始位置 | 迁移条件 | 后续位置与作用 |
+> 运行时 id = `DialogueRunner.resolve_lines` 对话键 / `SHRINE_NPC_PRESETS` 的 `npc_id`；迁移后的烬龛 NPC 由 `game_world.gd` 按 `min_chapter` 生成，首次对话写入对应 `npc_*_met` 旗标。
+
+| NPC（运行时 id / 旗标） | 初始位置 | 迁移条件 | 后续位置与作用 |
 |---|---|---|---|
-| 云游道人 | 1-1 仅声音；1-5 现身 | 吸收始烬 | 每章烬龛提供有限提示；4-6 坦白后不再给答案；5-1 作为被审视的证人同行 |
-| 铁心 | 2-3 俘虏营 | 收集三把笼钥并解除强制锻造印 | 返回已激活烬龛网络，提供武器锻造；不作为精英怪死亡 |
-| 忆姬 | 3-2 记忆苔内 | 找出三段真实记忆并击败记忆窃贼 | 3-4 协助制作真实之镜；章节后进入烬龛记忆室，整理已获得的剧情记录 |
-| 玄霄残识 | 4-3 天界实录中 | 击败嗔念、执念并读取原始记录 | 4-6 作为“核心”短暂清醒，完成证词并生成炉心敕印；结局随玄霄选择变化 |
-| 寂灭 | 5-4 十二印殿门前 | 默认战斗考验；持有铸魂者遗录可对话通过 | 作为仍然活着的第十二铸魂者见证裁决，不计入九座墓或九位残影 |
+| 云游道人（`npc_cloud_wanderer` / `npc_cloud_wanderer_met`） | 1-1 仅声音；1-5 现身 | 吸收始烬 | 每章烬龛提供有限提示（驱动 `quest_cloud_wanderer`，击败巨阙后完成）；4-6 坦白后不再给答案；5-1 作为被审视的证人同行 |
+| 铁心（`npc_iron_heart` / `npc_iron_heart_met` + `unlock_weapon_forging`） | 2-3 俘虏营 | 收集三把笼钥并解除强制锻造印 | Ch.2+ 烬龛锻造 NPC（`weapon_forge_level` 0→+10，每级 +5% 伤害）；不作为精英怪死亡 |
+| 忆姬（`npc_lady_of_memories` / `npc_lady_of_memories_met`） | 3-2 记忆苔内 | 找出三段真实记忆并击败记忆窃贼 | Ch.3+ 烬龛记忆室，报告炉忆进度 `n/4`（`furnace_memory_1..4`）并指向九铸魂者之墓 |
+| 玄霄残识（`npc_xuanxiao_remnant` / `npc_xuanxiao_remnant_met`） | 4-3 天界实录中 | 击败嗔念、执念并读取原始记录 | Ch.4+ 烬龛，依 `ch4_xuanxiao_fate` 提供烛阴弱点情报（`fate_zhu_yin_weakness`）；结局随玄霄选择变化 |
+| 寂灭（`npc_silence_bringer` / `npc_silence_bringer_met`） | 5-4 十二印殿门前 | 默认战斗考验；持有铸魂者遗录可对话通过 | Ch.5+ 烬龛，作为仍然活着的第十二铸魂者见证裁决；`forge` 可达时提示共铸新炉，不计入九座墓或九位残影 |
 
 ## 结局可达矩阵
 
-| 结局 | 基础条件 | 前章选择影响 | 代价 |
+> 运行时 ID 即 `EndingResolver` 结局常量与 `choice_flags["ending_state"]` 写入值，由 `FateChoiceOverlay` 的 `ending_state` 浮层（三基础选项）+ 隐藏 `forge` 条件按钮产生。
+
+| 结局（运行时 ID） | 基础条件 | 前章选择影响 | 代价 |
 |---|---|---|---|
-| 薪火相传 | 击败烛阴至 10%，吸收终烬 | 改变哪些 NPC 见证新轮回 | 玩家作为首份燃料失去当前身份 |
-| 守炉人 | 击败烛阴至 10%，坐上烬座 | 改变守炉时获得的协助与警告 | 玩家永久留在炉心，无法返回人间 |
-| 大寂灭 | 击败烛阴至 10%，击碎烬座 | 改变被释放灵魂的去向和旁白 | 轮回永久结束，未来不再有转世保证 |
-| 共铸新炉（隐藏） | 完成 `灵魂的回归`、`铸魂者的最后一个问题`、`天炉的低语`，归还四段炉忆 | 前章选择改变新炉的约束条款 | 玩家与烛阴都失去独立人格，化为互相制衡的双重炉律 |
+| 薪火相传（`kindle`） | 击败烛阴至 10%，吸收终烬 | 改变哪些 NPC 见证新轮回 | 玩家作为首份燃料失去当前身份 |
+| 守炉人（`keeper`） | 击败烛阴至 10%，坐上烬座 | 改变守炉时获得的协助与警告 | 玩家永久留在炉心，无法返回人间 |
+| 大寂灭（`void`） | 击败烛阴至 10%，击碎烬座 | 改变被释放灵魂的去向和旁白 | 轮回永久结束，未来不再有转世保证 |
+| 共铸新炉（隐藏，`forge`） | 完成 `quest_soul_return`（灵魂的回归）、`quest_forge_last_question`（铸魂者的最后一个问题）、`quest_furnace_whisper`（天炉的低语），集齐四段炉忆 `furnace_memory_1..4` | 前章选择改变新炉的约束条款 | 玩家与烛阴都失去独立人格，化为互相制衡的双重炉律 |
+
+`EndingResolver.resolve` 亦接受 `absorb`→`kindle`、`sit`→`keeper`、`shatter`→`void` 别名（对应 5-5 场景动作）；隐藏结局仅在三条真相任务完成且四段炉忆集齐后进入 `reachable`。
 
 ## 内容与运行时边界
 
-当前仓库已经定义五章、28 个关卡 ID、章节拓扑、基础程序化空间外壳和 7 个 Boss 注册项。**Boss 叙事血量地板 + `FateChoiceOverlay` 已可写入字符串 `choice_flags`（对齐上表五旗）**；**最小竖切已落地**：`QuestState` / `DialogueRunner` / `EndingResolver` + 烬龛「云游」对话（`npc_cloud_wanderer`）。跨章 NPC 迁移与隐藏结局全证物链仍待内容填充。本文件仍是叙事权威；运行时还需扩展：
+> **更新于 2026-07-31（L-01…L-06 落地，见 `docs/devlog/` 08）：** 本节所列运行时扩展已实现，按现状更新；未实现项移至「仍待扩展」。本文件仍是叙事权威。
 
-1. `AshenRunState.choice_flags`：继续扩展支线与 NPC 状态（Boss 命运旗 + 云游旗已竖切）。
-2. `QuestState`：已有阶段机；补全跨章任务图。
-3. `DialogueRunner`：已有条件对白；补全更多 NPC 表。
-4. `StoryEventTrigger`：Boss 阈值、拾取物证、关卡出口和过场事件。
-5. `EndingResolver`：三种基础结局 + 隐藏 `forge` 可达性校验已实现；烬座 UI 需接 `throne_choice`。
+### 已实现（对齐游戏代码）
+
+当前仓库已定义五章、29 个关卡 ID、章节拓扑、基础程序化空间外壳和 8 个 Boss 注册项。Boss 叙事血量地板 + `FateChoiceOverlay` 已可写入字符串 `choice_flags`（对齐上表五旗）。
+
+| 运行时系统 | 落地内容 |
+|---|---|
+| `AshenRunState.choice_flags` | 四章 Boss 命运旗 + `ending_state`（对齐上表）；5 个 `npc_*_met` 旗；4 段炉忆旗 `furnace_memory_1..4`；`unlock_weapon_forging`；命运增益旗（见下） |
+| `QuestState` | 阶段机（`inactive`/`active`/`complete`/`failed`）；云游指引 `quest_cloud_wanderer` + 三真相 `quest_soul_return` / `quest_forge_last_question` / `quest_furnace_whisper` |
+| `DialogueRunner` | 条件对白 5 表（`npc_cloud_wanderer` / `npc_iron_heart` / `npc_lady_of_memories` / `npc_xuanxiao_remnant` / `npc_silence_bringer`）；`apply_aftermath` 推进旗标与任务 |
+| 事件触发 | `enemy.gd` `story_threshold_reached`（Boss 血量地板，非致死执行）+ `game_world.gd` 编排：镜头 `fate_halfbody`、`FateChoiceOverlay` 打开、`add_extra_option` 追加隐藏 `forge` 按钮、`conclude_story_fate` 结束 Boss |
+| 隐藏结局证物链 | 5-1…5-4 四段红晶（`FurnaceMemoryCrystal` → `furnace_memory_1..4`）；首段开启三真相任务，第四段完成三者；`EndingResolver._hidden_forge_ready` 校验后将 `forge` 加入 `reachable` |
+| 烬龛跨章 NPC | `SHRINE_NPC_PRESETS`：铁心（Ch.2+，锻造 +1..+10）、忆姬（Ch.3+，炉忆进度）、玄霄残识（Ch.4+，烛阴弱点）、寂灭（Ch.5+，`forge` 提示） |
+| `EndingResolver` | 结局 ID `kindle`/`keeper`/`void`/`forge`；`resolve` 映射 `absorb`/`sit`/`shatter` 别名并回读 `ending_state`；`commit` 写入结局旗 |
+
+### 仍待扩展（未来内容债务）
+
+1. **5-3 因果回放 / 5-4 证词汇合**：`samsara_stance` 段旗（`accept`/`regret`）仍为设计态，代码中尚无 5-3/5-4 场景流（`validate_past_outcomes` / `select_final_blessings` 关卡已定义）。
+2. **命运增益终局消费**：`_apply_fate_boon` 写入 `fate_remnant_trust` / `fate_guardian_protection` / `fate_heroes_aid` / `fate_zhu_yin_wrath` / `fate_safe_illusion` / `fate_dispel_illusion` / `fate_gravity_boost`，但终局尚无读取逻辑（目前仅 `fate_zhu_yin_weakness` 被玄霄残识对白消费）。
+3. **分结局尾声**：5-5 后仅通用 `VictoryOverlay`（"THE PATH ENDS HERE"）；无按 `kindle/keeper/void/forge` 区分的结局过场/尾声。
+4. **烬座 `throne_choice`**：`chapter_5_content.gd` 四阶段列出 `ending_triggers: ["absorb_ember","sit_throne","destroy_throne","repair_furnace"]` 目前仅元数据，未消费；实际裁决经 `ending_state` 命运浮层（三基础选项 + 条件 `forge` 按钮）完成。
+5. **子 Boss 执行档案**：嗔念 / 执念无 `BossExecutionCatalog` 条目，故事血量地板会回退到巨阙（`ch1_guardian_fate`）——待补。
+6. **本地化**：对白与命运文案为硬编码中文，未进 `LocalizationScript` 表。
+7. **关卡名一致性**：注册表 5-4 写作「十一铸魂者之墓」，而代码注释/NPC 对白写作「九铸魂者之墓」；按 lore（九位陨落）以后者为准。

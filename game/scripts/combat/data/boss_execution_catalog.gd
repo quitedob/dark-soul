@@ -12,6 +12,7 @@ static func all_profiles() -> Array:
 		make_nine_tails(),
 		make_xuan_xiao(),
 		make_zhu_yin(),
+		make_blind_bell(),
 	]
 
 
@@ -104,4 +105,22 @@ static func make_zhu_yin() -> Resource:
 	p.interaction_distance = 4.0
 	p.critical_multiplier = 2.6
 	p.allow_lethal_on_execution = false
+	return p
+
+
+## 可选 Boss 盲钟·听烬：致死处决、无剧情地板、无命运旗标、不抓投
+static func make_blind_bell() -> Resource:
+	var p = ProfileScript.new()
+	p.boss_id = &"boss_blind_bell"
+	p.display_name_key = &"听烬"
+	p.story_flag = &""
+	p.max_execution_break = 220.0
+	p.expose_seconds = 2.5
+	p.story_floor_ratio = 0.0
+	p.weak_point_anchor = &"bell_mouth"
+	p.weak_point_offset = Vector3(0.0, 1.05, 0.0)
+	p.interaction_distance = 2.5
+	p.critical_multiplier = 3.0
+	p.allow_lethal_on_execution = true
+	p.grab_enabled = false
 	return p

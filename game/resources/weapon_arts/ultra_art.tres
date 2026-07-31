@@ -1,0 +1,72 @@
+[gd_resource type="Resource" script_class="WeaponArtData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/weapon_art_data.gd" id="1_art"]
+[ext_resource type="Script" path="res://scripts/combat/data/attack_data.gd" id="2_atk"]
+
+[sub_resource type="Resource" id="Resource_entry"]
+script = ExtResource("2_atk")
+action_id = &"lumen_entry"
+display_name_key = &"lumen_entry"
+tags = Array[StringName]([&"melee", &"heavy", &"leap", &"weapon_art", &"ground_shockwave"])
+windup_seconds = 0.75
+active_seconds = 0.3
+recovery_seconds = 1.1
+stamina_cost = 46.0
+damage = 60.0
+poise_damage = 64.0
+guard_power = 82.4
+authored_displacement = Vector3(0, 0, 2.8)
+launch_velocity_y = 2.4
+poise_modifier_windup = 0.6
+poise_modifier_active = 1.3
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_light"]
+script = ExtResource("2_atk")
+action_id = &"lumen_light"
+display_name_key = &"lumen_light"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"ground_shockwave"])
+windup_seconds = 0.5
+active_seconds = 0.24
+recovery_seconds = 0.85
+stamina_cost = 30.0
+damage = 40.0
+poise_damage = 50.0
+guard_power = 57.5
+authored_displacement = Vector3(0, 0, 1.8)
+poise_modifier_windup = 0.2
+poise_modifier_active = 0.9
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_heavy"]
+script = ExtResource("2_atk")
+action_id = &"lumen_heavy"
+display_name_key = &"lumen_heavy"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"ground_shockwave"])
+windup_seconds = 0.95
+active_seconds = 0.34
+recovery_seconds = 1.3
+stamina_cost = 48.0
+damage = 68.0
+poise_damage = 72.0
+guard_power = 93.2
+authored_displacement = Vector3(0, 0, 2.2)
+poise_modifier_windup = 0.5
+poise_modifier_active = 1.4
+poise_modifier_recovery = 0.0
+
+[resource]
+script = ExtResource("1_art")
+art_id = &"lumen_suppress"
+art_kind = &"colossal_leap"
+stance_animation = &"ultra_slam"
+entry_attack = SubResource("Resource_entry")
+light_branch = SubResource("Resource_light")
+heavy_branch = SubResource("Resource_heavy")
+focus_cost = 22.0
+stamina_cost = 46.0
+windup_seconds = 0.75
+recovery_seconds = 1.1
+interruptible = false
+cooldown_seconds = 12.0
+art_tags = Array[StringName]([&"ground_shockwave", &"hyper_armor"])

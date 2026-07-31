@@ -1,6 +1,6 @@
 # Validation
 
-Validated on **2026-07-30** using Godot 4.7.1. Project root for all `--path` arguments is `game/` (this repository: `e:/godot/darksoul/game`).
+Validated on **2026-07-31** using Godot 4.7.1. Project root for all `--path` arguments is `game/` (this repository: `e:/godot/darksoul/game`).
 
 ## Engine
 
@@ -153,6 +153,104 @@ Optional direct tool entry (same checks):
 
 GUT coverage lives in `tests/unit/combat/test_attack_moveset_schema.gd` (class registration + schema pipeline + authored round-trip).
 
+### Chapter 3–5 wiring / campaign generation（L-04/L-05）
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/chapter3_5_wiring_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/campaign_generation_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/level_module_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/content_registry_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/story_runtime_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/bridge_tea_quest_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/optional_boss_contract_test.gd
+```
+
+Expected prints: `ASHEN_CHAPTER3_5_WIRING_CONTRACTS_OK`、`CAMPAIGN_GENERATION_OK`（29 关 / 5 主题）、`ASHEN_LEVEL_MODULE_CONTRACTS_OK`、`EMBER_ABYSS_CONTENT_REGISTRY_OK`、`ASHEN_STORY_RUNTIME_CONTRACTS_OK`、`ASHEN_BRIDGE_TEA_QUEST_CONTRACTS_OK`、`OPTIONAL_BOSS_BLIND_BELL_OK`。
+
+### P1 战斗/连段/状态合约
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/combat_polish_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/combat_style_resource_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/context_attack_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/feedback_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/grip_charge_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/guard_execution_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/heal_punish_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/animation_root_motion_contract_test.gd
+```
+
+Expected prints: `ASHEN_COMBAT_POLISH_CONTRACTS_OK`、`ASHEN_COMBAT_STYLE_RESOURCES_OK`、`ASHEN_CONTEXT_ATTACK_CONTRACTS_OK`、`ASHEN_FEEDBACK_CONTRACTS_OK`、`ASHEN_GRIP_CHARGE_CONTRACTS_OK`、`ASHEN_GUARD_EXECUTION_CONTRACTS_OK`、`ASHEN_HEAL_PUNISH_CONTRACTS_OK`、`ASHEN_ANIMATION_ROOT_MOTION_CONTRACTS_OK`。
+
+### 移动/锁定/关卡迁移合约
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/jump_collision_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/lock_on_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/level_id_migration_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/g01_macro_bt_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/g03_ranged_ambush_contract_test.gd
+```
+
+Expected prints: `ASHEN_JUMP_COLLISION_CONTRACTS_OK`、`ASHEN_LOCK_ON_CONTRACTS_OK`、`EMBER_ABYSS_LEVEL_ID_MIGRATION_OK`、`G01_MACRO_BT_CONTRACTS_OK`、`G03_RANGED_AMBUSH_CONTRACTS_OK`。
+
 ### GUT unit tests
 
 ```bash
@@ -235,7 +333,7 @@ Automated headless tests cannot judge game feel. In the graphical build, verify:
 ## Known Limitations
 
 - Visuals and sounds are generated primitives intended to validate systems, not final production assets.
-- Campaign levels beyond Chapter 2 still use placeholder encounters.
+- Ch.3–5 专属 Boss 流程（九尾凝视 / 玄霄逃出 / 烛阴 P3 零重力与四结局）与章节抛光未全量。
 - Independent `GUARD_BROKEN` / `PARRY_VULNERABLE` / Boss weak-point / grab / fate UI are now in prototype; authored grab `.glb` pairs remain open.
 - Human playtesting is still required for combat balance, telegraph clarity, camera comfort, and accessibility.
 - 真蒙皮动画资产与 LimboAI 真插件仍为后续 XL 项。

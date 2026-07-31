@@ -1,0 +1,73 @@
+[gd_resource type="Resource" script_class="WeaponArtData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/weapon_art_data.gd" id="1_art"]
+[ext_resource type="Script" path="res://scripts/combat/data/attack_data.gd" id="2_atk"]
+
+[sub_resource type="Resource" id="Resource_entry"]
+script = ExtResource("2_atk")
+action_id = &"liuyue_entry"
+display_name_key = &"liuyue_entry"
+tags = Array[StringName]([&"melee", &"heavy", &"leap", &"weapon_art", &"side_rotate"])
+windup_seconds = 0.3
+active_seconds = 0.2
+recovery_seconds = 0.55
+stamina_cost = 22.0
+damage = 38.0
+poise_damage = 30.0
+guard_power = 48.5
+authored_displacement = Vector3(0, 0, 3.6)
+launch_velocity_y = 1.4
+poise_modifier_windup = 0.18
+poise_modifier_active = 0.5
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_light"]
+script = ExtResource("2_atk")
+action_id = &"liuyue_light"
+display_name_key = &"liuyue_light"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"side_rotate", &"multihit"])
+windup_seconds = 0.22
+active_seconds = 0.2
+recovery_seconds = 0.5
+stamina_cost = 18.0
+damage = 30.0
+poise_damage = 24.0
+guard_power = 38.4
+authored_displacement = Vector3(0, 0, 2.6)
+poise_modifier_windup = 0.0
+poise_modifier_active = 0.35
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_heavy"]
+script = ExtResource("2_atk")
+action_id = &"liuyue_heavy"
+display_name_key = &"liuyue_heavy"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"side_rotate"])
+windup_seconds = 0.4
+active_seconds = 0.24
+recovery_seconds = 0.66
+stamina_cost = 26.0
+damage = 44.0
+poise_damage = 34.0
+guard_power = 55.9
+authored_displacement = Vector3(0, 0, 3.0)
+poise_modifier_windup = 0.08
+poise_modifier_active = 0.4
+poise_modifier_recovery = 0.0
+
+[resource]
+script = ExtResource("1_art")
+art_id = &"liuyue_spin"
+art_kind = &"crescent_leap"
+stance_animation = &"curved_spin"
+entry_attack = SubResource("Resource_entry")
+light_branch = SubResource("Resource_light")
+heavy_branch = SubResource("Resource_heavy")
+focus_cost = 4.0
+stamina_cost = 22.0
+windup_seconds = 0.3
+recovery_seconds = 0.55
+interruptible = true
+cooldown_seconds = 5.0
+uses_per_rest = 4
+art_tags = Array[StringName]([&"side_rotate", &"multihit"])

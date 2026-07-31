@@ -10,6 +10,7 @@ signal grab_ended(target)
 signal weak_point_exposed(enemy)
 signal story_resolution_entered(enemy)
 signal phase_changed(enemy, new_phase: int)  # G-04：相变抛光入口
+signal status_changed(status_id: StringName, stacks: float)  # L-10：状态变化（0 表示结束/清空）
 
 enum State {
 	IDLE,
@@ -53,9 +54,26 @@ const EnemyBehaviorRegistry = preload("res://scripts/enemy/enemy_behavior_regist
 const EnemyTuningData = preload("res://scripts/data/enemy_tuning.gd")
 const EnemyAttackCatalog = preload("res://scripts/data/enemy_attack_catalog.gd")
 const BossAttackExecutorScript = preload("res://scripts/boss/boss_attack_executor.gd")
+const StatusEffectScript = preload("res://scripts/combat/data/status_effect.gd")
+const HandEquipmentScript = preload("res://scripts/data/hand_equipment.gd")
 const AI_DECISION_INTERVAL := 0.1
 const WEAK_POINT_EXPOSE_DEFAULT := 3.2
 const GRAB_CHANCE := 0.22
+## L-14：非守护人型敌抓投概率（比 Boss 低，Boss 前摇也更长）
+const HUMAN_GRAB_CHANCE := 0.10
+## L-10：状态 tick 累积间隔
+const STATUS_TICK_INTERVAL := 0.5
+## L-10：按 body_type 推断敌方自带的攻击状态（狐火/出血/迷心/中毒）
+const STATUS_INFLICT_BY_BODY := {
+	"hound_spectral": {"bleed": {"stacks": 18.0, "chance": 0.8}},
+	"beast_humanoid": {"bleed": {"stacks": 22.0, "chance": 0.8}},
+	"fox_claw": {"bleed": {"stacks": 20.0, "chance": 0.8}},
+	"lantern_float": {"foxfire": {"stacks": 15.0, "chance": 0.8}},
+	"robed_caster": {"confusion": {"stacks": 1.0, "chance": 0.5}},
+	"gravity_mage": {"confusion": {"stacks": 1.0, "chance": 0.5}},
+	"reflection_clone": {"poison": {"stacks": 20.0, "chance": 0.6}},
+	"shadow_form": {"poison": {"stacks": 22.0, "chance": 0.6}},
+}
 
 var world_node: Node
 var target_node: Node3D
@@ -99,6 +117,15 @@ var _grab_target: Node3D = null
 var _grab_damage_applied := false
 var _grab_director = null
 var _story_resolution := false
+## L-14：是否尝试抓投（守护默认 true；人型按 content can_grab / body_type 推断）
+var can_grab := false
+## L-14：抓投概率（守护 GRAB_CHANCE；人型 HUMAN_GRAB_CHANCE）
+var grab_chance := 0.0
+## L-10：本敌自带的状态效果（攻击命中目标时施加）
+var status_inflict: Dictionary = {}
+## L-10：状态叠层（status_id → {"stacks", "elapsed", "tick_accum"}）
+var status_bar: Dictionary = {}
+var _status_accum := 0.0
 
 
 var state: State = State.IDLE
@@ -180,6 +207,9 @@ func setup(world, target, audio, spawn_position, is_guardian = false, new_type: 
 	else:
 		enemy_type = new_type
 	configured = true
+	# L-14：守护默认可抓投；非守护由 content / body_type 在 setup_from_content 决定
+	can_grab = guardian
+	grab_chance = GRAB_CHANCE if guardian else 0.0
 	_visuals_built_key = ""
 	if guardian and boss_break_profile == null:
 		content_id = "boss_giant_gate" if content_id.is_empty() else content_id
@@ -211,6 +241,19 @@ func setup_from_content(world, target, audio, spawn_position, content: Dictionar
 		_setup_boss_break_profile()
 		# G-02：加载治疗惩罚 Profile（支持 healing_punish 覆盖）
 		_heal_punish_profile = HealingPunishCatalog.profile_for(content_id, chapter_content)
+	# L-14：人型敌抓投资格（content can_grab > 守护默认 > body_type 推断）
+	var explicit_can_grab: Variant = content.get("can_grab")
+	if explicit_can_grab is bool:
+		can_grab = explicit_can_grab
+	elif is_guardian:
+		can_grab = true
+	else:
+		can_grab = _body_type_can_grab(String(content.get("body_type", "")))
+	grab_chance = GRAB_CHANCE if (is_guardian and can_grab) else (HUMAN_GRAB_CHANCE if can_grab else 0.0)
+	if can_grab and not is_guardian and _grab_profile == null:
+		_ensure_human_grab_profile()
+	# L-10：敌方自带状态效果（content 显式 > body_type 推断）
+	status_inflict = _derive_status_inflict(content)
 
 
 ## 章节字典 → EnemyType（默认近战哨兵）
@@ -305,6 +348,7 @@ func _physics_process(delta: float) -> void:
 	if navigation_refresh <= 0.0:
 		_refresh_decision_cache()
 	_update_state(delta)
+	_tick_statuses(delta)
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	else:
@@ -327,6 +371,9 @@ func reset_enemy() -> void:
 	execution_break = 0.0
 	execution_break_changed.emit(execution_break, max_execution_break)
 	_end_grab()
+	# L-10：重置时清空状态与累积器
+	status_bar.clear()
+	_status_accum = 0.0
 	poise_reset_time = 0.0
 	attack_index = 0
 	_phase = 1
@@ -387,6 +434,8 @@ func receive_hit_payload(payload: Dictionary) -> void:
 	var incoming_stagger := maxf(float(payload.get("stagger", payload.get("poise", 0.0))), 0.0)
 	var guard_power := incoming_damage + incoming_stagger * 0.35
 	var source = payload.get("source")
+	# L-10：命中附带状态（武器 status_inflict / status:* 标签）→ 叠层/爆发
+	_apply_status_from_payload(payload)
 	health = maxf(health - incoming_damage, 0.0)
 	health_changed.emit(health, max_health)
 	_play_audio("hurt", -8.0, 0.82 if guardian else 1.0)
@@ -583,6 +632,141 @@ func _release_execution_claim() -> void:
 	_execution_claim_time = 0.0
 
 
+## L-14：body_type → 是否人型可抓投（armored / beast_humanoid / guard / knight / soldier / rebel 族）
+func _body_type_can_grab(body_type: String) -> bool:
+	if body_type.is_empty():
+		return false
+	for marker in ["armored", "armor", "beast_humanoid", "guard", "knight", "soldier", "rebel"]:
+		if body_type.contains(marker):
+			return true
+	return false
+
+
+## L-10：content 显式 status_inflict > body_type 推断；返回合并 dict
+func _derive_status_inflict(content: Dictionary) -> Dictionary:
+	var derived := Dictionary(STATUS_INFLICT_BY_BODY.get(String(content.get("body_type", "")), {}))
+	var explicit = content.get("status_inflict", {})
+	if explicit is Dictionary:
+		for key in explicit:
+			derived[key] = explicit[key]
+	return derived
+
+
+## L-14：非守护人型抓投 Profile（短前摇 0.9–1.2s 区间，独立抓取体积，不走 CombatArea）
+func _ensure_human_grab_profile() -> void:
+	if _grab_profile != null:
+		return
+	var profile = GrabProfileScript.new()
+	profile.grab_id = &"human_grab"
+	profile.telegraph_seconds = 1.05
+	profile.recovery_on_miss_seconds = 1.0
+	profile.hold_seconds = 1.3
+	profile.damage_event_seconds = 0.4
+	profile.grab_damage = 22.0
+	profile.capture_radius = 1.25
+	profile.hold_socket_offset = Vector3(0.0, 1.1, -1.0)
+	_grab_profile = profile
+
+
+## L-10：施加状态（bleed 阈值爆发即时结算）
+func apply_status(status_id: StringName, stacks: float, source: Node = null) -> void:
+	if state == State.DEAD or stacks <= 0.0:
+		return
+	var event := StatusEffectScript.apply(status_bar, status_id, stacks)
+	status_changed.emit(status_id, StatusEffectScript.get_stacks(status_bar, status_id))
+	var burst_damage := float(event.get("burst_damage", 0.0))
+	if burst_damage > 0.0:
+		health = maxf(health - burst_damage, 0.0)
+		health_changed.emit(health, max_health)
+		_play_audio("hurt", -5.0, 0.9 if guardian else 1.0)
+		if health <= 0.0:
+			_die()
+
+
+## L-10：每 STATUS_TICK_INTERVAL 推进一次状态（DoT / 衰减 / 过期）
+func _tick_statuses(delta: float) -> void:
+	if status_bar.is_empty():
+		_status_accum = 0.0
+		return
+	_status_accum += delta
+	if _status_accum < STATUS_TICK_INTERVAL:
+		return
+	var elapsed := _status_accum
+	_status_accum = 0.0
+	var events := StatusEffectScript.tick(status_bar, elapsed)
+	for event in events:
+		var status_id := StringName(String(event.get("status", "")))
+		if bool(event.get("ended", false)):
+			status_changed.emit(status_id, 0.0)
+			continue
+		var damage := float(event.get("damage", 0.0))
+		if damage <= 0.0:
+			continue
+		health = maxf(health - damage, 0.0)
+		health_changed.emit(health, max_health)
+		_play_audio("hurt", -6.0, 0.9 if guardian else 1.0)
+		if health <= 0.0:
+			_die()
+			return
+		status_changed.emit(status_id, StatusEffectScript.get_stacks(status_bar, status_id))
+
+
+func has_status(status_id: StringName) -> bool:
+	return StatusEffectScript.has_status(status_bar, status_id)
+
+
+func get_status_stacks(status_id: StringName) -> float:
+	return StatusEffectScript.get_stacks(status_bar, status_id)
+
+
+func clear_status(status_id: StringName) -> void:
+	StatusEffectScript.clear_status(status_bar, status_id)
+	status_changed.emit(status_id, 0.0)
+
+
+## L-10：命中 payload → 状态施加。来源：payload.status_inflict、出招手 item_id 的武器状态、status:* 标签。
+func _apply_status_from_payload(payload: Dictionary) -> void:
+	var inflict: Dictionary = {}
+	var raw: Variant = payload.get("status_inflict")
+	if raw is Dictionary:
+		for key in raw:
+			inflict[key] = raw[key]
+	var item_id := String(payload.get("item_id", ""))
+	if not item_id.is_empty():
+		var item_inflict: Dictionary = HandEquipmentScript.get_status_inflict(item_id)
+		for key in item_inflict:
+			if not inflict.has(key):
+				inflict[key] = item_inflict[key]
+	var tags: Variant = payload.get("tags", [])
+	if tags is Array:
+		for tag in tags:
+			var tag_str := String(tag)
+			if tag_str.begins_with("status:"):
+				var sid := tag_str.substr(7)
+				if not inflict.has(sid):
+					inflict[sid] = 1.0
+	if inflict.is_empty():
+		return
+	for key in inflict:
+		var norm := StatusEffectScript.normalize_inflict_entry(inflict[key])
+		if float(norm["chance"]) <= 0.0 or randf() > float(norm["chance"]):
+			continue
+		apply_status(StringName(String(key)), float(norm["stacks"]), payload.get("source"))
+
+
+## L-14：玩家抓投目标资格（非守护、硬直态、未被处决占用）
+func can_be_grabbed() -> bool:
+	if state == State.DEAD or guardian:
+		return false
+	if _execution_claimer != null and is_instance_valid(_execution_claimer):
+		return false
+	if state != State.STAGGER:
+		return false
+	if not chapter_content.is_empty():
+		return _body_type_can_grab(String(chapter_content.get("body_type", "")))
+	return true  # 旧版非守护均为近战人型哨兵
+
+
 func on_player_healing() -> void:
 	# 玩家开奶：Boss 走数据驱动 punish 变体；小怪短时加速追击
 	if state == State.DEAD or not is_instance_valid(target_node):
@@ -669,6 +853,11 @@ func get_health_ratio() -> float:
 
 
 func _update_state(delta: float) -> void:
+	# L-14：处决/抓投占用期间冻结 FSM 推进（受害者保持受控态，避免中途起身）
+	if _execution_claimer != null and is_instance_valid(_execution_claimer):
+		_slow_horizontal(delta, acceleration * 3.0)
+		velocity.y = minf(velocity.y, 0.0)
+		return
 	var has_target := _cached_has_target
 	var target_position := _cached_target_position
 	var distance_to_target := _cached_distance_to_target
@@ -918,13 +1107,13 @@ func _safe_navigation_direction(target_position: Vector3) -> Vector3:
 
 
 func _start_attack() -> void:
-	# Boss 近距概率进入独立抓投前摇（不走 CombatArea）
+	# L-14：Boss 与可抓投人型敌均可概率进入独立抓投前摇（不走 CombatArea）
 	if (
-		guardian
+		can_grab
 		and _grab_profile != null
-		and _cached_distance_to_target <= 2.4
+		and _cached_distance_to_target <= (2.4 if guardian else 2.0)
 		and state == State.CHASE
-		and randf() < GRAB_CHANCE
+		and randf() < grab_chance
 	):
 		_begin_grab_telegraph()
 		return
@@ -1031,6 +1220,27 @@ func enter_story_resolution() -> void:
 	# 剧情冻结强制回 IDLE，绕过常规转移表
 	_change_state(State.IDLE, 0.0, true)
 	story_resolution_entered.emit(self)
+
+
+## L-01：命运抉择落定 —— 以非致死方式终结 Boss。
+## 不再播放死亡处决；直接发 defeated 信号让 game_world 结算奖励 / 打开出口。
+func conclude_story_fate() -> void:
+	if state == State.DEAD or not _story_resolution:
+		return
+	_story_resolution = false
+	_release_execution_claim()
+	if _grab_director != null and _grab_director.active:
+		_grab_director.force_cancel(&"fate")
+	velocity = Vector3.ZERO
+	knockback_velocity = Vector3.ZERO
+	_set_engaged(false)
+	body_collision.set_deferred("disabled", true)
+	set_physics_process(false)
+	# 非致死收尾：发 defeat 信号，再淡出移除
+	defeated.emit(self, reward, guardian)
+	var tween := create_tween()
+	tween.tween_property(body_material, "albedo_color:a", 0.0, 0.9)
+	tween.tween_callback(queue_free)
 
 
 func is_in_story_resolution() -> bool:
@@ -1294,6 +1504,9 @@ func _change_state(new_state: State, duration: float = 0.0, force: bool = false)
 				var tags: Array = ["melee", "heavy" if attack_heavy else "light"]
 				if attack_is_low_sweep:
 					tags.append("low_sweep")
+				# L-10：敌方自带状态（bleed/foxfire/confusion/poison）随攻击标签下发
+				for sid in status_inflict:
+					tags.append("status:%s" % sid)
 				if combat_area != null:
 					combat_area.begin_swing(attack_damage, attack_stagger, {
 						"action_id": "enemy_low_sweep" if attack_is_low_sweep else "enemy_swing",

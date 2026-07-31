@@ -12,7 +12,7 @@ Then came **烛阴 (Zhú Yīn)** — the Torch Dragon, the most powerful of the 
 
 Nine Soul-Forgers opposed him. 寂灭 accepted his diagnosis but rejected forced stasis, while 云游 reversed the Furnace current to stop the ritual. The collision shattered the Celestial Furnace into five fragments, each hurled into a different region. Nine Soul-Forgers died containing the breach. 烛阴 fused with the final fragment and was bound in the **烬座 (Throne of Ashes)**; 云游 and 寂灭 survived with different forms of guilt.
 
-Now, centuries later, the five fractured regions have become twisted, isolated nightmares. Souls no longer reincarnate — they wander as **失魂者 (Lost Souls)**, gradually fading into nothing. The dead pile up in the underworld with no passage forward. The living realm decays as no new souls arrive.
+Now, five centuries later, the five fractured regions have become twisted, isolated nightmares. Souls no longer reincarnate — they wander as **失魂者 (Lost Souls)**, gradually fading into nothing. The dead pile up in the underworld with no passage forward. The living realm decays as no new souls arrive.
 
 You are the last **烬裔 (Ember Scion)** — an unfinished successor forged during the Shattering from unassigned soul-light, the nine fallen Soul-Forgers' seals, and the First Ember. You awaken with no personal past and an incomplete 轮回印 that will disperse unless it is stabilized by the other fragments. What begins as survival becomes a question of identity: will you merely execute the dead guardians' repair plan, inherit 烛阴's answer, or choose a future neither side designed?
 
@@ -135,7 +135,7 @@ Shatter the Furnace completely. Without the cycle, souls are truly free for the 
 ### Hidden Ending D: 共铸新炉 (The Shared Forging)
 Return the Furnace memories to 烛阴 and convince him to help build a cycle that preserves less memory as fuel and allows souls to refuse reincarnation. The player and 烛阴 dissolve their individual identities into paired regulators so neither can control the new Furnace alone. This is the most hopeful ending, not a perfect one: the world gains consent and oversight, but loses both people who made it possible.
 
-**Unlock requirement:** complete all three major Chapter 5 truth questlines — `灵魂的回归`, `铸魂者的最后一个问题`, and `天炉的低语`. The first three endings are never morality-locked; prior choices alter dialogue, assistance, and epilogues instead.
+**Unlock requirement:** collect all four furnace memories (`furnace_memory_1..4`, found one per level in 5-1…5-4) and complete all three major Chapter 5 truth questlines — `灵魂的回归` (`quest_soul_return`), `铸魂者的最后一个问题` (`quest_forge_last_question`), and `天炉的低语` (`quest_furnace_whisper`). The first three endings are never morality-locked; prior choices alter dialogue, assistance, and epilogues instead.
 
 ---
 

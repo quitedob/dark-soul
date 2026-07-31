@@ -66,6 +66,36 @@
 |--------|---------|-----------|
 | Soul-Forger Trials | 5-4 | No healing / time limit / point defense |
 
+### Type 6: Gravity Inversion (重力反转) — L-16
+
+**Description:** Gravity becomes a puzzle axis — flip it to walk ceilings, or toggle it per-zone. 不只作为陷阱：`campaign_module_runtime.gd` 现在真正取反 `player.gravity`（记录原符号、退出还原）。
+
+| Puzzle | Chapter | Mechanic |
+|--------|---------|-----------|
+| 倒悬殿 (Inverted Hall) | 5-2 | `gravity_inversion` 纯翻转区：进入取反重力、离开还原（不含速度偏置） |
+| Gravity Anchors | 5-2 | `gravity_anchor`：interact 切换目标区重力，按几何序列解锁通路 |
+
+---
+
+## Procedural Module Families (程序化模块族) — L-16/L-17
+
+`procedural_level_modules.gd` 的 `MODULE_IDS` 现含 **20 族**（原 10 族 + 新增 10 族），关卡共 29 关。基础族：`hazard` / `gate_exit` / `fragile_floor` / `projectile_lane` / `poison_fire_zone` / `switch_offering` / `moving_platform` / `illusion_marker` / `gravity_visual_zone` / `arena_seal`。
+
+新增谜题族（对应上方 Puzzle Catalog 各类型）：
+
+| Module | 用途 | 对应关卡 |
+|--------|------|----------|
+| `mirror_light` | 镜光：转动镜面点亮光束，充能开启受光之门 | 1-3 |
+| `valve_shutoff` | 阀门：双阀关闭毒雾 | 1-4 |
+| `celestial_dial` | 天仪：旋转漂浮阶梯对齐 | 4-1 |
+| `alchemy_ingredients` | 配料：向三座釜投喂正确材料 | 4-2 |
+| `gravity_anchor` | 重力锚：interact 切换目标区重力 | 5-2 |
+| `gravity_inversion` | 倒悬：纯翻转玩家重力 | 5-2 |
+| `riddle_gate` | 谜语门：以谜底开门 | — |
+| `stealth_passage` | 潜行通道：回避而非战斗 | 5-1 |
+| `memory_verification` | 记忆验证：辨认真伪记忆 | 3-2 |
+| `soul_forger_trial` | 铸魂试炼：战斗约束谜题 | 5-4 |
+
 ---
 
 ## Trap Catalog

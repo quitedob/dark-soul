@@ -146,6 +146,15 @@ static func elites() -> Array[Dictionary]:
 			"appears_in": "level_03_04", "body_color": "88aacc",
 			"weapon_shape": "mirror_blade", "body_type": "reflection_knight",
 		},
+		{
+			"id": "elite_ember_greed_ghost",
+			"display_name": "Ember-Greedy Ghost / 贪烬鬼",
+			"max_health": 210.0, "move_speed": 4.8, "aggro_range": 15.0,
+			"attack_range": 2.2, "poise_limit": 46.0, "reward": 160,
+			"special_ability": "love_bait",
+			"appears_in": "level_03_04", "body_color": "4A1A3A",
+			"weapon_shape": "memory_scythe", "body_type": "ethereal_elite",
+		},
 	]
 
 

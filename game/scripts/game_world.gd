@@ -19,6 +19,10 @@ const CampaignLevelRuntimeScript = preload("res://scripts/world/campaign_level_r
 const CampaignModuleRuntimeScript = preload("res://scripts/world/campaign_module_runtime.gd")
 const Chapter1ContentScript = preload("res://scripts/data/chapter_1_content.gd")
 const Chapter2ContentScript = preload("res://scripts/data/chapter_2_content.gd")
+const Chapter3ContentScript = preload("res://scripts/data/chapter_3_content.gd")
+const Chapter4ContentScript = preload("res://scripts/data/chapter_4_content.gd")
+const Chapter5ContentScript = preload("res://scripts/data/chapter_5_content.gd")
+const OptionalBossContentScript = preload("res://scripts/data/optional_boss_content.gd")
 const SafePlacement = preload("res://scripts/core/safe_placement.gd")
 const HitStopManagerScript = preload("res://scripts/combat/hit_stop_manager.gd")
 const TraumaShakeScript = preload("res://scripts/components/trauma_shake.gd")
@@ -29,7 +33,15 @@ const FateCatalog = preload("res://scripts/combat/data/boss_fate_catalog.gd")
 const DialogueOverlayScript = preload("res://scripts/ui/dialogue_overlay.gd")
 const DialogueRunnerScript = preload("res://scripts/story/dialogue_runner.gd")
 const ShrineNpcInteractScript = preload("res://scripts/world/shrine_npc_interact.gd")
+const FurnaceMemoryCrystalScript = preload("res://scripts/world/furnace_memory_crystal.gd")
 const EndingResolverScript = preload("res://scripts/story/ending_resolver.gd")
+const QuestStateScript = preload("res://scripts/story/quest_state.gd")
+const CampaignContentScript = preload("res://scripts/data/campaign_content.gd")
+const FastTravelOverlayScript = preload("res://scripts/ui/fast_travel_overlay.gd")
+const InventoryOverlayScript = preload("res://scripts/ui/inventory_overlay.gd")
+const MeridianDataScript = preload("res://scripts/player/meridian_data.gd")
+const MeridianSystemScript = preload("res://scripts/player/meridian_system.gd")
+const HandEquipmentScript = preload("res://scripts/data/hand_equipment.gd")
 
 const SAVE_PATH := "user://ashen_hollow_run_v1.json"
 const SETTINGS_PATH := "user://ashen_hollow_settings_v1.json"
@@ -68,7 +80,14 @@ var _fate_overlay = null
 var _dialogue_overlay = null
 var _pending_fate_boss = null
 var _level_transition_locked := false
-var _shrine_npc: Area3D = null
+var _shrine_npcs: Array = []
+var _fast_travel_overlay = null
+var _inventory_overlay = null
+# L-09：当前聚焦经脉（任脉起；休息时自动尝试升级，可被 set_meridian_focus 轮转）
+var _meridian_focus := 0
+# L-15：道行/魂器加成已应用到玩家的登记等级（幂等增量用）
+var _applied_dao_level := 0
+var _applied_vessel_level := 0
 
 
 func _ready() -> void:
@@ -97,6 +116,7 @@ func _load_campaign_level(level_id: StringName) -> bool:
 	if level_root == null:
 		return false
 	_update_level_markers()
+	_spawn_shrine_npc()
 	if checkpoint != null:
 		checkpoint.position = _checkpoint_position()
 	if player != null and is_instance_valid(player):
@@ -249,6 +269,16 @@ func _create_systems() -> void:
 	_dialogue_overlay.name = "DialogueOverlay"
 	add_child(_dialogue_overlay)
 	_dialogue_overlay.dialogue_finished.connect(_on_dialogue_finished)
+	# L-12：快速旅行菜单（烬龛休息时打开）
+	_fast_travel_overlay = FastTravelOverlayScript.new()
+	_fast_travel_overlay.name = "FastTravelOverlay"
+	add_child(_fast_travel_overlay)
+	_fast_travel_overlay.destination_selected.connect(_on_fast_travel_selected)
+	# L-10：背包/图鉴菜单（烬龛休息时打开）
+	_inventory_overlay = InventoryOverlayScript.new()
+	_inventory_overlay.name = "InventoryOverlay"
+	add_child(_inventory_overlay)
+	_inventory_overlay.inventory_closed.connect(_on_inventory_closed)
 	if player.has_signal("execution_started"):
 		player.execution_started.connect(_on_player_execution_started)
 	_create_interaction_sensor()
@@ -350,8 +380,20 @@ func _spawn_chapter_encounters() -> void:
 		# 第二章·血铁战歌：接入正式内容表遭遇
 		_spawn_chapter2_encounters(origin, level_id)
 		return
+	if chapter_id == "chapter_03":
+		# 第三章·玉障迷心：接入正式内容表遭遇
+		_spawn_chapter3_encounters(origin, level_id)
+		return
+	if chapter_id == "chapter_04":
+		# 第四章·天崩陨落：接入正式内容表遭遇
+		_spawn_chapter4_encounters(origin, level_id)
+		return
+	if chapter_id == "chapter_05":
+		# 第五章·烬座归墟：接入正式内容表遭遇
+		_spawn_chapter5_encounters(origin, level_id)
+		return
 	if chapter_id != "chapter_01":
-		# 三章及以后暂用兼容哨兵 / 潜行 / 远程伏击，后续章节工厂再接入
+		# 未注册章节兜底：兼容哨兵
 		_spawn_enemy(origin + Vector3(-3.5, 0.95, -5.0), false)
 		_spawn_enemy(origin + Vector3(3.5, 0.95, -9.0), false, EnemyScript.EnemyType.ASH_STALKER)
 		_spawn_enemy(origin + Vector3(0.0, 0.95, -12.0), false, EnemyScript.EnemyType.EMBER_SKIRMISHER)
@@ -520,23 +562,281 @@ func _spawn_chapter2_encounters(origin: Vector3, level_id: StringName) -> void:
 			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
 
 
+## 通用：从任意章节敌人表按 id 取条目
+func _chapter_enemy_by_id(roster: Array[Dictionary], id: String) -> Dictionary:
+	for entry in roster:
+		if String(entry.get("id", "")) == id:
+			return entry
+	return {}
+
+
+## 通用：按 appears_in 取章节精英并补齐战斗字段（Ch.1/2 逻辑复用）
+func _chapter_elite_for(content_script, level_id: StringName) -> Dictionary:
+	for elite in content_script.elites():
+		if String(elite.get("appears_in", "")) != String(level_id):
+			continue
+		var payload: Dictionary = elite.duplicate(true)
+		if not payload.has("attack"):
+			payload["attack"] = {
+				"windup": 0.7, "active": 0.22, "recovery": 0.85,
+				"damage": 26.0, "stagger": 32.0, "lunge": 1.6,
+			}
+		payload["disengage_range"] = float(payload.get("disengage_range", 22.0))
+		payload["leash_range"] = float(payload.get("leash_range", 18.0))
+		payload["stagger_duration"] = float(payload.get("stagger_duration", 0.42))
+		payload["weapon_color"] = String(payload.get("weapon_color", "6a6040"))
+		payload["eye_emission"] = String(payload.get("eye_emission", "ffcc44"))
+		return payload
+	return {}
+
+
+## 通用：按精英 id 取章节精英并补齐战斗字段（level_03_04 双精英场景专用）
+func _chapter_elite_by_id(content_script, elite_id: String) -> Dictionary:
+	for elite in content_script.elites():
+		if String(elite.get("id", "")) != elite_id:
+			continue
+		var payload: Dictionary = elite.duplicate(true)
+		if not payload.has("attack"):
+			payload["attack"] = {
+				"windup": 0.7, "active": 0.22, "recovery": 0.85,
+				"damage": 26.0, "stagger": 32.0, "lunge": 1.6,
+			}
+		payload["disengage_range"] = float(payload.get("disengage_range", 22.0))
+		payload["leash_range"] = float(payload.get("leash_range", 18.0))
+		payload["stagger_duration"] = float(payload.get("stagger_duration", 0.42))
+		payload["weapon_color"] = String(payload.get("weapon_color", "6a6040"))
+		payload["eye_emission"] = String(payload.get("eye_emission", "ffcc44"))
+		return payload
+	return {}
+
+
+func _spawn_chapter3_encounters(origin: Vector3, level_id: StringName) -> void:
+	# 第三章·玉障迷心：翠微林入口 → 记忆回廊 → 狐嫁道 → 镜花水月亭 → 九尾迷宫 → 月华台
+	var roster: Array[Dictionary] = Chapter3ContentScript.enemies()
+	if roster.is_empty():
+		return
+	match level_id:
+		&"level_03_01":
+			# 翠微林入口：幻蝶群 + 狐火灯
+			var butterfly := _chapter_enemy_by_id(roster, "illusion_butterfly")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), butterfly)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), butterfly)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter_enemy_by_id(roster, "foxfire_lantern"))
+		&"level_03_02":
+			# 记忆回廊：窃忆灵 ×2 + 回声灵 + 精英·噬忆者
+			var memory_thief := _chapter_enemy_by_id(roster, "memory_thief")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -5.0), memory_thief)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -8.0), memory_thief)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -11.5), _chapter_enemy_by_id(roster, "echo_spirit"))
+			var elite_02 := _chapter_elite_for(Chapter3ContentScript, level_id)
+			if not elite_02.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_02)
+		&"level_03_03":
+			# 狐嫁道：嫁衣女鬼 + 水月灵 + 狐火灯 + 精英·狐嫁娘
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), _chapter_enemy_by_id(roster, "wedding_gown_ghost"))
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), _chapter_enemy_by_id(roster, "water_moon_spirit"))
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter_enemy_by_id(roster, "foxfire_lantern"))
+			var elite_03 := _chapter_elite_for(Chapter3ContentScript, level_id)
+			if not elite_03.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_03)
+		&"level_03_04":
+			# 镜花水月亭：镜花精 ×2 + 回声灵 + 精英·镜像主 + 支线·贪烬鬼/供茶/茶魂
+			var mirror_flower := _chapter_enemy_by_id(roster, "mirror_flower_spirit")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), mirror_flower)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), mirror_flower)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -12.0), _chapter_enemy_by_id(roster, "echo_spirit"))
+			var elite_04 := _chapter_elite_for(Chapter3ContentScript, level_id)
+			if not elite_04.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_04)
+			# 支线·桥头的供茶：潜伏的贪烬鬼（以情为饵的真凶，appears_in 同 level_03_04，按 id 单独取）
+			var greed_ghost := _chapter_elite_by_id(Chapter3ContentScript, "elite_ember_greed_ghost")
+			if not greed_ghost.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -20.0), greed_ghost)
+			_spawn_tea_offering(origin + Vector3(4.0, 1.1, -13.0))
+			_spawn_bridge_tea_npc(origin + Vector3(-4.0, 0.0, -13.0))
+			# 可选 Boss 隐藏入口：桥头侧道通往无目钟塔
+			_spawn_bell_tower_entrance(origin + Vector3(5.5, 1.1, -17.0))
+		&"level_03_05":
+			# 九尾迷宫：迷宫守卫 + 迷心狐妖 ×2
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), _chapter_enemy_by_id(roster, "maze_guardian"))
+			var fox_demon := _chapter_enemy_by_id(roster, "mind_lost_fox_demon")
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), fox_demon)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -14.0), fox_demon)
+		&"level_03_06":
+			# 月华台：仅 Boss 玉面狐·九尾
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter3ContentScript.boss(), true)
+		_:
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
+
+
+func _spawn_chapter4_encounters(origin: Vector3, level_id: StringName) -> void:
+	# 第四章·天崩陨落：登天梯 → 炼丹云台 → 藏经阁 → 嗔念台 → 执念台 → 天顶真身
+	var roster: Array[Dictionary] = Chapter4ContentScript.enemies()
+	if roster.is_empty():
+		return
+	match level_id:
+		&"level_04_01":
+			# 登天梯：天梯守灵 ×2 + 云天鹰 + 精英·天剑士
+			var stair_guard := _chapter_enemy_by_id(roster, "stairway_guard_wraith")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), stair_guard)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), stair_guard)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter_enemy_by_id(roster, "cloud_sky_eagle"))
+			var elite_01 := _chapter_elite_for(Chapter4ContentScript, level_id)
+			if not elite_01.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_01)
+		&"level_04_02":
+			# 炼丹云台：丹炉精 + 丹堕仙 + 精英·炼丹宗师
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), _chapter_enemy_by_id(roster, "elixir_furnace_spirit"))
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), _chapter_enemy_by_id(roster, "alchemy_fallen_immortal"))
+			var elite_02 := _chapter_elite_for(Chapter4ContentScript, level_id)
+			if not elite_02.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -13.0), elite_02)
+		&"level_04_03":
+			# 藏经阁：书精 ×2 + 藏书守护灵 + 精英·藏经主
+			var book_spirit := _chapter_enemy_by_id(roster, "book_spirit")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), book_spirit)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), book_spirit)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -12.5), _chapter_enemy_by_id(roster, "library_guardian_spirit"))
+			var elite_03 := _chapter_elite_for(Chapter4ContentScript, level_id)
+			if not elite_03.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_03)
+		&"level_04_04":
+			# 嗔念台：仅 Boss 玄霄·嗔念（副 Boss）
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), _chapter4_boss_by_id("boss_xuan_xiao_wrath"), true)
+		&"level_04_05":
+			# 执念台：仅 Boss 玄霄·执念（副 Boss）
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), _chapter4_boss_by_id("boss_xuan_xiao_obsession"), true)
+		&"level_04_06":
+			# 天顶·真身：仅 Boss 堕仙·玄霄
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), _chapter4_boss_by_id("boss_xuan_xiao"), true)
+		_:
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
+
+
+## 第四章 bosses() 为数组：按 id 取子 Boss
+func _chapter4_boss_by_id(id: String) -> Dictionary:
+	for boss in Chapter4ContentScript.bosses():
+		if String(boss.get("id", "")) == id:
+			return boss
+	return {}
+
+
+func _spawn_chapter5_encounters(origin: Vector3, level_id: StringName) -> void:
+	# 第五章·烬座归墟：烬海之岸 → 倒悬殿 → 轮回歧路 → 九铸魂者之墓 → 烬座·烛阴之缚
+	var roster: Array[Dictionary] = Chapter5ContentScript.enemies()
+	if roster.is_empty():
+		return
+	match level_id:
+		&"level_05_01":
+			# 烬海之岸：烬岸浮游灵 ×2 + 烬蝠 ×2 + 精英·虚空守卫
+			var drifter := _chapter_enemy_by_id(roster, "ember_shore_drifter")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), drifter)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), drifter)
+			var ember_bat := _chapter_enemy_by_id(roster, "ember_bat")
+			_spawn_content_enemy(origin + Vector3(-2.0, 0.95, -12.0), ember_bat)
+			_spawn_content_enemy(origin + Vector3(2.0, 0.95, -13.0), ember_bat)
+			var elite_01 := _chapter_elite_for(Chapter5ContentScript, level_id)
+			if not elite_01.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_01)
+			_spawn_furnace_memory(origin + Vector3(-2.5, 1.1, -8.0), "furnace_memory_1")
+		&"level_05_02":
+			# 倒悬殿：倒悬卫士 ×2 + 精英·重力扭曲者
+			var inverted := _chapter_enemy_by_id(roster, "inverted_guardian")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), inverted)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), inverted)
+			var elite_02 := _chapter_elite_for(Chapter5ContentScript, level_id)
+			if not elite_02.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -13.0), elite_02)
+			_spawn_furnace_memory(origin + Vector3(3.0, 1.1, -10.0), "furnace_memory_2")
+		&"level_05_03":
+			# 轮回歧路：歧路影 ×2 + 可能性之影
+			var shade := _chapter_enemy_by_id(roster, "forked_path_shade")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), shade)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), shade)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter_enemy_by_id(roster, "shadow_of_possibility"))
+			_spawn_furnace_memory(origin + Vector3(0.0, 1.1, -9.0), "furnace_memory_3")
+		&"level_05_04":
+			# 九铸魂者之墓：铸魂者残影 ×2 + 精英·铸魂者回响
+			var remnant := _chapter_enemy_by_id(roster, "soul_forger_remnant")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), remnant)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), remnant)
+			var elite_04 := _chapter_elite_for(Chapter5ContentScript, level_id)
+			if not elite_04.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -13.0), elite_04)
+			_spawn_furnace_memory(origin + Vector3(-3.0, 1.1, -12.0), "furnace_memory_4")
+		&"level_05_05":
+			# 烬座·烛阴之缚：仅 Boss 烬渊之主·烛阴
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter5ContentScript.boss(), true)
+		&"level_05_06":
+			# 无目钟塔：仅可选 Boss 盲钟·听烬（致死，无命运覆盖）
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), OptionalBossContentScript.boss(), true)
+		_:
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
+
+
 func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guardian := false):
 	# 用章节内容生成敌人
 	var payload := content.duplicate(true)
 	if is_guardian and not payload.has("body_type"):
-		if String(payload.get("id", "")) == "boss_xing_tian":
-			# 血将军·刑天：重甲精英体型 + 双斧（工厂未注册 guandao 形状，双斧为可用近似）
-			payload["body_type"] = "elite_armored"
-			payload["weapon_shape"] = payload.get("weapon_shape", "blood_axe")
-			payload["body_color"] = payload.get("body_color", "2a1515")
-			payload["weapon_color"] = payload.get("weapon_color", "8a2a1a")
-			payload["eye_emission"] = payload.get("eye_emission", "ff3300")
-		else:
-			payload["body_type"] = "armored_medium"
-			payload["weapon_shape"] = payload.get("weapon_shape", "temple_halberd")
-			payload["body_color"] = payload.get("body_color", "2a2820")
-			payload["weapon_color"] = payload.get("weapon_color", "5a5040")
-			payload["eye_emission"] = payload.get("eye_emission", "ff5518")
+		match String(payload.get("id", "")):
+			"boss_xing_tian":
+				# 血将军·刑天：重甲精英体型 + 双斧（工厂未注册 guandao 形状，双斧为可用近似）
+				payload["body_type"] = "elite_armored"
+				payload["weapon_shape"] = payload.get("weapon_shape", "blood_axe")
+				payload["body_color"] = payload.get("body_color", "2a1515")
+				payload["weapon_color"] = payload.get("weapon_color", "8a2a1a")
+				payload["eye_emission"] = payload.get("eye_emission", "ff3300")
+			"boss_nine_tails":
+				# 玉面狐·九尾：兽型体型 + 狐爪
+				payload["body_type"] = "beast_humanoid"
+				payload["weapon_shape"] = payload.get("weapon_shape", "fox_claw")
+				payload["body_color"] = payload.get("body_color", "88ccaa")
+				payload["weapon_color"] = payload.get("weapon_color", "66ffcc")
+				payload["eye_emission"] = payload.get("eye_emission", "00ffcc")
+			"boss_xuan_xiao_wrath":
+				# 嗔念：天界守卫 + 云戟
+				payload["body_type"] = "celestial_guard"
+				payload["weapon_shape"] = payload.get("weapon_shape", "cloud_glaive")
+				payload["body_color"] = payload.get("body_color", "aa4422")
+				payload["weapon_color"] = payload.get("weapon_color", "ff8844")
+				payload["eye_emission"] = payload.get("eye_emission", "ff2200")
+			"boss_xuan_xiao_obsession":
+				# 执念：袍服施法者 + 炼丹剑
+				payload["body_type"] = "robed_caster"
+				payload["weapon_shape"] = payload.get("weapon_shape", "alchemy_sword")
+				payload["body_color"] = payload.get("body_color", "4488aa")
+				payload["weapon_color"] = payload.get("weapon_color", "88ccff")
+				payload["eye_emission"] = payload.get("eye_emission", "4499ff")
+			"boss_xuan_xiao":
+				# 堕仙·玄霄：天界守卫 + 天剑
+				payload["body_type"] = "celestial_guard"
+				payload["weapon_shape"] = payload.get("weapon_shape", "celestial_sword")
+				payload["body_color"] = payload.get("body_color", "eeddcc")
+				payload["weapon_color"] = payload.get("weapon_color", "ffddaa")
+				payload["eye_emission"] = payload.get("eye_emission", "ffdd44")
+			"boss_zhu_yin":
+				# 烬渊之主·烛阴：古巨体型 + 魂锤（龙形近似）
+				payload["body_type"] = "ancient_giant"
+				payload["weapon_shape"] = payload.get("weapon_shape", "soul_hammer")
+				payload["body_color"] = payload.get("body_color", "1a1a2a")
+				payload["weapon_color"] = payload.get("weapon_color", "553322")
+				payload["eye_emission"] = payload.get("eye_emission", "ff4422")
+			"boss_blind_bell":
+				# 盲钟·听烬：悬垂青铜编钟 + 钟舌（内容表已含 body_type，此支为兜底）
+				payload["body_type"] = "hanging_bell"
+				payload["weapon_shape"] = payload.get("weapon_shape", "bell_tongue")
+				payload["body_color"] = payload.get("body_color", "7a6a4a")
+				payload["weapon_color"] = payload.get("weapon_color", "c8a050")
+				payload["eye_emission"] = payload.get("eye_emission", "ffcc44")
+			_:
+				payload["body_type"] = "armored_medium"
+				payload["weapon_shape"] = payload.get("weapon_shape", "temple_halberd")
+				payload["body_color"] = payload.get("body_color", "2a2820")
+				payload["weapon_color"] = payload.get("weapon_color", "5a5040")
+				payload["eye_emission"] = payload.get("eye_emission", "ff5518")
 	var enemy = EnemyScene.instantiate()
 	enemy.name = String(payload.get("id", "ChapterEnemy"))
 	enemy.position = spawn_position
@@ -611,6 +911,9 @@ func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> voi
 	run_state.checkpoint_id = String(level_data.get("checkpoint_id", "ember_shrine"))
 	player.heal_full()
 	_try_shrine_upgrade()
+	_try_dao_upgrade()
+	_try_vessel_upgrade()
+	_try_meridian_upgrade()
 	for enemy in enemies:
 		if is_instance_valid(enemy):
 			enemy.reset_enemy()
@@ -619,6 +922,10 @@ func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> voi
 	audio.play_cue("rest", -4.0)
 	hud.show_message(LocalizationScript.text("EMBER RESTORED\nEnemies return to the hollow."), 2.5)
 	_save_run("checkpoint_rest")
+	# L-12：第二章起且已有其他已激活祠堂时，休息后弹出快速旅行菜单；
+	# 否则（无传送目的地）打开背包/图鉴菜单
+	_open_fast_travel_if_available()
+	_open_inventory()
 
 
 func _try_shrine_upgrade() -> void:
@@ -643,14 +950,352 @@ func _try_shrine_upgrade() -> void:
 		hud.show_message(LocalizationScript.text("Need %d embers for next vitality upgrade") % next_cost, 2.0)
 
 
+## L-15：道行升级 —— 每级 +5 HP / +1 耐力 / +1 灵蕴（恢复至新上限）+ 1 天赋点
+func _try_dao_upgrade() -> void:
+	if player == null or run_state == null:
+		return
+	var cost := _dao_upgrade_cost()
+	if cost < 0:
+		hud.show_message(LocalizationScript.text("DAO ASCENSION: cultivation is complete"), 2.0)
+		return
+	if player.embers < cost:
+		hud.show_message(
+			LocalizationScript.text("DAO ASCENSION: need %d embers (next Lv%d)") % [cost, _dao_level() + 1],
+			2.0
+		)
+		return
+	player.embers -= cost
+	player.embers_changed.emit(player.embers)
+	var new_level := _dao_level() + 1
+	run_state.progression_values["dao_level"] = new_level
+	# "+1 per level" 效果：存档侧天赋点（供未来天赋树系统消费）
+	run_state.progression_values["talent_points"] = int(run_state.progression_values.get("talent_points", 0)) + 1
+	_apply_progression_stats()
+	hud.show_message(
+		LocalizationScript.text("DAO ASCENSION LV%d  +5 HP +1 STA +1 FOC +1 TALENT") % new_level,
+		2.5
+	)
+	audio.play_cue("recover", -5.0, 0.7)
+	_save_run("dao_upgrade")
+
+
+## L-15：魂器强化 —— 五阶永久加成（+1..+5），花费递增烬
+func _try_vessel_upgrade() -> void:
+	if player == null or run_state == null:
+		return
+	var level := int(run_state.progression_values.get("vessel_level", 0))
+	if level >= VESSEL_COSTS.size():
+		hud.show_message(LocalizationScript.text("SOUL VESSEL: reinforcement is complete"), 2.0)
+		return
+	var cost: int = VESSEL_COSTS[level]
+	if player.embers < cost:
+		hud.show_message(
+			LocalizationScript.text("SOUL VESSEL: need %d embers for +%d") % [cost, level + 1],
+			2.0
+		)
+		return
+	player.embers -= cost
+	player.embers_changed.emit(player.embers)
+	var new_level := level + 1
+	run_state.progression_values["vessel_level"] = new_level
+	_apply_progression_stats()
+	var bound := _vessel_stats_for(new_level)
+	hud.show_message(
+		LocalizationScript.text("SOUL VESSEL +%d  (+%d HP +%d STA +%d FOC)") % [
+			new_level,
+			int(bound.get("max_health", 0.0)),
+			int(bound.get("max_stamina", 0.0)),
+			int(bound.get("max_focus", 0.0)),
+		],
+		2.5
+	)
+	audio.play_cue("recover", -5.0, 0.7)
+	_save_run("vessel_upgraded")
+
+
+func _dao_level() -> int:
+	if run_state == null:
+		return 0
+	return int(run_state.progression_values.get("dao_level", 0))
+
+
+## 道行下一级花费：目标等级 ×100 烬；60 级后 ×3
+func _dao_upgrade_cost() -> int:
+	var level := _dao_level()
+	if level >= DAO_MAX_LEVEL:
+		return -1
+	var cost := (level + 1) * 100
+	if level + 1 > DAO_SOFT_CAP:
+		cost *= 3
+	return cost
+
+
+func _dao_stats_for(level: int) -> Dictionary:
+	return {"max_health": float(level * 5), "max_stamina": float(level), "max_focus": float(level)}
+
+
+## 魂器各阶累计加成（VESSEL_TIER_BONUSES 为增量，此处汇总到指定等级）
+func _vessel_stats_for(level: int) -> Dictionary:
+	var hp := 0.0
+	var stamina := 0.0
+	var focus := 0.0
+	var tier_count := mini(level, VESSEL_TIER_BONUSES.size())
+	for tier in range(tier_count):
+		var bonus: Dictionary = VESSEL_TIER_BONUSES[tier]
+		hp += float(bonus.get("max_health", 0.0))
+		stamina += float(bonus.get("max_stamina", 0.0))
+		focus += float(bonus.get("max_focus", 0.0))
+	return {"max_health": hp, "max_stamina": stamina, "max_focus": focus}
+
+
+func _accumulate_stats(target: Dictionary, source: Dictionary) -> void:
+	for key in source:
+		target[key] = float(target.get(key, 0.0)) + float(source[key])
+
+
+## L-15：把道行/魂器加成幂等地应用到玩家（存档等级是权威；增量=目标-已应用）。
+## 在 _apply_run_state 装载旧档、以及每次升级后调用。
+func _apply_progression_stats() -> void:
+	if player == null or not is_instance_valid(player) or run_state == null:
+		return
+	var dao_level := int(run_state.progression_values.get("dao_level", 0))
+	var vessel_level := int(run_state.progression_values.get("vessel_level", 0))
+	var applied := _dao_stats_for(_applied_dao_level)
+	_accumulate_stats(applied, _vessel_stats_for(_applied_vessel_level))
+	var desired := _dao_stats_for(dao_level)
+	_accumulate_stats(desired, _vessel_stats_for(vessel_level))
+	var hp_delta := float(desired.get("max_health", 0.0)) - float(applied.get("max_health", 0.0))
+	var stamina_delta := float(desired.get("max_stamina", 0.0)) - float(applied.get("max_stamina", 0.0))
+	var focus_delta := float(desired.get("max_focus", 0.0)) - float(applied.get("max_focus", 0.0))
+	_applied_dao_level = dao_level
+	_applied_vessel_level = vessel_level
+	if (
+		is_zero_approx(hp_delta)
+		and is_zero_approx(stamina_delta)
+		and is_zero_approx(focus_delta)
+	):
+		return
+	player.max_health += hp_delta
+	player.max_stamina += stamina_delta
+	player.max_focus += focus_delta
+	# 恢复当前值至新上限
+	player.health = minf(player.health + hp_delta, player.max_health)
+	player.stamina = minf(player.stamina + stamina_delta, player.max_stamina)
+	player.focus = minf(player.focus + focus_delta, player.max_focus)
+	if player.has_method("_emit_stats"):
+		player._emit_stats()
+	if player.has_method("_emit_focus"):
+		player._emit_focus()
+	# L-09：与道行/魂器平行，幂等应用经脉等级
+	_apply_meridian_stats()
+
+
 func _on_checkpoint_activated(_shrine: Node, _interacting_player: Node) -> void:
 	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
-	run_state.checkpoint_id = String(level_data.get("checkpoint_id", "ember_shrine"))
+	var checkpoint_id := String(level_data.get("checkpoint_id", "ember_shrine"))
+	run_state.checkpoint_id = checkpoint_id
+	# L-12：点亮即登记为可传送点（保存侧 _sync_compatibility_fields 也会补登记，这里显式记录）
+	if checkpoint_id not in run_state.activated_checkpoints:
+		run_state.activated_checkpoints.append(checkpoint_id)
 	_save_run("checkpoint_activated")
 
 
 func _on_checkpoint_rested(shrine: Node, interacting_player: Node) -> void:
 	rest_at_checkpoint(shrine, interacting_player)
+
+
+## L-12：休息后若满足条件则弹出快速旅行菜单
+func _open_fast_travel_if_available() -> void:
+	if _fast_travel_overlay == null or _fast_travel_overlay.is_open():
+		return
+	if not _fast_travel_available():
+		return
+	if _fast_travel_overlay.open(
+		_fast_travel_destinations(),
+		String(campaign_runtime.current_level_id) if campaign_runtime != null else ""
+	):
+		audio.play_cue("rest", -6.0, 0.85)
+
+
+## L-10：休息后打开背包/图鉴菜单（快速旅行菜单已弹出时跳过，避免模态重叠）
+func _open_inventory() -> void:
+	if _inventory_overlay == null or _inventory_overlay.is_open():
+		return
+	if _fast_travel_overlay != null and _fast_travel_overlay.is_open():
+		return
+	if _inventory_overlay.open(player, run_state):
+		audio.play_cue("rest", -6.0, 0.8)
+
+
+func _on_inventory_closed() -> void:
+	# 背包关闭即恢复世界（若还有其它模态未关，其各自管理暂停态）
+	if player != null and is_instance_valid(player) and player.has_method("_emit_stats"):
+		player._emit_stats()
+
+
+## L-09：烬龛经脉修炼 —— 自动尝试升级当前聚焦经脉；不可负担时轮转到下一个可升的经脉。
+## 等级/费用存档在 run_state.progression_values["meridian_<id>"]，幂等应用安全。
+func _try_meridian_upgrade() -> void:
+	if player == null or run_state == null:
+		return
+	var order := MeridianDataScript.all_ids()
+	if order.is_empty():
+		return
+	var focus_id := String(order[clampi(_meridian_focus, 0, order.size() - 1)])
+	var check := MeridianSystemScript.can_upgrade(run_state.progression_values, focus_id, int(player.embers))
+	if bool(check["ok"]):
+		_complete_meridian_upgrade(focus_id)
+		return
+	# 当前聚焦不可升：扫描顺序，找到下一个可负担的经脉
+	for meridian_id in order:
+		if String(meridian_id) == focus_id:
+			continue
+		var alt_check := MeridianSystemScript.can_upgrade(
+			run_state.progression_values, String(meridian_id), int(player.embers)
+		)
+		if bool(alt_check["ok"]):
+			_meridian_focus = order.find(meridian_id)
+			_complete_meridian_upgrade(String(meridian_id))
+			return
+	var next_cost := MeridianSystemScript.upgrade_cost(
+		MeridianSystemScript.level_for(run_state.progression_values, focus_id)
+	)
+	if next_cost > 0:
+		hud.show_message(LocalizationScript.text("MERIDIAN: need %d embers for %s") % [next_cost, focus_id], 2.0)
+	else:
+		hud.show_message(LocalizationScript.text("MERIDIAN TRAINING: complete"), 2.0)
+
+
+## L-09：扣除费用并写入等级（调用方已校验可负担）
+func _complete_meridian_upgrade(meridian_id: String) -> void:
+	var level := MeridianSystemScript.level_for(run_state.progression_values, meridian_id)
+	var cost := MeridianSystemScript.upgrade_cost(level)
+	if cost < 0:
+		return
+	player.embers -= cost
+	player.embers_changed.emit(player.embers)
+	var new_level := MeridianSystemScript.upgrade(run_state.progression_values, meridian_id)
+	_apply_meridian_stats()
+	var mat := MeridianSystemScript.material_for(level)
+	var msg := LocalizationScript.text("MERIDIAN %s LV%d  (%s)") % [
+		meridian_id.to_upper(), new_level, String(mat.get("material_name", "")),
+	]
+	hud.show_message(msg, 2.5)
+	audio.play_cue("recover", -5.0, 0.7)
+	_save_run("meridian_upgrade")
+
+
+## L-09：设置当前聚焦经脉（overlay/HUD 调用）；非法 id 返回 false
+func set_meridian_focus(meridian_id: String) -> bool:
+	var order := MeridianDataScript.all_ids()
+	var index := order.find(meridian_id)
+	if index < 0:
+		return false
+	_meridian_focus = index
+	return true
+
+
+## L-09：把存档经脉等级幂等应用到玩家（等级权威；与 _apply_progression_stats 平行）
+func _apply_meridian_stats() -> void:
+	if player == null or not is_instance_valid(player) or run_state == null:
+		return
+	if not player.has_method("apply_meridian_levels"):
+		return
+	player.apply_meridian_levels(_meridian_levels_from_state())
+
+
+func _meridian_levels_from_state() -> Dictionary:
+	var levels := {}
+	if run_state == null:
+		return levels
+	for meridian in MeridianDataScript.all():
+		var id := String(meridian["id"])
+		levels[id] = MeridianSystemScript.level_for(run_state.progression_values, id)
+	return levels
+
+
+## L-12：第二章起开放跨烬龛传送（任一第二章及以后的祠堂点亮即可）
+func _fast_travel_available() -> bool:
+	if run_state == null:
+		return false
+	if not _has_reached_chapter_two():
+		return false
+	return _fast_travel_destinations().size() > 0
+
+
+func _has_reached_chapter_two() -> bool:
+	if run_state == null:
+		return false
+	for checkpoint_id in run_state.activated_checkpoints:
+		var record := _level_record_for_checkpoint(checkpoint_id)
+		var chapter_id := String(record.get("chapter_id", ""))
+		if chapter_id.begins_with("chapter_"):
+			var chapter_num := int(chapter_id.substr(8, 2))
+			if chapter_num >= 2:
+				return true
+	return false
+
+
+## L-12：构建传送目的地（已激活祠堂 → 关卡记录）
+func _fast_travel_destinations() -> Array[Dictionary]:
+	var destinations: Array[Dictionary] = []
+	if run_state == null:
+		return destinations
+	var current_checkpoint := ""
+	if campaign_runtime != null:
+		current_checkpoint = String(campaign_runtime.get_level_data().get("checkpoint_id", ""))
+	for checkpoint_id in run_state.activated_checkpoints:
+		if checkpoint_id == current_checkpoint:
+			continue
+		var record := _level_record_for_checkpoint(checkpoint_id)
+		if record.is_empty():
+			continue
+		destinations.append({
+			"level_id": String(record.get("id", "")),
+			"display_name": String(record.get("display_name", checkpoint_id)),
+			"checkpoint_id": checkpoint_id,
+		})
+	return destinations
+
+
+func _level_record_for_checkpoint(checkpoint_id: String) -> Dictionary:
+	for record in CampaignContentScript.levels():
+		if String(record.get("checkpoint_id", "")) == checkpoint_id:
+			return record
+	return {}
+
+
+func _level_display_name(level_id: String) -> String:
+	for record in CampaignContentScript.levels():
+		if String(record.get("id", "")) == level_id:
+			return String(record.get("display_name", level_id))
+	return level_id
+
+
+func _on_fast_travel_selected(level_id: String) -> void:
+	_travel_to_level(level_id)
+
+
+## L-12：跨烬龛传送 —— 直接重载目标关卡并保存
+func _travel_to_level(level_id: String) -> void:
+	if _level_transition_locked or level_id.is_empty():
+		return
+	if campaign_runtime == null or String(campaign_runtime.current_level_id) == level_id:
+		return
+	_level_transition_locked = true
+	audio.play_cue("rest", -6.0, 0.85)
+	hud.show_message(LocalizationScript.text("TRAVELING TO\n%s") % _level_display_name(level_id), 2.2)
+	if not _load_campaign_level(StringName(level_id)):
+		_level_transition_locked = false
+		return
+	run_state.level_id = String(campaign_runtime.current_level_id)
+	run_state.chapter_id = String(campaign_runtime.get_level_data().get("chapter_id", run_state.chapter_id))
+	var destination_checkpoint := String(campaign_runtime.get_level_data().get("checkpoint_id", run_state.checkpoint_id))
+	run_state.checkpoint_id = destination_checkpoint
+	if destination_checkpoint not in run_state.activated_checkpoints:
+		run_state.activated_checkpoints.append(destination_checkpoint)
+	_save_run("fast_travel")
+	_level_transition_locked = false
 
 
 func open_shortcut(gate: Node3D) -> void:
@@ -735,10 +1380,12 @@ func _resolve_respawn_position(candidate: Vector3) -> Vector3:
 func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
 	player.add_embers(reward)
 	if is_guardian:
+		var boss_id := _boss_id_for_enemy(enemy)
 		# K-01：按"这只 Boss 自己的 id"判定，不再用跨关卡共享的全局 victory 位，
 		# 否则第二章及以后的 Boss 会因为第一章 victory 已为 true 而无法触发胜利。
-		var boss_id := _boss_id_for_enemy(enemy)
 		if not _is_boss_defeated(boss_id):
+			# L-10：首次胜出掉落其武器/神器（记入背包/图鉴），重复挑战不再重复入账
+			_grant_loot(String(BOSS_LOOT_BY_ID.get(boss_id, "spirit_talisman")))
 			if not boss_id.is_empty():
 				run_state.defeated_bosses.append(boss_id)
 			victory = true
@@ -750,6 +1397,12 @@ func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
 			_open_boss_victory_exit()
 	else:
 		hud.show_message(LocalizationScript.text("EMBER CLAIMED  +%d") % reward, 1.2)
+		# L-10：精锐击败时确定性小概率掉落一件物品（同一精锐 → 同一次结果/同一掉落，扩充图鉴）
+		var content_id := _enemy_content_id(enemy)
+		if content_id.begins_with("elite") and not ELITE_LOOT_POOL.is_empty():
+			var seed := absi(content_id.hash())
+			if seed % 100 < 35:
+				_grant_loot(ELITE_LOOT_POOL[seed % ELITE_LOOT_POOL.size()])
 
 
 ## 取当前关卡注册的 Boss id（非 Boss 关返回空串）
@@ -775,6 +1428,22 @@ func _boss_id_for_enemy(enemy) -> String:
 		if "content_id" in enemy and not String(enemy.content_id).is_empty():
 			return String(enemy.content_id)
 	return _current_boss_id()
+
+
+## L-10：读取敌人的章节内容 id（无则返回空串）
+func _enemy_content_id(enemy) -> String:
+	if enemy != null and is_instance_valid(enemy) and "content_id" in enemy:
+		return String(enemy.content_id)
+	return ""
+
+
+## L-10：把一件战利品记入背包（collected_loot 去重追加 + inventory 计数）
+func _grant_loot(item_id: String) -> void:
+	if run_state == null or item_id.is_empty():
+		return
+	if item_id not in run_state.collected_loot:
+		run_state.collected_loot.append(item_id)
+	run_state.inventory[item_id] = int(run_state.inventory.get(item_id, 0)) + 1
 
 
 func _open_boss_victory_exit() -> void:
@@ -816,6 +1485,9 @@ func _on_execution_break_changed(current: float, maximum: float, enemy) -> void:
 
 
 func _on_boss_story_threshold(story_flag: StringName, health_ratio: float, enemy = null) -> void:
+	# 可选 Boss 兜底：空命运旗标永不可触发剧情冻结/命运覆盖（致死击杀）
+	if String(story_flag).is_empty():
+		return
 	hud.show_message(
 		LocalizationScript.text("STORY THRESHOLD\n%s  %.0f%%") % [String(story_flag), health_ratio * 100.0],
 		1.6
@@ -827,6 +1499,12 @@ func _on_boss_story_threshold(story_flag: StringName, health_ratio: float, enemy
 		_camera_director.play_shot_id(&"fate_halfbody", enemy if enemy != null else guardian)
 	if _fate_overlay != null and FateCatalog.entry_for_flag(story_flag).size() > 0:
 		_fate_overlay.open_for_flag(story_flag)
+		# L-04：烛阴终幕 —— 三真相齐备时追加隐藏结局"共铸新炉"
+		if String(story_flag) == "ending_state" and run_state != null:
+			if EndingResolverScript.reachable(run_state).has(&"forge"):
+				_fate_overlay.add_extra_option(
+					"forge", "共铸新炉", "三真相齐备——以双律重铸轮回之炉"
+				)
 	else:
 		hud.show_message(LocalizationScript.text("FATE UNRESOLVED\n%s") % String(story_flag), 2.0)
 
@@ -838,65 +1516,421 @@ func _on_fate_choice_made(story_flag: StringName, value: String) -> void:
 		run_state.choice_flags[String(story_flag)] = value
 	if String(story_flag) == "ending_state":
 		EndingResolverScript.commit(run_state, StringName(value))
+	# L-01：兑现 fate 选项承诺的即时效果（旗标 + 爆发增益等）
+	_apply_fate_boon(story_flag, value)
 	_save_run("fate_choice")
 	if _camera_director != null:
 		_camera_director.release()
+	# L-01：命运抉择闭环 —— 非致死终结 Boss 并开出口（defeated 信号 → 奖励/存档/解封）
 	if _pending_fate_boss != null and is_instance_valid(_pending_fate_boss):
 		if String(story_flag) == "ending_state":
-			# 烛阴：选择后标记击败但不播放死亡处决
 			if guardian == _pending_fate_boss:
 				run_state.guardian_defeated = true
-		if hud != null:
-			hud.hide_boss()
+		if _pending_fate_boss.has_method("conclude_story_fate"):
+			_pending_fate_boss.conclude_story_fate()
+		else:
+			_pending_fate_boss.defeated.emit(
+				_pending_fate_boss, _pending_fate_boss.reward, _pending_fate_boss.guardian
+			)
 	_pending_fate_boss = null
+	if hud != null:
+		hud.hide_boss()
 	hud.show_message(LocalizationScript.text("FATE SEALED\n%s → %s") % [String(story_flag), value], 2.4)
 	audio.play_cue("rest", -5.0, 0.9)
 
 
-## Phase3：烬龛旁生成云游道人交互点
-func _spawn_shrine_npc() -> void:
-	if _shrine_npc != null and is_instance_valid(_shrine_npc):
+## L-01：命运抉择副作用 —— 兑现 boss_fate_catalog 选项承诺。
+## 即时型（刑天·吸收爆发增益、巨阙·保留终局防护）落地；其余写旗标供终章消费。
+func _apply_fate_boon(story_flag: StringName, value: String) -> void:
+	if run_state == null or player == null:
 		return
-	_shrine_npc = ShrineNpcInteractScript.new()
-	_shrine_npc.name = "CloudWandererNpc"
-	_shrine_npc.collision_layer = INTERACTABLE_LAYER
-	_shrine_npc.collision_mask = 0
-	_shrine_npc.monitoring = false
-	_shrine_npc.monitorable = true
-	_shrine_npc.add_to_group("interactable")
-	_shrine_npc.prompt_text = LocalizationScript.text("Speak with Cloud Wanderer")
-	_shrine_npc.npc_id = &"npc_cloud_wanderer"
-	_shrine_npc.world_callback = Callable(self, "_on_shrine_npc_talk")
+	match String(story_flag):
+		"ch1_guardian_fate":
+			if value == "released":
+				run_state.set_choice_flag("fate_remnant_trust", true)
+				hud.show_message(LocalizationScript.text("REMNANTS HOLD YOU IN HIGH REGARD"), 2.0)
+			elif value == "preserved":
+				# 终局一次性防护：记录旗标 + 立即可用的一次格挡韧性保险
+				run_state.set_choice_flag("fate_guardian_protection", true)
+				if player.has_method("grant_fate_damage_boost"):
+					player.grant_fate_damage_boost(1.0, 0.0)  # no-op 哨兵，仅防残留增益
+				hud.show_message(LocalizationScript.text("A PROTECTION IS GRAVEN INTO YOUR SIGNET"), 2.0)
+		"ch2_xingtian_fate":
+			if value == "honored":
+				run_state.set_choice_flag("fate_heroes_aid", true)
+				hud.show_message(LocalizationScript.text("THE STANDS WILL AID YOU AT THE FINALE"), 2.0)
+			elif value == "absorbed":
+				# 爆发增益（+25% 伤害 30s）；烛阴更狂由终章 Boss 读取旗标
+				run_state.set_choice_flag("fate_zhu_yin_wrath", true)
+				if player.has_method("grant_fate_damage_boost"):
+					player.grant_fate_damage_boost(1.25, 30.0)
+				hud.show_message(LocalizationScript.text("BURST BOON +25%% DMG — ZHU YIN BURNS WILDER"), 2.2)
+		"ch3_nine_tails_fate":
+			if value == "redeemed":
+				run_state.set_choice_flag("fate_safe_illusion", true)
+				hud.show_message(LocalizationScript.text("A SAFE ILLUSION AWAITS IN THE SOUL STORM"), 2.0)
+			elif value == "sealed":
+				run_state.set_choice_flag("fate_dispel_illusion", true)
+				hud.show_message(LocalizationScript.text("YOU MAY DISPEL ONE ILLUSION"), 2.0)
+		"ch4_xuanxiao_fate":
+			if value == "ascended":
+				run_state.set_choice_flag("fate_gravity_boost", true)
+				hud.show_message(LocalizationScript.text("GRAVITY MANIPULATION STRENGTHENED"), 2.0)
+			elif value == "remembered":
+				run_state.set_choice_flag("fate_zhu_yin_weakness", true)
+				hud.show_message(LocalizationScript.text("THE REMNANT REVEALS ZHU YIN'S WEAKNESS"), 2.0)
+		"bridge_tea_fate":
+			# 支线·桥头的供茶：月圆之判落笔 → 完成支线，记录结局
+			QuestStateScript.complete(run_state, QuestStateScript.QUEST_BRIDGE_TEA)
+			if value == "exposed":
+				run_state.set_choice_flag("bridge_tea_exposed", true)
+				hud.show_message(LocalizationScript.text("真相抵岸：贪烬鬼现形，那杯茶终于被渡了过去"), 2.0)
+				audio.play_cue("rest", -5.0, 0.9)
+			elif value == "mob":
+				run_state.set_choice_flag("bridge_tea_mob", true)
+				hud.show_message(LocalizationScript.text("众怒如潮：茶魂被封，怒烬落入你手中"), 2.0)
+				audio.play_cue("rest", -5.0, 0.9)
+
+
+## L-05：烬龛旁按章节生成跨章 NPC（云游/铁心/忆姬/玄霄残识/寂灭）
+const SHRINE_NPC_PRESETS := [
+	{"npc_id": &"npc_cloud_wanderer", "prompt": "与云游交谈", "min_chapter": 1, "offset": Vector3(2.4, 0.0, 1.8)},
+	{"npc_id": &"npc_iron_heart", "prompt": "与铁心交谈（锻造）", "min_chapter": 2, "offset": Vector3(2.4, 0.0, 4.2)},
+	{"npc_id": &"npc_lady_of_memories", "prompt": "与忆姬交谈", "min_chapter": 3, "offset": Vector3(5.0, 0.0, 1.8)},
+	{"npc_id": &"npc_xuanxiao_remnant", "prompt": "与玄霄残识交谈", "min_chapter": 4, "offset": Vector3(5.0, 0.0, 4.2)},
+	{"npc_id": &"npc_silence_bringer", "prompt": "与寂灭交谈", "min_chapter": 5, "offset": Vector3(7.6, 0.0, 1.8)},
+]
+
+func _spawn_shrine_npc() -> void:
+	# 先清旧 NPC，避免跨章残留
+	for npc in _shrine_npcs:
+		if is_instance_valid(npc):
+			npc.queue_free()
+	_shrine_npcs.clear()
+	if campaign_runtime == null or run_state == null:
+		return
+	var base := _checkpoint_position()
+	var chapter_num := _current_chapter_number()
+	for preset in SHRINE_NPC_PRESETS:
+		if int(preset.get("min_chapter", 99)) > chapter_num:
+			continue
+		var npc = ShrineNpcInteractScript.new()
+		npc.name = "ShrineNpc_%s" % String(preset["npc_id"])
+		npc.collision_layer = INTERACTABLE_LAYER
+		npc.collision_mask = 0
+		npc.monitoring = false
+		npc.monitorable = true
+		npc.add_to_group("interactable")
+		npc.prompt_text = LocalizationScript.text(String(preset["prompt"]))
+		npc.npc_id = preset["npc_id"]
+		npc.world_callback = Callable(self, "_on_shrine_npc_talk")
+		var shape := CollisionShape3D.new()
+		var sphere := SphereShape3D.new()
+		sphere.radius = 1.4
+		shape.shape = sphere
+		shape.position = Vector3(0.0, 1.0, 0.0)
+		npc.add_child(shape)
+		npc.position = base + preset["offset"]
+		add_child(npc)
+		# 简易占位体
+		var mesh := MeshInstance3D.new()
+		var cap := CapsuleMesh.new()
+		cap.radius = 0.28
+		cap.height = 1.4
+		mesh.mesh = cap
+		mesh.position = Vector3(0.0, 0.9, 0.0)
+		npc.add_child(mesh)
+		_shrine_npcs.append(npc)
+
+
+## 支线·桥头的供茶：茶魂 NPC（桥头茶摊守者，被怨魂归罪）
+func _spawn_bridge_tea_npc(at: Vector3) -> void:
+	var npc = ShrineNpcInteractScript.new()
+	npc.name = "ShrineNpc_bridge_tea_soul"
+	npc.collision_layer = INTERACTABLE_LAYER
+	npc.collision_mask = 0
+	npc.monitoring = false
+	npc.monitorable = true
+	npc.add_to_group("interactable")
+	npc.prompt_text = LocalizationScript.text("与茶魂交谈")
+	npc.npc_id = &"npc_bridge_tea_soul"
+	npc.world_callback = Callable(self, "_on_shrine_npc_talk")
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
 	sphere.radius = 1.4
 	shape.shape = sphere
 	shape.position = Vector3(0.0, 1.0, 0.0)
-	_shrine_npc.add_child(shape)
-	_shrine_npc.position = _checkpoint_position() + Vector3(2.4, 0.0, 1.8)
-	add_child(_shrine_npc)
-	# 简易占位体
+	npc.add_child(shape)
 	var mesh := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
 	cap.radius = 0.28
 	cap.height = 1.4
 	mesh.mesh = cap
 	mesh.position = Vector3(0.0, 0.9, 0.0)
-	_shrine_npc.add_child(mesh)
+	npc.add_child(mesh)
+	npc.position = at
+	add_child(npc)
 
 
-func _on_shrine_npc_talk(_npc: Node, _player: Node) -> void:
+## 可选 Boss 隐藏入口：无目钟塔（镜花水月亭桥头侧道，任一烬龛侧道亦可延展）
+func _spawn_bell_tower_entrance(at: Vector3) -> void:
+	var entrance = ShrineNpcInteractScript.new()
+	entrance.name = "BellTowerEntrance"
+	entrance.collision_layer = INTERACTABLE_LAYER
+	entrance.collision_mask = 0
+	entrance.monitoring = false
+	entrance.monitorable = true
+	entrance.add_to_group("interactable")
+	entrance.prompt_text = LocalizationScript.text("进入无目钟塔")
+	entrance.npc_id = &"npc_bell_tower_entrance"
+	entrance.world_callback = Callable(self, "_on_bell_tower_entrance_entered")
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 1.4
+	shape.shape = sphere
+	shape.position = Vector3(0.0, 1.0, 0.0)
+	entrance.add_child(shape)
+	# 简易门洞占位体（烬色微光标识入口）
+	var door_mesh := MeshInstance3D.new()
+	var door := BoxMesh.new()
+	door.size = Vector3(2.2, 3.2, 0.4)
+	door_mesh.mesh = door
+	door_mesh.position = Vector3(0.0, 1.6, 0.0)
+	var door_mat := StandardMaterial3D.new()
+	door_mat.albedo_color = Color(0.35, 0.3, 0.22)
+	door_mat.emission_enabled = true
+	door_mat.emission = Color(0.85, 0.6, 0.2)
+	door_mat.emission_energy_multiplier = 1.6
+	door_mesh.material_override = door_mat
+	entrance.add_child(door_mesh)
+	entrance.position = at
+	add_child(entrance)
+
+
+## 无目钟塔入口交互 → 传送至 level_05_06（走 _travel_to_level 的统一锁门）
+func _on_bell_tower_entrance_entered(_entrance: Node, _player: Node) -> void:
+	if _level_transition_locked:
+		return
+	_travel_to_level("level_05_06")
+
+
+## 当前章节数字（chapter_01 → 1）
+func _current_chapter_number() -> int:
+	var chapter_id: String = run_state.chapter_id if run_state != null else "chapter_01"
+	if campaign_runtime != null:
+		chapter_id = String(campaign_runtime.get_level_data().get("chapter_id", chapter_id))
+	if chapter_id.begins_with("chapter_"):
+		return int(chapter_id.substr(8, 2))
+	return 1
+
+
+func _on_shrine_npc_talk(npc: Node, _player: Node) -> void:
 	if _dialogue_overlay == null or _dialogue_overlay.is_open():
 		return
-	var lines := DialogueRunnerScript.resolve_lines(&"npc_cloud_wanderer", run_state)
-	_dialogue_overlay.open_lines(&"npc_cloud_wanderer", lines)
+	var npc_id: StringName = npc.npc_id if "npc_id" in npc else &"npc_cloud_wanderer"
+	var lines := DialogueRunnerScript.resolve_lines(npc_id, run_state)
+	if lines.is_empty():
+		return
+	_dialogue_overlay.open_lines(npc_id, lines)
+
+
+## L-04：第五章 5-1..5-4 各刷一红晶证物（隐藏结局"共铸新炉"链）
+func _spawn_furnace_memory(at: Vector3, memory_key: String) -> void:
+	if run_state != null and bool(run_state.get_choice_flag(memory_key, false)):
+		return
+	var crystal = FurnaceMemoryCrystalScript.new()
+	crystal.name = "FurnaceMemory_%s" % memory_key
+	crystal.collision_layer = INTERACTABLE_LAYER
+	crystal.collision_mask = 0
+	crystal.monitoring = false
+	crystal.monitorable = true
+	crystal.add_to_group("interactable")
+	crystal.prompt_text = LocalizationScript.text("Read the red crystal memory")
+	crystal.memory_key = memory_key
+	crystal.world_callback = Callable(self, "_on_furnace_memory_claimed")
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 1.1
+	shape.shape = sphere
+	shape.position = Vector3(0.0, 1.0, 0.0)
+	crystal.add_child(shape)
+	var mesh := MeshInstance3D.new()
+	var cube := BoxMesh.new()
+	cube.size = Vector3(0.5, 0.5, 0.5)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.9, 0.1, 0.05)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.2, 0.05)
+	mat.emission_energy_multiplier = 4.0
+	cube.material = mat
+	mesh.mesh = cube
+	mesh.position = Vector3(0.0, 1.0, 0.0)
+	crystal.add_child(mesh)
+	crystal.position = at
+	add_child(crystal)
+
+
+## 支线·桥头的供茶：桥头栏杆上一盏仍温的供茶（烬茶倌未及送出的那杯）
+func _spawn_tea_offering(at: Vector3) -> void:
+	if run_state != null and bool(run_state.get_choice_flag("bridge_tea_offering", false)):
+		return
+	var crystal = FurnaceMemoryCrystalScript.new()
+	crystal.name = "TeaOffering"
+	crystal.collision_layer = INTERACTABLE_LAYER
+	crystal.collision_mask = 0
+	crystal.monitoring = false
+	crystal.monitorable = true
+	crystal.add_to_group("interactable")
+	crystal.prompt_text = LocalizationScript.text("拾起桥头那杯供茶")
+	crystal.memory_key = "bridge_tea_offering"
+	crystal.world_callback = Callable(self, "_on_tea_offering_claimed")
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 1.1
+	shape.shape = sphere
+	shape.position = Vector3(0.0, 1.0, 0.0)
+	crystal.add_child(shape)
+	var mesh := MeshInstance3D.new()
+	var cube := BoxMesh.new()
+	cube.size = Vector3(0.45, 0.45, 0.45)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.95, 0.55, 0.2)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.55, 0.1)
+	mat.emission_energy_multiplier = 4.0
+	cube.material = mat
+	mesh.mesh = cube
+	mesh.position = Vector3(0.0, 1.0, 0.0)
+	crystal.add_child(mesh)
+	crystal.position = at
+	add_child(crystal)
+
+
+## 支线·桥头的供茶：拾取 → 开启 quest_bridge_tea
+func _on_tea_offering_claimed(crystal: Node, _player: Node) -> void:
+	if crystal == null or not is_instance_valid(crystal):
+		return
+	if run_state != null and not bool(run_state.get_choice_flag("bridge_tea_offering", false)):
+		run_state.set_choice_flag("bridge_tea_offering", true)
+		hud.show_message(LocalizationScript.text("桥头的供茶：月圆将至，茶还温着"), 2.0)
+		audio.play_cue("rest", -6.0, 0.8)
+		QuestStateScript.start(run_state, QuestStateScript.QUEST_BRIDGE_TEA)
+		_save_run("bridge_tea_offering")
+	if is_instance_valid(crystal):
+		crystal.queue_free()
+
+
+## L-04：红晶证物拾取 → 置 furnace_memory_N + 推进三真相任务
+func _on_furnace_memory_claimed(crystal: Node, _player: Node) -> void:
+	if crystal == null or not is_instance_valid(crystal):
+		return
+	var memory_key := String(crystal.memory_key)
+	if run_state != null and not bool(run_state.get_choice_flag(memory_key, false)):
+		run_state.set_choice_flag(memory_key, true)
+		var index := memory_key.trim_prefix("furnace_memory_")
+		hud.show_message(LocalizationScript.text("FURNACE MEMORY %s\n低语在烬中回响") % index, 2.0)
+		audio.play_cue("rest", -6.0, 0.8)
+		_memory_quest_progress()
+		_save_run("furnace_memory")
+	if is_instance_valid(crystal):
+		crystal.queue_free()
+
+
+## L-04：三真相任务进度（第 1 块开启，第 4 块齐备）
+func _memory_quest_progress() -> void:
+	if run_state == null:
+		return
+	var memories := _furnace_memories_found()
+	if memories == 1:
+		QuestStateScript.start(run_state, &"quest_soul_return")
+		QuestStateScript.start(run_state, &"quest_furnace_whisper")
+		QuestStateScript.start(run_state, &"quest_forge_last_question")
+	if memories >= 4:
+		QuestStateScript.complete(run_state, &"quest_furnace_whisper")
+		QuestStateScript.complete(run_state, &"quest_soul_return")
+		QuestStateScript.complete(run_state, &"quest_forge_last_question")
+		hud.show_message(LocalizationScript.text("THE FURNACE WHISPERS ITS TRUE NAME"), 2.5)
+
+
+func _furnace_memories_found() -> int:
+	var count := 0
+	for key in ["furnace_memory_1", "furnace_memory_2", "furnace_memory_3", "furnace_memory_4"]:
+		if bool(run_state.get_choice_flag(key, false)):
+			count += 1
+	return count
 
 
 func _on_dialogue_finished(dialogue_id: StringName) -> void:
 	DialogueRunnerScript.apply_aftermath(dialogue_id, run_state)
 	_save_run("dialogue_finished")
+	if dialogue_id == &"npc_iron_heart":
+		_try_iron_heart_forge()
+	# 支线·桥头的供茶：茶魂倾诉后开启月圆之判（任务进行中且未落笔）
+	if dialogue_id == &"npc_bridge_tea_soul":
+		var tea_stage := QuestStateScript.get_stage(run_state, QuestStateScript.QUEST_BRIDGE_TEA)
+		var tea_chosen := String(run_state.get_choice_flag("bridge_tea_fate", "")) != ""
+		if tea_stage == QuestStateScript.STAGE_ACTIVE and not tea_chosen and _fate_overlay != null:
+			_fate_overlay.open_for_flag(&"bridge_tea_fate")
 	if hud != null:
 		hud.show_message(LocalizationScript.text("WORDS SETTLE"), 1.0)
+
+
+## L-05：铁心工坊锻造 —— 武器 +1..+10（+5%/级），花费递增烬
+const FORGE_COSTS := [120, 180, 260, 380, 540, 760, 1050, 1450, 1950, 2600]
+
+## L-15：道行（cultivation）—— 花费 (Lv+1)×100 烬，60 级后 ×3；每级 +5 HP/+1 耐力/+1 灵蕴
+const DAO_MAX_LEVEL := 99
+const DAO_SOFT_CAP := 60
+
+## L-15：魂器（soul vessel）—— +1..+5 五阶，永久叠加属性（累计 10/15/10/5/10）
+const VESSEL_COSTS := [200, 500, 1000, 2000, 4000]
+const VESSEL_TIER_BONUSES := [
+	{"max_health": 10.0, "max_stamina": 0.0, "max_focus": 0.0},   # +1 +10 HP（10% 基准）
+	{"max_health": 0.0, "max_stamina": 15.0, "max_focus": 0.0},   # +2 +15 耐力（15% 基准）
+	{"max_health": 0.0, "max_stamina": 0.0, "max_focus": 10.0},   # +3 +10 灵蕴
+	{"max_health": 5.0, "max_stamina": 5.0, "max_focus": 5.0},    # +4 +5% 全属性
+	{"max_health": 10.0, "max_stamina": 10.0, "max_focus": 10.0}, # +5 终极 +10% 全属性
+]
+
+## L-10：Boss 掉落物（boss_id → 物品 id），胜后记入背包/图鉴
+const BOSS_LOOT_BY_ID := {
+	"boss_giant_gate": "reliquary_shield",
+	"boss_nine_tails": "five_elements_seal",
+	"boss_xuan_xiao_wrath": "xingtian_axe_right",
+	"boss_xuan_xiao_obsession": "xingtian_axe_left",
+	"boss_xuan_xiao": "spirit_talisman",
+	"boss_zhu_yin": "prayer_beads",
+}
+
+## L-10：精锐掉落池（可选防具/副手；玩家非起始装备，能扩充图鉴）
+const ELITE_LOOT_POOL := [
+	"jade_buckler", "parry_dagger", "fist_guard",
+	"furnace_greatshield", "spirit_stone", "marksman_dagger", "talisman_papers",
+]
+
+func _try_iron_heart_forge() -> void:
+	if player == null or run_state == null:
+		return
+	var level := int(run_state.progression_values.get("weapon_forge_level", 0))
+	if level >= FORGE_COSTS.size():
+		hud.show_message(LocalizationScript.text("IRON HEART: weapon already fully forged"), 2.0)
+		return
+	var cost: int = FORGE_COSTS[level]
+	if player.embers < cost:
+		hud.show_message(
+			LocalizationScript.text("IRON HEART: need %d embers to forge +%d") % [cost, level + 1],
+			2.0
+		)
+		return
+	player.embers -= cost
+	player.embers_changed.emit(player.embers)
+	level += 1
+	run_state.progression_values["weapon_forge_level"] = level
+	if player.has_method("set_forge_level"):
+		player.set_forge_level(level)
+	hud.show_message(LocalizationScript.text("WEAPON FORGED  +%d  (+%d%% DMG)") % [level, level * 5], 2.5)
+	audio.play_cue("recover", -5.0, 0.7)
+	_save_run("weapon_forged")
 
 
 func _on_boss_weak_point_exposed(enemy) -> void:
@@ -988,6 +2022,10 @@ func _apply_run_state(state) -> void:
 		player.set_combat_style(run_state.combat_style)
 	if player.has_method("set_upgrade_tier"):
 		player.set_upgrade_tier(run_state.upgrade_tier)
+	if player.has_method("set_forge_level"):
+		player.set_forge_level(int(run_state.progression_values.get("weapon_forge_level", 0)))
+	# L-15：装载道行/魂器加成（存档等级为权威，幂等补齐到玩家统计）
+	_apply_progression_stats()
 	checkpoint.activate()
 	if "ancient_gate" in run_state.activated_shortcuts:
 		shortcut.open_immediately()

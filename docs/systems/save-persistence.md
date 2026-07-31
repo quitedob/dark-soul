@@ -57,8 +57,25 @@ Values may be **`bool` (legacy)** or **`String` (canonical fate outcomes)**. Val
 | `ending_state` | `kindle` / `keeper` / `void` | FateChoiceOverlay / EndingResolver |
 | `quest_stage_quest_cloud_wanderer` | `inactive` / `active` / `complete` | QuestState via DialogueRunner |
 | `npc_cloud_wanderer_met` | bool/string | 云游竖切 |
+| `furnace_memory_1` … `furnace_memory_4` | bool | 炉心红晶证物（L-04，furnace_memory_crystal 拾取） |
+| `quest_soul_return` / `quest_forge_last_question` / `quest_furnace_whisper` | bool | 三真相任务起止（L-04/L-05，game_world 触发 QuestState） |
+| `quest_stage_<quest_id>` | `inactive` / `active` / `complete` | QuestState 任务阶段（如 `quest_stage_quest_cloud_wanderer`） |
+| `npc_iron_heart_met` / `npc_lady_of_memories_met` / `npc_xuanxiao_remnant_met` / `npc_silence_bringer_met` / `npc_bridge_tea_soul_met` | bool | NPC 首次相遇标记（DialogueRunner） |
+| `unlock_weapon_forging` | bool | 铁心相遇后解锁兵器锻造（DialogueRunner） |
+| `fate_*` | bool | 命运抉择副作用增益（`fate_remnant_trust` / `fate_guardian_protection` / `fate_heroes_aid` / `fate_zhu_yin_wrath` / `fate_safe_illusion` / `fate_dispel_illusion` / `fate_gravity_boost` / `fate_zhu_yin_weakness`） |
+| `bridge_tea_fate` | String | 茶仙缘分选择（FateChoiceOverlay / 茶魂 NPC，boss_fate_catalog） |
 
 API: `AshenRunState.set_choice_flag(flag, value)` / `get_choice_flag(flag, default)`；任务阶段封装见 `QuestState`。
+
+### `progression_values`（数值进度）
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `weapon_forge_level` | int | 铁心兵器锻造 +N（game_world `_try_weapon_forge`） |
+| `dao_level` | int | 道途升华等级（每级 +5 HP / +1 STA / +1 FOC / +1 天赋点） |
+| `vessel_level` | int | 魂器强化五阶 +1..+5 永久加成（L-15） |
+| `talent_points` | int | 每级道途 +1，供未来天赋树消费 |
+| `meridian_<id>` | int | 经脉等级（任督等，MeridianSystem 幂等应用，L-09） |
 
 ### API
 

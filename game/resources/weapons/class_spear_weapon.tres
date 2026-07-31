@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/weapon_data.gd" id="1_wd"]
+[ext_resource type="Resource" path="res://resources/weapon_arts/spear_art.tres" id="2_art"]
+
+[resource]
+script = ExtResource("1_wd")
+weapon_id = &"class_spear"
+weapon_class_id = &"spear"
+weapon_type = &"spear"
+display_name = "Spear"
+mesh_shape = "spear"
+mesh_color_hex = "8d9278"
+hand_slot = &"right"
+default_weapon_art = ExtResource("2_art")
+supports_one_handed = true
+supports_two_handed = true
+supports_paired = false
+default_grip = &"one_handed"
+critical_multiplier = 1.0

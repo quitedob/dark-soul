@@ -8,7 +8,7 @@ static func chapters() -> Array[Dictionary]:
 		_chapter(&"chapter_02", "血铁·战歌 / Blood & Iron · Warsong", &"theme_blood_iron", &"level_02_01", &"level_02_06", [&"boss_xing_tian"]),
 		_chapter(&"chapter_03", "玉障·迷心 / Jade Veil · Lost Mind", &"theme_jade_veil", &"level_03_01", &"level_03_06", [&"boss_nine_tails"]),
 		_chapter(&"chapter_04", "天崩·陨落 / Celestial Fall", &"theme_celestial_fall", &"level_04_01", &"level_04_06", [&"boss_xuan_xiao_wrath", &"boss_xuan_xiao_obsession", &"boss_xuan_xiao"]),
-		_chapter(&"chapter_05", "烬座·归墟 / Throne of Ashes · Return to Void", &"theme_ember_abyss", &"level_05_01", &"level_05_05", [&"boss_zhu_yin"]),
+		_chapter(&"chapter_05", "烬座·归墟 / Throne of Ashes · Return to Void", &"theme_ember_abyss", &"level_05_01", &"level_05_05", [&"boss_zhu_yin", &"boss_blind_bell"]),
 	]
 
 
@@ -42,6 +42,8 @@ static func levels() -> Array[Dictionary]:
 		_level(&"level_05_03", "轮回歧路 / Forked Path of Samsara", &"chapter_05", &"non_euclidean_branches", &"theme_ember_abyss", &"choice", &"validate_past_outcomes", &"level_05_04"),
 		_level(&"level_05_04", "十一铸魂者之墓 / Tomb of the Eleven Soul-Forgers", &"chapter_05", &"memorial_ring", &"theme_ember_abyss", &"trial", &"select_final_blessings", &"level_05_05"),
 		_level(&"level_05_05", "烬座·烛阴之缚 / Throne of Ashes · The Dragon Binding", &"chapter_05", &"cosmic_multi_phase_arena", &"theme_ember_abyss", &"final_boss", &"final_boss_and_endings", &"", &"boss_zhu_yin"),
+		# 可选隐藏 Boss 关：无目钟塔（盲钟·听烬）—— 独立定位，不承接主线，next 为空
+		_level(&"level_05_06", "无目钟塔 / Blind Bell Tower", &"chapter_05", &"inverted_multi_surface", &"theme_ember_abyss", &"boss", &"optional_boss_blind_bell_tower", &"", &"boss_blind_bell"),
 	]
 	for record in records:
 		var level_id := String(record["id"])
@@ -77,11 +79,12 @@ static func bosses() -> Array[Dictionary]:
 		_boss(&"boss_xuan_xiao_obsession", "玄霄·执念 / Xuán Xiāo · Obsession", &"chapter_04", &"level_04_05", &"sub_boss"),
 		_boss(&"boss_xuan_xiao", "堕仙·玄霄 / Fallen Immortal · Xuán Xiāo", &"chapter_04", &"level_04_06", &"chapter_boss"),
 		_boss(&"boss_zhu_yin", "烬渊之主·烛阴 / Lord of the Ember Abyss · Zhú Yīn", &"chapter_05", &"level_05_05", &"final_boss"),
+		_boss(&"boss_blind_bell", "盲钟·听烬 / Blind Bell · Hearer", &"chapter_05", &"level_05_06", &"boss"),
 	]
 
 
 static func _modules_for(level: Dictionary) -> Array[StringName]:
-	# 全 28 关显式组合十类可复用模块族（章节作用域）
+	# 全 29 关显式组合二十类可复用模块族（章节作用域；L-16/L-17 扩至 20 族）
 	var level_id := StringName(level.get("id", &""))
 	match level_id:
 		# —— Ch.1 灵墟 ——
@@ -90,9 +93,9 @@ static func _modules_for(level: Dictionary) -> Array[StringName]:
 		&"level_01_02":
 			return [&"hazard", &"gate_exit"]
 		&"level_01_03":
-			return [&"switch_offering", &"gate_exit"]
+			return [&"switch_offering", &"mirror_light", &"gate_exit"]
 		&"level_01_04":
-			return [&"hazard", &"poison_fire_zone", &"fragile_floor", &"switch_offering", &"gate_exit"]
+			return [&"hazard", &"poison_fire_zone", &"valve_shutoff", &"fragile_floor", &"switch_offering", &"gate_exit"]
 		&"level_01_05":
 			return [&"arena_seal"]
 		# —— Ch.2 血铁（攻城危害 / 阵型）——
@@ -112,22 +115,22 @@ static func _modules_for(level: Dictionary) -> Array[StringName]:
 		&"level_03_01":
 			return [&"illusion_marker", &"fragile_floor", &"gate_exit"]
 		&"level_03_02":
-			return [&"illusion_marker", &"switch_offering", &"hazard", &"gate_exit"]
+			return [&"illusion_marker", &"switch_offering", &"memory_verification", &"hazard", &"gate_exit"]
 		&"level_03_03":
-			return [&"projectile_lane", &"illusion_marker", &"gate_exit"]
+			return [&"projectile_lane", &"illusion_marker", &"stealth_passage", &"gate_exit"]
 		&"level_03_04":
 			return [&"moving_platform", &"illusion_marker", &"switch_offering", &"gate_exit"]
 		&"level_03_05":
-			return [&"illusion_marker", &"switch_offering", &"gate_exit"]
+			return [&"illusion_marker", &"switch_offering", &"riddle_gate", &"gate_exit"]
 		&"level_03_06":
 			return [&"arena_seal"]
 		# —— Ch.4 天崩（垂直 / 炼丹 / 重力）——
 		&"level_04_01":
-			return [&"moving_platform", &"fragile_floor", &"gate_exit"]
+			return [&"moving_platform", &"celestial_dial", &"fragile_floor", &"gate_exit"]
 		&"level_04_02":
-			return [&"moving_platform", &"poison_fire_zone", &"switch_offering", &"gate_exit"]
+			return [&"moving_platform", &"poison_fire_zone", &"alchemy_ingredients", &"switch_offering", &"gate_exit"]
 		&"level_04_03":
-			return [&"gravity_visual_zone", &"hazard", &"switch_offering", &"gate_exit"]
+			return [&"gravity_visual_zone", &"gravity_inversion", &"hazard", &"switch_offering", &"gate_exit"]
 		&"level_04_04":
 			return [&"arena_seal"]
 		&"level_04_05":
@@ -138,12 +141,14 @@ static func _modules_for(level: Dictionary) -> Array[StringName]:
 		&"level_05_01":
 			return [&"gate_exit"]
 		&"level_05_02":
-			return [&"gravity_visual_zone", &"moving_platform", &"switch_offering", &"gate_exit"]
+			return [&"gravity_anchor", &"gravity_visual_zone", &"moving_platform", &"switch_offering", &"gate_exit"]
 		&"level_05_03":
 			return [&"illusion_marker", &"switch_offering", &"gravity_visual_zone", &"gate_exit"]
 		&"level_05_04":
-			return [&"switch_offering", &"gate_exit"]
+			return [&"switch_offering", &"soul_forger_trial", &"gate_exit"]
 		&"level_05_05":
+			return [&"arena_seal"]
+		&"level_05_06":
 			return [&"arena_seal"]
 	# 兜底：拓扑启发式（不应触达若表完整）
 	return [&"gate_exit"]
@@ -159,6 +164,8 @@ static func _module_configs_for(level: Dictionary) -> Dictionary:
 			configs["poison_fire_zone"] = {"damage_type": &"poison", "damage_per_second": 8.0}
 			configs["fragile_floor"] = {"collapse_delay": 2.0}
 			configs["switch_offering"] = {"required_count": 1}
+			configs["mirror_light"] = {"charge_seconds": 1.4, "beam_size": Vector3(1.0, 1.2, 7.0)}
+			configs["valve_shutoff"] = {"damage_type": &"poison", "damage_per_second": 9.0}
 		&"chapter_02":
 			configs["hazard"] = {"damage_per_second": 11.0, "damage_type": &"fire", "size": Vector3(5.0, 0.45, 5.0)}
 			configs["projectile_lane"] = {"interval": 1.55, "size": Vector3(3.2, 2.2, 14.0), "damage": 14.0}
@@ -172,24 +179,39 @@ static func _module_configs_for(level: Dictionary) -> Dictionary:
 			configs["projectile_lane"] = {"interval": 2.2, "damage": 10.0}
 			configs["moving_platform"] = {"travel": Vector3(3.5, 0.0, 0.0), "travel_time": 3.4}
 			configs["switch_offering"] = {"required_count": 1}
+			configs["memory_verification"] = {"correct_choice": "true"}
+			configs["stealth_passage"] = {"alarm_damage": 9.0}
+			configs["riddle_gate"] = {
+				"correct_index": 2,
+				"riddle_question": "THE NINE-TAILS ASKS: WHAT FADES BUT NEVER DIES?",
+				"answers": ["STONE OF BLOOD", "STONE OF SONG", "STONE OF REMEMBRANCE"],
+			}
 		&"chapter_04":
 			configs["moving_platform"] = {"travel": Vector3(0.0, 5.0, 2.0), "travel_time": 2.2}
 			configs["fragile_floor"] = {"collapse_delay": 0.85}
 			configs["poison_fire_zone"] = {"damage_type": &"alchemy_vapor", "damage_per_second": 13.0}
 			configs["gravity_visual_zone"] = {"visual_direction": Vector3.DOWN, "size": Vector3(7.0, 5.0, 7.0)}
+			configs["gravity_inversion"] = {"size": Vector3(6.0, 5.0, 6.0)}
 			configs["hazard"] = {"damage_per_second": 9.0, "damage_type": &"debris"}
 			configs["switch_offering"] = {"required_count": 2}
+			configs["celestial_dial"] = {"required_turns": 3}
+			configs["alchemy_ingredients"] = {"required_count": 4}
 		&"chapter_05":
 			configs["gravity_visual_zone"] = {"visual_direction": Vector3(0.0, -1.0, 0.0), "size": Vector3(8.0, 6.0, 8.0)}
 			configs["moving_platform"] = {"travel": Vector3(0.0, -3.5, 0.0), "travel_time": 2.8}
 			configs["illusion_marker"] = {"illusion_kind": &"samsara_fork"}
 			configs["switch_offering"] = {"required_count": 3}
+			configs["gravity_anchor"] = {"zone_size": Vector3(8.0, 6.0, 8.0)}
+			configs["soul_forger_trial"] = {"trial_duration": 14.0, "trial_dps": 7.0}
 		_:
 			pass
 	return configs
 
 
 static func _shortcut_fold_for(level: Dictionary) -> Dictionary:
+	# 可选 Boss 隐藏塔：显式禁折叠（kind 判定兜底已覆盖，此处双保险）
+	if StringName(level.get("id", &"")) == &"level_05_06":
+		return {"enabled": false}
 	# H-05：Boss / 纯叙事岸边不塞折叠，其余关生成单向门+升降梯
 	var kind := StringName(level.get("kind", &""))
 	if kind in [&"boss", &"sub_boss", &"final_boss", &"narrative"]:

@@ -1,0 +1,91 @@
+[gd_resource type="Resource" script_class="WeaponArtData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/weapon_art_data.gd" id="1_art"]
+[ext_resource type="Script" path="res://scripts/combat/data/attack_data.gd" id="2_atk"]
+
+[sub_resource type="Resource" id="Resource_entry"]
+script = ExtResource("2_atk")
+action_id = &"tuidun_entry"
+display_name_key = &"tuidun_entry"
+tags = Array[StringName]([&"melee", &"heavy", &"leap", &"weapon_art", &"shield_pressure"])
+windup_seconds = 0.4
+active_seconds = 0.2
+recovery_seconds = 0.7
+stamina_cost = 20.0
+damage = 28.0
+poise_damage = 46.0
+guard_power = 44.1
+authored_displacement = Vector3(0, 0, 2.8)
+poise_modifier_windup = 0.3
+poise_modifier_active = 0.9
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_light"]
+script = ExtResource("2_atk")
+action_id = &"tuidun_light"
+display_name_key = &"tuidun_light"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"shield_pressure"])
+windup_seconds = 0.32
+active_seconds = 0.18
+recovery_seconds = 0.6
+stamina_cost = 18.0
+damage = 26.0
+poise_damage = 44.0
+guard_power = 41.4
+authored_displacement = Vector3(0, 0, 2.2)
+poise_modifier_windup = 0.2
+poise_modifier_active = 0.7
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_heavy"]
+script = ExtResource("2_atk")
+action_id = &"tuidun_heavy"
+display_name_key = &"tuidun_heavy"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"shield_pressure", &"guard_drain"])
+windup_seconds = 0.6
+active_seconds = 0.24
+recovery_seconds = 0.9
+stamina_cost = 28.0
+damage = 40.0
+poise_damage = 60.0
+guard_power = 61.0
+authored_displacement = Vector3(0, 0, 3.0)
+poise_modifier_windup = 0.3
+poise_modifier_active = 0.9
+poise_modifier_recovery = 0.0
+
+[sub_resource type="Resource" id="Resource_guard"]
+script = ExtResource("2_atk")
+action_id = &"tuidun_guard"
+display_name_key = &"tuidun_guard"
+tags = Array[StringName]([&"melee", &"heavy", &"weapon_art", &"shield_pressure", &"counter"])
+windup_seconds = 0.08
+active_seconds = 0.2
+recovery_seconds = 0.6
+stamina_cost = 0.0
+damage = 34.0
+poise_damage = 56.0
+guard_power = 53.6
+authored_displacement = Vector3(0, 0, 2.0)
+poise_modifier_windup = 0.0
+poise_modifier_active = 0.9
+poise_modifier_recovery = 0.0
+
+[resource]
+script = ExtResource("1_art")
+art_id = &"tuidun_counter"
+art_kind = &"guard_counter"
+stance_animation = &"shield_counter_stance"
+entry_attack = SubResource("Resource_entry")
+light_branch = SubResource("Resource_light")
+heavy_branch = SubResource("Resource_heavy")
+guard_success_branch = SubResource("Resource_guard")
+requires_guard_success = true
+focus_cost = 6.0
+stamina_cost = 20.0
+windup_seconds = 0.4
+recovery_seconds = 0.7
+interruptible = false
+cooldown_seconds = 8.0
+positional_precondition = &"guard_success"
+art_tags = Array[StringName]([&"shield_pressure", &"counter"])
