@@ -26,6 +26,7 @@
 | [mcp-setup-guide.md](mcp-setup-guide.md) | Godot MCP |
 | [game-design.md](game-design.md) | 垂直切片愿景与支柱 |
 | [phone-compatibility.md](phone-compatibility.md) | 手机屏测试 |
+| [model-prompts/](model-prompts/README.md) | **3D 模型提示词库**(md→图片→3D 资产流水线上游) |
 
 ### 日志 / 规划 / 任务
 

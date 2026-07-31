@@ -10,6 +10,7 @@
 
 - [Completed Audits Archived](2026-07-31/99-completed-audits-archived.md)
 - [**Delivery Summary**](2026-07-31/delivery-summary.md)
+- [模型提示词库（md→图片→3D 流水线上游）](2026-07-31/07-model-prompts-library.md)
 - [Docs Folder Reorg（分类目录 + 按日 Devlog）](2026-07-31/06-docs-folder-reorg.md)
 - [Docs Sync：任务归档 + CHANGELOG](2026-07-31/01-docs-sync-changelog.md)
 - [Soulslike Gap Analysis 纠偏](2026-07-31/02-soulslike-gap-analysis.md)
