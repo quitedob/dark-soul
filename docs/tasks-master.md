@@ -1,387 +1,77 @@
 # 烬渊 (Ember Abyss) — Master Task Backlog
 
-**Created:** 2026-07-30
-**Status:** `ACTIVE` — comprehensive task breakdown based on full-stack architecture audit
-**Source:** 10-dimension technical audit of 5,702-line GDScript codebase + 55 design documents
-**Engine:** Godot 4.7.1
+**Created:** 2026-07-30  
+**Updated:** 2026-07-31  
+**Status:** `ACTIVE` — 绝大多数 A–K 已收口；开放项以真资产 / 内容抛光为主  
+**Engine:** Godot 4.7.1  
+**缺口权威:** [planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md)  
+**交付日志:** [devlog/index.md](devlog/index.md)（按日期文件夹；禁止再写巨型单文件）  
+**调研汇总:** [research/index.md](research/index.md)
 
 ---
 
-## Task Organization
+## 状态图例
 
-Tasks are organized into 10 dimensions (A–J), each representing a major architectural subsystem.
-Each task is classified by:
-
-| Field | Meaning |
-|-------|---------|
-| **ID** | Unique task identifier (e.g., A-01) |
-| **Priority** | P0 (blocking) > P1 (critical) > P2 (high) > P3 (medium) > P4 (low) |
-| **Status** | ✅ DONE / 🔴 BLOCKED / 🟡 IN PROGRESS / ⬜ PENDING / ⏸️ DEFERRED |
-| **Effort** | S (hours) / M (days) / L (week) / XL (weeks) |
-| **Depends On** | Task IDs that must complete first |
-| **Blocks** | Task IDs that cannot start until this completes |
-| **Detail** | Link to detailed task spec in `tasks/` subdirectory |
-
-## Approved Execution Roadmap
-
-The full backlog is executed in dependency-gated milestones. Campaign integration is the critical path; combat, testing, and documentation work may proceed in parallel only after shared runtime contracts are stable.
-
-1. **Campaign contracts and migration safety** — H-01, H-02, I-01, I-02, I-09, J-03, J-08.
-2. **Chapter 1 runtime vertical slice** — H-03, Chapter 1 subset of H-04, H-06, H-07, F-01, I-07.
-3. **Full campaign topology and content activation** — remaining H-04, H-05, G-03, chapter-scoped G-04/G-05.
-4. **Combat contracts and single data ownership** — A-01–A-07, B-01–B-04, E-04–E-06, I-04, J-05, J-07. Freeze compatibility tests before removing legacy dictionaries.
-5. **Defense, poise, and human executions** — E-01–E-03, E-07–E-10, I-03, I-05, I-08, then the human-execution milestones in `tasks/combat-expansion-roadmap.md`.
-6. **Movesets, grip modes, and authored animation** — B-05–B-08 and D-01–D-07 after `AttackData` parity and an authored-animation proof of concept.
-7. **AI architecture and boss depth** — G-01, G-02, remaining G-04–G-06, I-06, J-10.
-8. **Test completion, documentation, and release hardening** — remaining I/J tasks, build aggregation, and MCP/export exclusion checks.
-
-**Critical path:** H-01 → H-02 → H-03 → Chapter 1 H-04 → H-07 → H-06/I-07 → remaining campaign integration → release hardening.
-
-**First implementation slice:** canonical level-ID normalization, strict catalog validation, all-28-level compatibility contracts, `level_01_01` runtime metadata, and canonical save/checkpoint verification.
+| Status | Meaning |
+|--------|---------|
+| ✅ DONE | 已落地（细节见 `docs/devlog/<日期>/`；任务规格已归档删除） |
+| 🟡 PARTIAL | 逻辑/POC 已有，真资产或章节抛光未完 |
+| ⬜ PENDING | 未开始 |
 
 ---
 
-## Dimension A: Architecture Decoupling & Data-Driven Refactoring
+## 仍开放
 
-> **Goal:** Eliminate hardcoded combat logic, move all weapon/attack config into custom Resources.
+| ID | Task | Priority | Status | Notes |
+|----|------|----------|--------|-------|
+| D-01 | AnimationTree 真蒙皮 / 根骨资产替换占位骨架 | P1 | 🟡 PARTIAL | POC + Physics callback 已有；缺生产动画 |
+| D-03 | 锁敌 strafe BlendSpace2D | P2 | ⬜ PENDING | 依赖真位移动画 |
+| D-05 | 刑天跃击 root-motion 作者化动画路径 | P2 | ⬜ PENDING | 程序化 leap + RM 接入已有 |
+| H-04 | 28 关模块族行为抛光（Ch.2–5） | P1 | 🟡 PARTIAL | 模块可生成；章节行为未全量抛光 |
+| — | LimboAI 真 GDExtension 替换 `compat_macro` | P3 | ⬜ PENDING | G-01 兼容层已 DONE |
+| — | Ch.3–5 遭遇工厂 + 跨章 NPC 迁移 / 隐藏结局证物 | P2 | ⬜ PENDING | Ch.1 云游竖切 + Ch.2 遭遇已接 |
+| — | 敌人攻击更多磁盘 `.tres` 作者化 | P3 | ⬜ PENDING | Catalog + 哨兵样例已有 |
 
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| A-01 | Extract typed `CombatStyleData` resources with Inspector-serializable timing, economy, leap, defense, and presentation fields | P1 | ✅ DONE | M | — | [tasks/a-01-combat-style-data.md](tasks/a-01-combat-style-data.md) |
-| A-02 | Finish migration from legacy `STYLE_TIMING`: leap, dodge, and action armor must stop reading compatibility dictionaries | P0 | ✅ DONE | M | A-01 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-1--single-combat-data-owner) |
-| A-03 | Implement `AttackData`, `ChargeProfile`, `MovesetData`, `WeaponData`, and schema validation | P1 | ✅ DONE | L | A-02 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md) |
-| A-04 | Data-driven spell configuration: remove duplicate `SPELL_CONFIG` ownership and retain one authoritative resource path | P2 | ✅ DONE | M | A-02 | — |
-| A-05 | Add `class_name` registration and combat Resource schema verification to validation pipeline | P1 | ✅ DONE | S | A-03 | — |
-| A-06 | Implement `WeaponArtData`, migrate all five compatibility skills, and remove style `match` dispatch | P2 | ✅ DONE | L | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-7--weapon-arts) |
-| A-07 | Migrate `HandEquipment` dictionaries to `WeaponData` / `GuardProfile` Resource references | P2 | ✅ DONE | L | A-03, E-07 | dagger/fist GuardProfile `.tres` + Resource 优先 `get_item`；主手武器逐步补盘 |
-
----
-
-## Dimension B: Combat Frame Data & Feel Differentiation
-
-> **Goal:** Each combat style and future weapon class must feel physically distinct through authored timing, stamina, movement, stance, and tactical trade-offs. **Current state:** five `CombatStyleData` resources drive light/heavy/leap/dodge/WAM; `CompatibilityMovesetFactory` synthesizes `MovesetData` including dodge-cancel and Focus melee costs.
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| B-01 | **Per-style stamina cost differentiation** — Twin Colossi heavy costs 65 stamina and all loadouts use the target economy | P0 | ✅ DONE | S | — | [tasks/b-01-stamina-differentiation.md](tasks/b-01-stamina-differentiation.md) |
-| B-02 | Verify and tune differentiated frame data matrix (Windup/Active/Recovery) for all 5 styles against the compatibility baseline | P1 | ✅ DONE | M | B-01 | — |
-| B-03 | Input buffering: verify 150ms window works correctly; add buffer queue visualization for debug mode | P2 | ✅ DONE | S | — | `INPUT_BUFFER_WINDOW=0.15` 单槽覆盖；combat tip / debug build 下 HUD `BUF ACTION ms`；权威：`player.gd` + `hud.set_input_buffer_debug` |
-| B-04 | Implement attack cancel windows — Crescent Pair post-recovery dodge cancel; Twin Colossi zero cancel | P2 | ✅ DONE | M | B-02 | — |
-| B-05 | Heavy attack charge mechanic using discrete authored charge tiers | P2 | ✅ DONE | L | A-03, B-02 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
-| B-06 | Running, rolling, and backstep attack contexts per supported moveset | P2 | ✅ DONE | L | A-03, B-04 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
-| B-07 | Implement one-handed, two-handed, and paired grip modes with distinct movesets and no direct critical-damage doubling | P2 | ✅ DONE | XL | A-03 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#单持双持与成对持握) |
-| B-08 | Implement general jump, low-sweep immunity, jump attacks, and falling attacks; keep leap weapon arts separate | P2 | ✅ DONE | XL | A-03, D-01 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-6--grip-modes-and-context-attacks) |
-
-### Compatibility Frame Baseline (originally informed by genre research; retune for 《焰渊》)
-
-| Combat Style | Light Windup | Light Active | Light Recovery | Heavy Windup | Heavy Active | Heavy Recovery | Stamina (Light/Heavy) |
-|---|---|---|---|---|---|---|---|
-| 护卫之道 (Reliquary Guard) | 0.28s | 0.15s | 0.32s | 0.58s | 0.22s | 0.65s | 22 / 40 |
-| 刑天斧法 (Twin Colossi) | 0.48s | 0.22s | 0.52s | 0.82s | 0.28s | 0.90s | 38 / 65 |
-| 羿弓术 (Crescent Pair) | 0.20s | 0.12s | 0.20s | 0.38s | 0.16s | 0.38s | 16 / 28 |
-| 五行术 (Veilcraft) | 0.25s cast | Instant | 0.20s | — | — | — | 14/22 Focus |
-| 天祝术 (Ember Rite) | 0.50s chant | Instant | 0.30s | — | — | — | 20/35 Focus |
-
-**B-02 verification (2026-07-30):** All five `game/resources/combat_styles/*.tres` checked against this table.
-
-| Style | Before → After (W/A/R light · W/A/R heavy · stam L/H) | Result |
-|---|---|---|
-| Reliquary Guard | `0.28/0.16/0.38 · 0.58/0.22/0.62 · 22/40` → `0.28/0.15/0.32 · 0.58/0.22/0.65 · 22/40` | Aligned |
-| Twin Colossi | `0.48/0.20/0.62 · 0.82/0.26/0.92 · 38/65` → `0.48/0.22/0.52 · 0.82/0.28/0.90 · 38/65` | Aligned |
-| Crescent Pair | `0.20/0.14/0.28 · 0.38/0.18/0.44 · 16/28` → `0.20/0.12/0.20 · 0.38/0.16/0.38 · 16/28` | Aligned |
-| Veilcraft | light `0.30/0.16/0.42` → `0.25/0.0 Instant/0.20`; stam `0/0` (Focus 14/22 via `SPELL_CONFIG`); heavy `—` retained offhand compat `0.52/0.20/0.58` | Light aligned; heavy N/A by design |
-| Ember Rite | light `0.34/0.18/0.48` → `0.50/0.0 Instant/0.30`; stam `0/0` (Focus economy via cast path); heavy `—` retained offhand compat `0.56/0.22/0.64` | Light aligned; heavy N/A by design |
-
-Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Rite baseline Focus 20/35 vs live `ember_rite` cast cost 25 is owned by `SPELL_CONFIG` (outside B-02 `.tres` scope).
+战斗扩展里程碑总览仍见 [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md)。
 
 ---
 
-## Dimension C: Hit-Stop & Audio-Visual Feedback
+## 已完成（按维度摘要）
 
-> **Goal:** Replace global `Engine.time_scale` hit-stop with actor-local freezes; implement trauma-based screen shake; add audio low-pass filtering on heavy impacts. **Current state:** Local HitStop freezes entity state/input/horizontal motion while world/UI continue; trauma shake shipped (C-02/C-03); heavy-hit Master low-pass duck shipped (C-04).
+> 单任务规格文件已从 `docs/tasks/` 删除；以本表 + [devlog](devlog/index.md) + 系统文档为准。
 
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| C-01 | Replace global time-scale hit-stop with actor-local freezes (entity state/input paused; world physics/UI continue) | P0 | ✅ DONE | M | — | [tasks/c-01-local-hitstop.md](tasks/c-01-local-hitstop.md) |
-| C-02 | FastNoiseLite trauma shake with exponential decay, intensity scaling, and reduced-motion disablement | P1 | ✅ DONE | M | C-01 | [tasks/c-02-trauma-shake.md](tasks/c-02-trauma-shake.md) |
-| C-03 | Weapon-weight-based trauma injection: light 0.3, heavy 0.8, explosion 1.0 | P1 | ✅ DONE | S | C-02 | — |
-| C-04 | Add audio low-pass filter ducking on heavy hit impacts via `procedural_audio.gd` | P3 | ✅ DONE | S | — | Master bus `AudioEffectLowPassFilter` duck via `duck_heavy_impact()`; headless no-op |
-| C-05 | Weapon trail VFX enhancement: color/intensity tied to attack weight class | P4 | ✅ DONE | M | — | [tasks/c-05-weapon-trail-vfx.md](tasks/c-05-weapon-trail-vfx.md) |
-
----
-
-## Dimension D: Animation & Root Motion Integration
-
-> **Goal:** Replace code-driven velocity manipulation with AnimationTree root motion extraction for physically grounded movement. **Current state (2026-07-31):** `PlayerAnimationBridge` 提供占位 AnimationTree（Physics callback）、method-track 驱动轻击/跃击 hitbox，以及 `get_root_motion_*` 物理接入（`_apply_anim_root_motion`）。**真蒙皮资产与 D-05 作者化跃击动画仍 PENDING**。审计见 `docs/audits/2026-07-31-soulslike-gap-analysis.md`。
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| D-01 | Set up `AnimationTree` with `AnimationNodeStateMachinePlayback` for player — root bone track extraction | P1 | 🟡 PARTIAL | L | — | [tasks/d-01-root-motion-setup.md](tasks/d-01-root-motion-setup.md) |
-| D-02 | Implement `get_root_motion_position()` / `get_root_motion_rotation()` integration in `_physics_process` | P1 | ✅ DONE | M | D-01 | `_apply_anim_root_motion` |
-| D-03 | Lock-on strafe BlendSpace2D — blend walk/run animations with lateral movement during lock-on | P2 | ⬜ PENDING | L | D-01 | — |
-| D-04 | Force `Process Callback = Physics` on AnimationTree to prevent frame-rate-dependent root motion drift (Godot issues #53752, #65199) | P1 | ✅ DONE | S | D-01 | — |
-| D-05 | Heavy weapon (Twin Colossi) leap attack animation with root motion — forward lunge driven by animation data | P2 | ⬜ PENDING | L | D-02 | — |
-| D-06 | Paired execution animation framework: anchor alignment, exclusive claim, event-point damage, cancellation recovery | P1 | ✅ DONE | L | A-03, D-01, E-09 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
-| D-07 | Grab paired-animation framework using independent capture shapes and `GRAB_INITIATOR` / `GRABBED` states | P3 | ✅ DONE | L | D-06 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#grabprofile) |
+| Dim | Done | 要点 |
+|-----|------|------|
+| **A** 数据解耦 | A-01…A-07 | CombatStyle / Attack / Moveset / WeaponArt / GuardProfile / HandEquipment Resource 路径 |
+| **B** 帧与手感 | B-01…B-12 | 分风格体力与帧、取消窗、蓄力/握持/语境攻击、多槽队列、tap-hold、下落重力、分状态加速度 |
+| **C** 反馈 | C-01…C-06 | 本地 HitStop、trauma 震屏、重击低通、武器拖尾、Music 总线音量 |
+| **D** 动画 | D-02, D-04, D-06, D-07, D-08 | RM 物理接入、Physics callback、处决/抓投导演、动画 method-track 钩子 |
+| **E** 防务 | E-01…E-11 | 连续 Poise、招架窗、Guard Meter、脆弱态、人型/Boss 处决、guard setter |
+| **F** 镜头 | F-01…F-06 | SpringArm mask、锁敌打分/slerp/循环/断锁、自动回跟 |
+| **G** AI | G-01…G-08 | Boss 宏 BT、治疗惩罚、远程伏击、相变 VFX、AI Catalog、章节 Boss 权能、命中载荷、EnemyAttackCatalog |
+| **H** 战役 | H-01…H-03, H-05…H-07 | 关卡 ID、迁移、builder、捷径折叠、死亡环、Ch.1 竖切（H-04 仍 PARTIAL） |
+| **I** 测试 | I-01…I-16 | GUT、FSM/体力/命中/格挡/死亡环、CI、smoke 抽离、求解器单测、敌 FSM 覆盖 |
+| **J** 文档 | J-01…J-12 | controls / architecture / validation / systems/* 权威参考 |
+| **K** 正确性 | K-01…K-04 | Focus 原子扣费、guard `_ready` 防双初始化、关卡断锁、未知 cue 警告 |
 
 ---
 
-## Dimension E: Stamina, Poise & Defense Systems
+## Status Summary（2026-07-31）
 
-> **Goal:** Implement an 《焰渊》-specific continuous Poise model, equipment-driven parry/guard profiles, independent guard break and vulnerability states, and human/Boss execution contracts. **Current state (2026-07-31):** 玩家与敌人均经 `PoiseResolver` 结算；相位 WAM 读 `AttackData.poise_modifier_*`（E-01/E-02 DONE）。`GuardResolver` 含 Guard Meter；`GUARD_BROKEN` / `PARRY_VULNERABLE` / `WEAK_POINT_EXPOSED` 与处决已 DONE。权威缺口：`docs/audits/2026-07-31-soulslike-gap-analysis.md`。
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| E-01 | **Implement continuous Poise** — standing reserve + WAM capacity via `PoiseResolver`; per-`AttackData` phase ownership remains | P1 | ✅ DONE | L | A-03, B-01 | [tasks/e-01-poise-system.md](tasks/e-01-poise-system.md) |
-| E-02 | Migrate heavy-action protection from binary `hyper_armor` to authored phase modifiers | P1 | ✅ DONE | M | E-01 | 玩家/敌人均读 `poise_modifier_*` |
-| E-03 | Poise break: when reserve reaches zero, force `STAGGER`; otherwise apply HP and impact feedback without interrupting | P1 | ✅ DONE | M | E-01 | — |
-| E-04 | **Parry window differentiation by tool** — medium shield, buckler, dagger, and fist profiles | P2 | ✅ DONE | M | — | [tasks/e-04-parry-windows.md](tasks/e-04-parry-windows.md) |
-| E-05 | Verify the actual per-action stamina recovery delays and freeze behavior during non-LOCOMOTION states; do not assume one universal 1.5s value | P2 | ✅ DONE | S | — | **无统一 1.5s。** 实际 `_spend_stamina` delay：普攻 0.85；闪避/后撤 0.7；招架 0.45；盾击 0.7；leap/突刺 0.9；格挡受击 0.65 / 破防 1.0；蓄力滴耗 0.2；冲刺滴耗 0.25。Delay **仅在 LOCOMOTION 倒数**（非移动态冻结）。I-04 测例已按行为契约、不假设 1.5s |
-| E-06 | Guard stability differentiation by shield weight class | P3 | ⬜ PENDING | M | — | — |
-| E-07 | Add `GuardProfile`, Guard Meter, edge-angle stamina factor, and direct impact break threshold | P1 | ✅ DONE | M | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-3--guard-meter-and-guard-break) |
-| E-08 | Add independent `GUARD_BROKEN`, `PARRY_VULNERABLE`, and `WEAK_POINT_EXPOSED` states | P1 | ✅ DONE | M | E-01, E-07 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#目标状态模型) |
-| E-09 | Implement human front execution and backstab eligibility, anchors, exclusive claims, and critical damage events | P1 | ✅ DONE | L | E-08, A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
-| E-10 | Implement separate Boss Execution Break meters and five boss-specific weak-point execution contracts | P2 | ✅ DONE | XL | E-09, G-06 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md#非人型与-boss-弱点处决) |
+| | Count |
+|--|------:|
+| 主表任务（A–J 原 78 + Audit Wave） | ~100 |
+| ✅ DONE | ~96 |
+| 🟡 PARTIAL | 2（D-01, H-04） |
+| ⬜ PENDING（主表内） | 2（D-03, D-05） |
+| 后续内容债（无旧 ID） | LimboAI 真插件、Ch.3–5、跨章叙事填充 |
 
 ---
 
-## Dimension F: Camera Control & Target Lock-On
+## 相关文档
 
-> **Goal:** SpringArm3D collision avoidance; screen-space dot-product target scoring; quaternion slerp smooth tracking; target cycling. **Current state:** SpringArm mask=`1`（F-01）；F-02 打分已落地；F-03 slerp / F-04 双向循环 / F-05 断锁回正已完成。
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| F-01 | Verify SpringArm3D collision mask is correctly configured for all level geometry layers | P2 | ✅ DONE | S | — | `spring_arm.collision_mask = 1`（仅静态世界 Layer1）；禁止 `set_collision_mask_value`。权威：`player.gd` `_configure_spring_arm_collision()` |
-| F-02 | Screen-space/FOV lock-on scoring with deterministic angle cycling and pure solver contracts | P2 | ✅ DONE | M | — | [tasks/f-02-lockon-scoring.md](tasks/f-02-lockon-scoring.md) |
-| F-03 | Quaternion slerp smooth tracking: replace any `look_at()` calls with `slerp` interpolation for lock-on rotation | P2 | ✅ DONE | S | F-02 | `_update_camera_rig` 用 `Quaternion.slerp`（`LOCK_ON_CAMERA_SLERP`）；无 `look_at()`；锁敌时禁用自由环绕 |
-| F-04 | Target cycling: verify clockwise/anticlockwise cycling by screen angle; add input for cycle direction | P3 | ✅ DONE | S | F-02 | Q/中键顺时针；`[` / `]` = `cycle_lock_left` / `cycle_lock_right` 按 `screen_angle` 双向循环 |
-| F-05 | Lock-on break distance verification and camera recovery behavior | P3 | ✅ DONE | S | — | 断锁距离=`LOCK_ON_BREAK_DISTANCE`(22)；断锁后 0.5s 偏航对齐角色 + 俯仰回 `-0.18`；鼠标/摇杆可打断回正 |
-
----
-
-## Dimension G: Enemy & Boss AI — Deep Behavioral Logic
-
-> **Goal:** Behavior tree + FSM hybrid for boss macro decisions; healing-punish tendency; phase transition polish; ranged/ambush enemy archetypes. **Current state:** Cinder Guardian has 3-phase transitions, distance-bracket attack selection, and healing-punish (speed boost + long-range queue). One additional enemy archetype (Ash Stalker) exists.
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| G-01 | Integrate LimboAI behavior tree plugin for boss macro decision layer (patrol, disengage, phase switch, healing-punish override) | P2 | ✅ DONE | XL | — | [tasks/g-01-limboai-bt.md](tasks/g-01-limboai-bt.md) |
-| G-02 | Healing-punish tendency: verify current implementation; add per-boss punish behavior variants (gap-close, ranged snipe, AoE burst) | P1 | ✅ DONE | M | — | Catalog + Ch.1 `healing_punish` 覆盖 |
-| G-03 | Add third enemy archetype: ranged/ambush enemy with projectile attack and retreat behavior | P2 | ✅ DONE | L | — | — |
-| G-04 | Boss phase transition polish: transition animation blending, camera focus shift, arena VFX | P2 | ✅ DONE | M | — | ArenaPhaseVfx 章节色键扩展 |
-| G-05 | Per-chapter enemy AI parameter tuning: detection radii, leash limits, navigation behavior for all 32 enemy types | P3 | ✅ DONE | XL | — | [tasks/g-05-enemy-ai-tuning.md](tasks/g-05-enemy-ai-tuning.md) |
-| G-06 | Implement chapter-specific boss behaviors (teleport chains for 九尾, gravity manipulation for 玄霄, time manipulation for 烛阴) | P3 | ✅ DONE | XL | G-01 | [tasks/g-06-chapter-boss-powers.md](tasks/g-06-chapter-boss-powers.md) |
-
----
-
-## Dimension H: Campaign Level Integration & Schema Conflict Resolution
-
-> **Goal:** Resolve level ID naming conflict (1-1 → level_01_01) blocking campaign integration; integrate ProceduralLevelModules into main game loop; implement shortcut spatial-folding topology. **Current state:** Worktree prototypes exist with non-canonical IDs. Content registry uses canonical `level_01_01` format. Integration is blocked.
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| H-01 | **Resolve campaign level ID schema conflict** — define canonical policy and inject a temporary lookup adapter | P0 | ✅ DONE | M | — | [tasks/h-01-schema-conflict.md](tasks/h-01-schema-conflict.md) |
-| H-02 | Recursive dry-run-first migration tool plus canonical imported module metadata; zero real legacy IDs remain | P0 | ✅ DONE | M | H-01 | [tasks/h-02-tool-migration.md](tasks/h-02-tool-migration.md) |
-| H-03 | Canonical campaign builder consumes deterministic seeds, module metadata, encounter IDs, and checkpoint IDs | P1 | ✅ DONE | L | H-02 | — |
-| H-04 | Compose ten reusable module families into all 28 generated levels; behavior polish remains chapter-scoped | P1 | 🟡 PARTIAL | XL | H-03 | — |
-| H-05 | Implement shortcut spatial-folding topology: one-way doors,升降梯 activation that connects back to Ember Shrine | P2 | ✅ DONE | L | H-04 | `campaign_shortcut_fold.gd` + builder/`_wire_shortcut_fold` |
-| H-06 | Death loop verification: Lost Echo placement accuracy, enemy reset integrity, shrine respawn position | P2 | ✅ DONE | M | — | — |
-| H-07 | Chapter 1 tutorial level (1-1) full playable integration as vertical slice demo | P1 | ✅ DONE | XL | H-04 | — |
-
----
-
-## Dimension I: GUT Automated Testing Coverage
-
-> **Goal:** Deploy GUT 9.x framework; achieve >70% logic-path coverage for FSM, combat, stamina, death loop. **Current state:** ~10-15% coverage (contract tests only). Zero GUT framework deployed. Only manual smoke tests exist.
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| I-01 | Deploy pinned GUT 9.7.1 for Godot 4.7, enable editor plugin, and verify framework health | P0 | ✅ DONE | S | — | [tasks/i-01-gut-deploy.md](tasks/i-01-gut-deploy.md) |
-| I-02 | Configure headless recursive unit execution with JUnit XML and portable runners | P0 | ✅ DONE | S | I-01 | — |
-| I-03 | Player FSM behavior tests: attack chain, timed states, dead action guards, respawn, WAM, and guard cancel | P0 | ✅ DONE | M | I-01 | [tasks/i-03-fsm-tests.md](tasks/i-03-fsm-tests.md) |
-| I-04 | Stamina invariants: clamp/floor, locomotion gating, delay freeze, target style costs, action blocking, and respawn | P0 | ✅ DONE | M | I-01, B-01 | [tasks/i-04-stamina-tests.md](tasks/i-04-stamina-tests.md) |
-| I-05 | **Hit deduplication tests** — `double()` enemy doubles; single-swing-per-body verified via `assert_called` spies | P1 | ✅ DONE | M | I-01 | — |
-| I-06 | Enemy FSM transition validity tests — no illegal transitions; RETURN→IDLE on reaching spawn | P1 | ✅ DONE | M | I-01 | — |
-| I-07 | Death/recovery loop integration tests — ember drop, LostEcho spawn, enemy reset, checkpoint respawn | P1 | ✅ DONE | L | I-01 | — |
-| I-08 | Guard/parry resolution matrix tests — frontal guard, rear bypass, guard break, parry window edge cases | P1 | ✅ DONE | M | I-01 | — |
-| I-09 | Save/load disk persistence round-trip test — extend existing in-memory test to `user://` path | P2 | ✅ DONE | S | — | `tests/smoke/core_contract_test.gd` (`user://i09_save_persistence_contract`) |
-| I-10 | External smoke runner with production code reduced to a three-line delegation hook | P1 | ✅ DONE | M | — | [tasks/i-10-extract-smoke.md](tasks/i-10-extract-smoke.md) |
-| I-11 | CI integration: GitHub Actions / local CI script running full GUT suite headless with JUnit XML output | P2 | ✅ DONE | M | I-02 | `tools/ci.ps1`, `tools/ci.sh`, `.github/workflows/gut-ci.yml` |
-
----
-
-## Dimension J: Documentation Governance & Technical Reference
-
-> **Goal:** Rewrite stale docs; create missing technical references; establish documentation as single source of truth. **Current state:** J-01–J-12 complete as of 2026-07-30 (topic refs under `systems/`).
-
-| ID | Task | Priority | Status | Effort | Depends | Detail |
-|----|------|----------|--------|--------|---------|--------|
-| J-01 | **Rewrite `controls.md`** — verified keyboard/mouse, controller, touch, resource, and five-loadout reference | P0 | ✅ DONE | M | — | [tasks/j-01-controls-rewrite.md](tasks/j-01-controls-rewrite.md) |
-| J-02 | **Update `architecture.md`** — add scripts/ subdirectories, data classes, host bridge, title/pause/death/victory UI flow, Focus resource system | P1 | ✅ DONE | M | — | — |
-| J-03 | **Fix `validation.md`** — fix script glob (`scripts/**/*.gd`), align project paths, add contract test commands, update controller limitation, add content registry test | P1 | ✅ DONE | S | — | — |
-| J-04 | Add banner to `research.md` noting it predates handoff state; point to devlog and post-audit research docs | P3 | ✅ DONE | S | — | — |
-| J-05 | **Maintain Combat System Reference** — current compatibility behavior plus the target execution/guard/poise/moveset/weapon-art contract | P1 | ✅ DONE | L | B-02 | [systems/combat-execution-guard-weapon-arts.md](systems/combat-execution-guard-weapon-arts.md) |
-| J-06 | Write Build & Export Guide — `tools/build.ps1`, export preset config, per-platform caveats, smoke-test commands, Web CAPABILITIES注意事项 | P2 | ✅ DONE | S | — | [systems/build-export-guide.md](systems/build-export-guide.md) |
-| J-07 | Write Focus Resource System reference — max pool, regen rules, per-style costs, Focus economy design | P2 | ✅ DONE | S | — | [systems/focus-resource.md](systems/focus-resource.md) |
-| J-08 | Write Save/Persistence Design — save format, schema versioning, migration path, `user://` layout | P2 | ✅ DONE | S | — | [systems/save-persistence.md](systems/save-persistence.md) |
-| J-09 | Write Audio System Reference — procedural audio API, 6-voice pool, available cues, headless detection, adding new sounds | P3 | ✅ DONE | S | — | [systems/audio-system.md](systems/audio-system.md) |
-| J-10 | Write Enemy AI Specification — detection radii, leash limits, sanctuary disengagement, navigation fallback, per-type tuning table | P3 | ✅ DONE | M | — | [systems/enemy-ai.md](systems/enemy-ai.md) |
-| J-11 | Update `00-master-index.md` — add links to all new task files, task specs, and updated references | P2 | ✅ DONE | S | — | [00-master-index.md](00-master-index.md) |
-| J-12 | Maintain `attack-moveset-data-schema.md` and validate code/resources against the documented ownership rules | P1 | ✅ DONE | M | A-03 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#runtime-validation-audit-j-12--2026-07-30) |
-
----
-
-## Quick Reference: Priority-Ordered Execution Plan
-
-### Phase 1 — Blocking Fixes (P0, ~2 weeks)
-
-```
-Week 1:
-  B-01 ── Per-style stamina cost differentiation
-  C-01 ── Local AnimationTree hit-stop (replace Engine.time_scale)
-  H-01 ── Campaign level ID schema conflict resolution
-  I-01 ── Deploy GUT 9.x framework
-
-Week 2:
-  H-02 ── @tool migration script for level IDs
-  I-02 ── Headless CLI test execution config
-  I-03 ── Player FSM state transition tests
-  I-04 ── Stamina economy invariant tests
-  J-01 ── Rewrite controls.md
-```
-
-### Phase 2 — Combat Contracts, Data, and Defense (P0–P1)
-
-```text
-Compatibility freeze:
-  A-02 ── Remove remaining gameplay reads from legacy STYLE_TIMING
-  I-03/I-04/I-05/I-08 ── FSM, economy, hit, guard, and parry contracts
-
-Data foundation:
-  A-03 ── AttackData / MovesetData / WeaponData
-  A-05 ── Resource schema validation
-  E-07 ── GuardProfile + Guard Meter + direct break
-
-Defense and vulnerability:
-  E-01/E-02/E-03 ── Continuous poise and action armor
-  E-08 ── Guard-broken / parry-vulnerable / weak-point states
-  E-09 + D-06 ── First human front execution and backstab slice
-```
-
-### Phase 3 — Integration & Polish (P1–P2, ~6 weeks)
-
-```
-Week 7-8:
-  H-03 ── ProceduralLevelBuilder integration
-  H-04 ── ProceduralLevelModules composition
-  H-07 ── Chapter 1 tutorial level vertical slice
-
-Week 9-10:
-  G-02 ── Healing-punish per-boss variants
-  G-03 ── Third enemy archetype
-  J-02 ── Update architecture.md
-  J-03 ── Fix validation.md
-  J-05 ── Combat Style Reference
-
-Week 11-12:
-  D-03 ── Lock-on strafe BlendSpace2D
-  E-04 ── Parry window differentiation
-  F-02 ── Lock-on dot-product scoring
-  F-03 ── Quaternion slerp tracking
-```
-
-### Phase 4 — Movesets, Boss Breaks, and Animation (P2–P3)
-
-```text
-  B-05/B-06 ── Charge and movement-context attacks
-  B-07/B-08 ── Grip modes, jump, and falling attacks
-  A-06/A-07 ── Resource-driven weapon arts and equipment
-  D-01–D-05 ── AnimationTree and root-motion proof of concept
-  E-10 ── Five main-boss weak-point execution contracts
-  D-07 ── Grab framework after paired execution animation is stable
-  I-11 ── CI integration
-```
-
-### Deferred Until Vertical Slice Contracts Pass
-
-```text
-  （已清空）C-05 / G-05 / G-06 已于 2026-07-31 收口。
-```
-
----
-
-## Dependency Graph (Blocking Relationships)
-
-```text
-A-02 compatibility parity
-        ↓
-A-03 attack/moveset Resources ──→ A-05 validation
-        ↓                         ↓
-E-07 guard profiles          B-05–B-08 context/grip actions
-        ↓                         ↓
-E-08 vulnerability states    A-06/A-07 weapon arts/equipment
-        ↓
-E-09 + D-06 human executions
-        ↓
-E-10 boss weak points ──→ D-07 grabs
-        ↓
-D-01–D-05 authored animation/root motion integration
-```
-
-Campaign H-02–H-07 and test I-01–I-11 continue in parallel where their dependencies allow.
-
----
-
-## Audit Backlog Wave（2026-07-31）
-
-| ID | Task | Status | Detail |
-|----|------|--------|--------|
-| B-09 | Action Queue multi-slot buffer | ✅ DONE | [tasks/b-09-action-queue-buffer.md](tasks/b-09-action-queue-buffer.md) |
-| B-10 | Dodge/sprint tap-hold dual mapping | ✅ DONE | [tasks/b-10-dodge-sprint-dual-button.md](tasks/b-10-dodge-sprint-dual-button.md) |
-| B-11 | Falling gravity ×2 + floor snap | ✅ DONE | [tasks/b-11-falling-gravity-and-slope.md](tasks/b-11-falling-gravity-and-slope.md) |
-| B-12 | Per-state acceleration | ✅ DONE | [tasks/b-12-per-state-acceleration.md](tasks/b-12-per-state-acceleration.md) |
-| C-06 | Music bus volume wiring | ✅ DONE | [tasks/c-06-music-volume-wiring.md](tasks/c-06-music-volume-wiring.md) |
-| D-08 | Animation callback bridge hooks | ✅ DONE | [tasks/d-05-animation-callback-bridge.md](tasks/d-05-animation-callback-bridge.md) |
-| E-11 | _set_guard_active encapsulation | ✅ DONE | [tasks/e-11-guard-active-encapsulation.md](tasks/e-11-guard-active-encapsulation.md) |
-| F-06 | Camera auto-follow recenter | ✅ DONE | [tasks/f-06-camera-auto-follow.md](tasks/f-06-camera-auto-follow.md) |
-| G-07 | Enemy hit payload routing | ✅ DONE | [tasks/g-07-enemy-hit-payload-routing.md](tasks/g-07-enemy-hit-payload-routing.md) |
-| G-08 | Enemy AttackData catalog | ✅ DONE | [tasks/g-08-enemy-attack-resources.md](tasks/g-08-enemy-attack-resources.md) |
-| I-12 | Player FSM edge tests | ✅ DONE | — |
-| I-13 | Focus / guard meter tests | ✅ DONE | — |
-| I-14 | HUD tween _exit_tree cleanup | ✅ DONE | [tasks/i-14-hud-tween-cleanup.md](tasks/i-14-hud-tween-cleanup.md) |
-| I-15 | Combat solver unit tests | ✅ DONE | [tasks/i-15-combat-solver-tests.md](tasks/i-15-combat-solver-tests.md) |
-| I-16 | Full enemy FSM coverage | ✅ DONE | [tasks/i-16-enemy-fsm-test-coverage.md](tasks/i-16-enemy-fsm-test-coverage.md) |
-| K-01 | Atomic focus/stamina deduct | ✅ DONE | [tasks/k-01-focus-resource-leak.md](tasks/k-01-focus-resource-leak.md) |
-| K-02 | Guard _ready double-init | ✅ DONE | [tasks/k-02-guard-ready-init-flag.md](tasks/k-02-guard-ready-init-flag.md) |
-| K-03 | Level transition lock reset | ✅ DONE | game_world._on_campaign_exit_requested |
-| K-04 | Unknown audio cue warning | ✅ DONE | procedural_audio.play_cue |
-
-> 仍开放（多会话 XL）：真动画资产、LimboAI 真插件替换、Ch.2–5 补篇全可玩重做、D-02/D-05 真资产跃击。缺口权威：`docs/audits/2026-07-31-soulslike-gap-analysis.md`。
-
-## Status Summary
-
-| Dimension | Total | Done | In Progress / Partial | Pending | Deferred | Blocked |
-|-----------|-------|------|-----------------------|---------|----------|---------|
-| A — Architecture | 7 | 1 | 1 | 5 | 0 | 0 |
-| B — Frame Data | 8 | 1 | 1 | 6 | 0 | 0 |
-| C — Hit-Stop/Feedback | 5 | 0 | 0 | 5 | 0 | 0 |
-| D — Root Motion/Paired Animation | 7 | 0 | 0 | 7 | 0 | 0 |
-| E — Stamina/Poise/Defense/Execution | 10 | 1 | 1 | 8 | 0 | 0 |
-| F — Camera/Lock-On | 5 | 1 | 2 | 2 | 0 | 0 |
-| G — Enemy/Boss AI | 6 | 0 | 1 | 5 | 0 | 0 |
-| H — Campaign Integration | 7 | 1 | 2 | 4 | 0 | 0 |
-| I — GUT Testing | 11 | 6 | 0 | 5 | 0 | 0 |
-| J — Documentation | 12 | 3 | 1 | 8 | 0 | 0 |
-| **Total** | **78** | **14** | **9** | **55** | **0** | **0** |
-
----
-
-## Related Documents
-
-- [audit-docs-codebase-health.md](audit-docs-codebase-health.md) — full doc + codebase health assessment
-- [devlog.md](devlog.md) — chronological development record with resume order
-- [game-design.md](game-design.md) — vertical slice vision, combat pillars, tuning targets
-- [research-dark-souls-mechanics-deep.md](research-dark-souls-mechanics-deep.md) — frame data, poise math, Godot patterns
-- [research-dark-souls-weapons.md](research-dark-souls-weapons.md) — per-style weapon tuning recommendations
-- [research-github-godot-soulslike-ecosystem.md](research-github-godot-soulslike-ecosystem.md) — ecosystem survey, reusable module checklist
-- [project-structure.md](project-structure.md) — repository layout, naming rules, safe-change procedures
+- [master-index.md](master-index.md) — 文档地图  
+- [devlog/index.md](devlog/index.md) — 按日交付日志  
+- [research/index.md](research/index.md) — 调研汇总  
+- [validation.md](validation.md) — 验证命令  
+- [planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md) — 类魂缺口权威  

@@ -1,8 +1,8 @@
 # Audio System Reference
 
-**Status:** CURRENT (2026-07-30)  
-**Task:** J-09  
-**Authority:** `game/scripts/procedural_audio.gd`
+**Status:** CURRENT (2026-07-31)  
+**Task:** J-09 / C-06  
+**Authority:** `game/scripts/procedural_audio.gd`, `game/scripts/game_world.gd`（总线音量）
 
 ---
 
@@ -81,10 +81,11 @@ Prefer short one-shots; long loops need a dedicated player outside the 6-voice S
 
 ---
 
-## Known Gaps
+## Music Bus (C-06)
 
-- `music_volume` in settings is **not** connected to any `AudioBus`.
-- No separate music bed system yet — victory/rest cues are SFX-scale.
+`game_world` 将 `AshenGameSettings.music_volume` 写入 `AudioServer` 总线 **`Music`**（总线缺失时静默跳过）。Master / effects 仍走既有音量路径。
+
+尚无独立音乐床流式系统；victory/rest 等仍为 SFX 级 cue。
 
 ---
 

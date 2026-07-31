@@ -222,7 +222,7 @@ Automated headless tests cannot judge game feel. In the graphical build, verify:
 
 ### Chapter 1 Vertical Slice — Feel Gate（人工）
 
-对照 `docs/audits/2026-07-31-soulslike-gap-analysis.md` Phase 2：
+对照 `docs/planning/soulslike-gap-analysis.md` Phase 2：
 
 1. 烬龛休息 → 进入 `level_01_01` → 击杀首波哨兵，确认轻击 method-track 命中窗与本地 HitStop。
 2. 翻滚 i-frame 中心段无敌；Space tap=翻滚 / hold=冲刺。

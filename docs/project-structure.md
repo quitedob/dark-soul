@@ -67,18 +67,31 @@ Generated Flutter output such as `app/build/` and `app/.dart_tool/` is not sourc
 
 ### `docs/`
 
-`docs/` is the source of truth for project intent and engineering decisions:
+`docs/` is the source of truth for project intent and engineering decisions. Layout (2026-07-31):
 
-- `game-design.md`: gameplay goals and vertical-slice scope.
-- `architecture.md`: runtime systems and data flow.
-- `project-structure.md`: repository boundaries and directory ownership.
-- `controls.md`: player-facing input behavior.
-- `validation.md`: automated commands and manual verification checklist.
-- `devlog.md`: chronological implementation record.
-- `research.md`: supporting design and engine research.
-- `agents/`: local specialist-agent guidance.
+```text
+docs/
+├── master-index.md          # 文档地图入口
+├── architecture.md / controls.md / validation.md / …
+├── planning/                # 开放缺口（如 soulslike-gap-analysis）
+├── research/
+│   ├── index.md             # 调研汇总
+│   ├── soulslike/           # 魂系设计调研
+│   └── godot/               # 引擎/工程调研
+├── devlog/
+│   ├── index.md             # 唯一交付日志索引
+│   └── YYYY-MM-DD/*.md      # 按日拆分条目（含 delivery-summary）
+├── systems/ story/ chapters/ characters/ bestiary/
+└── tasks/                   # 仅保留活路线图（如 combat-expansion-roadmap）
+```
 
-Documentation must describe verified behavior. Planned work should be labeled as planned rather than recorded as complete.
+规则：
+
+- 交付只写 `docs/devlog/<日期>/`，**禁止**再堆根级巨型 `devlog.md` / `CHANGELOG.md`
+- 文件名用语义英文；**禁止** `e-1` / `a01` 式散落任务文件
+- 文档描述已验证行为；计划项须标明 planned
+
+中文镜像 `docs-zh/` 已移除；文档权威仅为 `docs/`。
 
 ### `screenshot/`
 

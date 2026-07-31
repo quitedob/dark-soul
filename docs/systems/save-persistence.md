@@ -1,7 +1,7 @@
 # Save / Persistence Design
 
-**Status:** CURRENT (2026-07-30)  
-**Task:** J-08  
+**Status:** CURRENT (2026-07-31)  
+**Task:** J-08 / C-06  
 **Authority:** `game/scripts/core/run_state.gd`, `game/scripts/core/game_settings.gd`, `game/scripts/game_world.gd`
 
 ---
@@ -54,9 +54,11 @@ Values may be **`bool` (legacy)** or **`String` (canonical fate outcomes)**. Val
 | `ch2_xingtian_fate` | `honored` / `absorbed` | FateChoiceOverlay |
 | `ch3_nine_tails_fate` | `redeemed` / `sealed` | FateChoiceOverlay |
 | `ch4_xuanxiao_fate` | `ascended` / `remembered` | FateChoiceOverlay |
-| `ending_state` | `kindle` / `keeper` / `void` | FateChoiceOverlay (烛阴) |
+| `ending_state` | `kindle` / `keeper` / `void` | FateChoiceOverlay / EndingResolver |
+| `quest_stage_quest_cloud_wanderer` | `inactive` / `active` / `complete` | QuestState via DialogueRunner |
+| `npc_cloud_wanderer_met` | bool/string | 云游竖切 |
 
-API: `AshenRunState.set_choice_flag(flag, value)` / `get_choice_flag(flag, default)`.
+API: `AshenRunState.set_choice_flag(flag, value)` / `get_choice_flag(flag, default)`；任务阶段封装见 `QuestState`。
 
 ### API
 
@@ -101,7 +103,7 @@ Shrine rest (`rest_at_checkpoint`) writes `checkpoint_id`, heals, resets enemies
 | Field | Default | Notes |
 |-------|---------|-------|
 | `master_volume` | 0.8 | |
-| `music_volume` | 0.7 | **Not yet wired to AudioBus** |
+| `music_volume` | 0.7 | 写入 `Music` 总线（C-06） |
 | `effects_volume` | 0.85 | |
 | `target_fps` | 60 | Allowed 30 / 60 |
 | `combat_tip_mode` | false | Teaching HUD gate |

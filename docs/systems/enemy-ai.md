@@ -1,8 +1,8 @@
 # Enemy AI Specification
 
-**Status:** CURRENT (2026-07-30)  
-**Task:** J-10  
-**Authority:** `game/scripts/enemy.gd`, `game/scripts/data/enemy_tuning.gd`, chapter `*_content.gd`
+**Status:** CURRENT (2026-07-31)  
+**Task:** J-10 / G-01 / G-05  
+**Authority:** `enemy.gd`, `enemy_tuning.gd`, `EnemyAiCatalog`, `EnemyBehaviorRegistry`, chapter `*_content.gd`
 
 ---
 
@@ -142,6 +142,6 @@ Covered by `tests/smoke/death_loop_contract_test.gd` and GUT `tests/unit/systems
 
 ## Related
 
-- [combat-execution-guard-weapon-arts.md](combat-execution-guard-weapon-arts.md) — player-side vulnerability windows  
-- [tasks/g-01-limboai-bt.md](../tasks/g-01-limboai-bt.md) — Boss macro BT (compat + LimboAI path)  
-- [bestiary/enemies-master.md](../bestiary/enemies-master.md) — design roster  
+- [combat-execution-guard-weapon-arts.md](combat-execution-guard-weapon-arts.md) — 脆弱窗 / 处决  
+- [devlog/index.md](../devlog/index.md) — G-01…G-08 交付摘要  
+- [bestiary/enemies-master.md](../bestiary/enemies-master.md) — 设计名册  
