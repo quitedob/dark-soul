@@ -48,7 +48,11 @@ func _ready() -> void:
 
 
 func play_cue(cue: String, volume_db: float = -7.0, pitch: float = 1.0) -> void:
-	if not _audio_enabled or _shutting_down or players.is_empty() or not library.has(cue):
+	if not _audio_enabled or _shutting_down or players.is_empty():
+		return
+	# K-04：未知 cue 打警告，避免静默无声
+	if not library.has(cue):
+		push_warning("procedural_audio: unknown cue '%s'" % cue)
 		return
 	# Round-robin: prefer an idle voice; if none idle, steal from _next_voice and advance.
 	var player := players[_next_voice % players.size()]

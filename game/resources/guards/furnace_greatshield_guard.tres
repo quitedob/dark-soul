@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="GuardProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/guard_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"furnace_greatshield"
+weight_class = 2
+guard_angle_degrees = 140.0
+physical_absorption = 0.92
+stability = 0.85
+max_guard_meter = 160.0
+direct_break_threshold = 110.0
+guard_meter_damage_multiplier = 0.75
+stamina_damage_multiplier = 0.80
+can_parry = false
+parry_start_seconds = 0.0
+parry_active_seconds = 0.0
+parry_recovery_seconds = 0.0
+parry_miss_multiplier = 1.0
+parry_stamina_cost = 0.0

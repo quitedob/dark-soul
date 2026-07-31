@@ -31,6 +31,9 @@ static func catalog() -> Dictionary:
 		&"weak_point_exec": make(&"weak_point_exec", 1.8, 2.9, -0.28, &"weak_point", 0.45, -7.0),
 		&"grab_hold": make(&"grab_hold", 1.2, 3.8, -0.12, &"grab_hold", 0.55, -3.0),
 		&"fate_halfbody": make(&"fate_halfbody", 2.4, 4.6, -0.08, &"boss_chest", 0.08, -2.0),
+		# G-04：相变镜头（与 PhaseFocusProfile 对齐）
+		&"phase_rise": make(&"phase_rise", 1.55, 5.4, -0.24, &"boss_chest", 0.38, -5.0),
+		&"phase_overload": make(&"phase_overload", 1.85, 4.9, -0.32, &"boss_chest", 0.55, -8.0),
 	}
 
 

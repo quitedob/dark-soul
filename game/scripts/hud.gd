@@ -1247,6 +1247,17 @@ func _format_number(value: int) -> String:
 	return digits + formatted
 
 
+## I-14：离树时杀掉消息/提示 tween，避免孤儿协程
+func _exit_tree() -> void:
+	_message_serial += 1
+	for tween in [_prompt_tween, _message_tween, _ember_tween]:
+		if tween != null and is_instance_valid(tween) and tween.is_valid():
+			tween.kill()
+	_prompt_tween = null
+	_message_tween = null
+	_ember_tween = null
+
+
 func _read_number(object: Object, names: Array[StringName], fallback: float) -> float:
 	for property in object.get_property_list():
 		var property_name := StringName(property.get("name", ""))

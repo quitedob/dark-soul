@@ -20,6 +20,14 @@ static var TYPE_TUNING := {
 		"body_radius": 0.36, "body_height": 1.6, "body_y": 0.8,
 		"nav_radius": 0.40, "nav_height": 1.65,
 	},
+	"ember_skirmisher": {
+		"max_health": 52.0, "move_speed": 4.4, "acceleration": 16.0,
+		"aggro_range": 14.0, "disengage_range": 22.0, "leash_range": 16.0,
+		"attack_range": 9.0, "reward": 32, "poise_limit": 14.0, "stagger_duration": 0.5,
+		"body_radius": 0.38, "body_height": 1.75, "body_y": 0.88,
+		"nav_radius": 0.42, "nav_height": 1.8,
+		"preferred_distance": 7.0, "retreat_trigger": 4.2,
+	},
 	"hollow_sentinel": {
 		"max_health": 80.0, "move_speed": 3.6, "acceleration": 15.0,
 		"aggro_range": 13.0, "disengage_range": 20.0, "leash_range": 17.0,
@@ -41,6 +49,13 @@ static var SENTINEL_ATTACK := {
 static var STALKER_ATTACK := {
 	"windup": 0.22, "active": 0.10, "recovery": 0.18,
 	"damage": 8.0, "stagger": 8.0, "lunge": 0.8,
+}
+
+# ── Ember Skirmisher ranged attack profile (G-03) ───────────────────────
+
+static var SKIRMISHER_ATTACK := {
+	"windup": 0.55, "active": 0.12, "recovery": 0.75,
+	"damage": 12.0, "stagger": 10.0, "lunge": 0.9,
 }
 
 # ── Guardian boss attack profiles by phase and range ────────────────────
@@ -78,6 +93,7 @@ static var GUARDIAN_LONG := {
 
 # ── Helper: apply an attack profile dict to an enemy's attack fields ─────
 
+## 将 dict 写入敌人攻击字段（G-08 dict 回退路径；优先请用 EnemyAttackCatalog）
 static func apply_attack_profile(enemy: Node, profile: Dictionary) -> void:
 	enemy.attack_windup = profile["windup"]
 	enemy.attack_active = profile["active"]

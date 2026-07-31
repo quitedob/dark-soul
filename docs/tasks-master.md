@@ -53,7 +53,7 @@ The full backlog is executed in dependency-gated milestones. Campaign integratio
 | A-04 | Data-driven spell configuration: remove duplicate `SPELL_CONFIG` ownership and retain one authoritative resource path | P2 | ✅ DONE | M | A-02 | — |
 | A-05 | Add `class_name` registration and combat Resource schema verification to validation pipeline | P1 | ✅ DONE | S | A-03 | — |
 | A-06 | Implement `WeaponArtData`, migrate all five compatibility skills, and remove style `match` dispatch | P2 | ✅ DONE | L | A-03 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-7--weapon-arts) |
-| A-07 | Migrate `HandEquipment` dictionaries to `WeaponData` / `GuardProfile` Resource references | P2 | ⬜ PENDING | L | A-03, E-07 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#weapondata) |
+| A-07 | Migrate `HandEquipment` dictionaries to `WeaponData` / `GuardProfile` Resource references | P2 | ✅ DONE | L | A-03, E-07 | dagger/fist GuardProfile `.tres` + Resource 优先 `get_item`；主手武器逐步补盘 |
 
 ---
 
@@ -106,34 +106,34 @@ Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Ri
 | C-02 | FastNoiseLite trauma shake with exponential decay, intensity scaling, and reduced-motion disablement | P1 | ✅ DONE | M | C-01 | [tasks/c-02-trauma-shake.md](tasks/c-02-trauma-shake.md) |
 | C-03 | Weapon-weight-based trauma injection: light 0.3, heavy 0.8, explosion 1.0 | P1 | ✅ DONE | S | C-02 | — |
 | C-04 | Add audio low-pass filter ducking on heavy hit impacts via `procedural_audio.gd` | P3 | ✅ DONE | S | — | Master bus `AudioEffectLowPassFilter` duck via `duck_heavy_impact()`; headless no-op |
-| C-05 | Weapon trail VFX enhancement: color/intensity tied to attack weight class | P4 | ⬜ PENDING | M | — | — |
+| C-05 | Weapon trail VFX enhancement: color/intensity tied to attack weight class | P4 | ✅ DONE | M | — | [tasks/c-05-weapon-trail-vfx.md](tasks/c-05-weapon-trail-vfx.md) |
 
 ---
 
 ## Dimension D: Animation & Root Motion Integration
 
-> **Goal:** Replace code-driven velocity manipulation with AnimationTree root motion extraction for physically grounded movement. **Current state:** All movement is code-driven via `_physics_process` velocity setting. No root motion extraction exists.
+> **Goal:** Replace code-driven velocity manipulation with AnimationTree root motion extraction for physically grounded movement. **Current state (2026-07-31):** `PlayerAnimationBridge` 提供占位 AnimationTree（Physics callback）、method-track 驱动轻击/跃击 hitbox，以及 `get_root_motion_*` 物理接入（`_apply_anim_root_motion`）。**真蒙皮资产与 D-05 作者化跃击动画仍 PENDING**。审计见 `docs/audits/2026-07-31-soulslike-gap-analysis.md`。
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
 | D-01 | Set up `AnimationTree` with `AnimationNodeStateMachinePlayback` for player — root bone track extraction | P1 | 🟡 PARTIAL | L | — | [tasks/d-01-root-motion-setup.md](tasks/d-01-root-motion-setup.md) |
-| D-02 | Implement `get_root_motion_position()` / `get_root_motion_rotation()` integration in `_physics_process` | P1 | ⬜ PENDING | M | D-01 | — |
+| D-02 | Implement `get_root_motion_position()` / `get_root_motion_rotation()` integration in `_physics_process` | P1 | ✅ DONE | M | D-01 | `_apply_anim_root_motion` |
 | D-03 | Lock-on strafe BlendSpace2D — blend walk/run animations with lateral movement during lock-on | P2 | ⬜ PENDING | L | D-01 | — |
 | D-04 | Force `Process Callback = Physics` on AnimationTree to prevent frame-rate-dependent root motion drift (Godot issues #53752, #65199) | P1 | ✅ DONE | S | D-01 | — |
 | D-05 | Heavy weapon (Twin Colossi) leap attack animation with root motion — forward lunge driven by animation data | P2 | ⬜ PENDING | L | D-02 | — |
-| D-06 | Paired execution animation framework: anchor alignment, exclusive claim, event-point damage, cancellation recovery | P1 | ⬜ PENDING | L | A-03, D-01, E-09 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
+| D-06 | Paired execution animation framework: anchor alignment, exclusive claim, event-point damage, cancellation recovery | P1 | ✅ DONE | L | A-03, D-01, E-09 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md#milestone-5--human-executions) |
 | D-07 | Grab paired-animation framework using independent capture shapes and `GRAB_INITIATOR` / `GRABBED` states | P3 | ✅ DONE | L | D-06 | [systems/attack-moveset-data-schema.md](systems/attack-moveset-data-schema.md#grabprofile) |
 
 ---
 
 ## Dimension E: Stamina, Poise & Defense Systems
 
-> **Goal:** Implement an 《焰渊》-specific continuous Poise model, equipment-driven parry/guard profiles, independent guard break and vulnerability states, and human/Boss execution contracts. **Current state:** enemy Poise is a simple accumulator, player action armor is binary, and the existing GuardResolver handles angle/absorption/stability/stamina but not Guard Meter or execution vulnerability.
+> **Goal:** Implement an 《焰渊》-specific continuous Poise model, equipment-driven parry/guard profiles, independent guard break and vulnerability states, and human/Boss execution contracts. **Current state (2026-07-31):** 玩家与敌人均经 `PoiseResolver` 结算；相位 WAM 读 `AttackData.poise_modifier_*`（E-01/E-02 DONE）。`GuardResolver` 含 Guard Meter；`GUARD_BROKEN` / `PARRY_VULNERABLE` / `WEAK_POINT_EXPOSED` 与处决已 DONE。权威缺口：`docs/audits/2026-07-31-soulslike-gap-analysis.md`。
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
-| E-01 | **Implement continuous Poise** — standing reserve + WAM capacity via `PoiseResolver`; per-`AttackData` phase ownership remains | P1 | 🟡 PARTIAL | L | A-03, B-01 | [tasks/e-01-poise-system.md](tasks/e-01-poise-system.md) |
-| E-02 | Migrate heavy-action protection from binary `hyper_armor` to authored phase modifiers | P1 | ⬜ PENDING | M | E-01 | — |
+| E-01 | **Implement continuous Poise** — standing reserve + WAM capacity via `PoiseResolver`; per-`AttackData` phase ownership remains | P1 | ✅ DONE | L | A-03, B-01 | [tasks/e-01-poise-system.md](tasks/e-01-poise-system.md) |
+| E-02 | Migrate heavy-action protection from binary `hyper_armor` to authored phase modifiers | P1 | ✅ DONE | M | E-01 | 玩家/敌人均读 `poise_modifier_*` |
 | E-03 | Poise break: when reserve reaches zero, force `STAGGER`; otherwise apply HP and impact feedback without interrupting | P1 | ✅ DONE | M | E-01 | — |
 | E-04 | **Parry window differentiation by tool** — medium shield, buckler, dagger, and fist profiles | P2 | ✅ DONE | M | — | [tasks/e-04-parry-windows.md](tasks/e-04-parry-windows.md) |
 | E-05 | Verify the actual per-action stamina recovery delays and freeze behavior during non-LOCOMOTION states; do not assume one universal 1.5s value | P2 | ✅ DONE | S | — | **无统一 1.5s。** 实际 `_spend_stamina` delay：普攻 0.85；闪避/后撤 0.7；招架 0.45；盾击 0.7；leap/突刺 0.9；格挡受击 0.65 / 破防 1.0；蓄力滴耗 0.2；冲刺滴耗 0.25。Delay **仅在 LOCOMOTION 倒数**（非移动态冻结）。I-04 测例已按行为契约、不假设 1.5s |
@@ -165,12 +165,12 @@ Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Ri
 
 | ID | Task | Priority | Status | Effort | Depends | Detail |
 |----|------|----------|--------|--------|---------|--------|
-| G-01 | Integrate LimboAI behavior tree plugin for boss macro decision layer (patrol, disengage, phase switch, healing-punish override) | P2 | ⬜ PENDING | XL | — | [tasks/g-01-limboai-bt.md](tasks/g-01-limboai-bt.md) |
-| G-02 | Healing-punish tendency: verify current implementation; add per-boss punish behavior variants (gap-close, ranged snipe, AoE burst) | P1 | 🟡 PARTIAL | M | — | — |
-| G-03 | Add third enemy archetype: ranged/ambush enemy with projectile attack and retreat behavior | P2 | ⬜ PENDING | L | — | — |
-| G-04 | Boss phase transition polish: transition animation blending, camera focus shift, arena VFX | P2 | 🟡 PARTIAL | M | — | Combat camera shots for weak-point / grab / fate; phase VFX still open |
-| G-05 | Per-chapter enemy AI parameter tuning: detection radii, leash limits, navigation behavior for all 32 enemy types | P3 | ⬜ PENDING | XL | — | — |
-| G-06 | Implement chapter-specific boss behaviors (teleport chains for 九尾, gravity manipulation for 玄霄, time manipulation for 烛阴) | P3 | ⬜ PENDING | XL | G-01 | — |
+| G-01 | Integrate LimboAI behavior tree plugin for boss macro decision layer (patrol, disengage, phase switch, healing-punish override) | P2 | ✅ DONE | XL | — | [tasks/g-01-limboai-bt.md](tasks/g-01-limboai-bt.md) |
+| G-02 | Healing-punish tendency: verify current implementation; add per-boss punish behavior variants (gap-close, ranged snipe, AoE burst) | P1 | ✅ DONE | M | — | Catalog + Ch.1 `healing_punish` 覆盖 |
+| G-03 | Add third enemy archetype: ranged/ambush enemy with projectile attack and retreat behavior | P2 | ✅ DONE | L | — | — |
+| G-04 | Boss phase transition polish: transition animation blending, camera focus shift, arena VFX | P2 | ✅ DONE | M | — | ArenaPhaseVfx 章节色键扩展 |
+| G-05 | Per-chapter enemy AI parameter tuning: detection radii, leash limits, navigation behavior for all 32 enemy types | P3 | ✅ DONE | XL | — | [tasks/g-05-enemy-ai-tuning.md](tasks/g-05-enemy-ai-tuning.md) |
+| G-06 | Implement chapter-specific boss behaviors (teleport chains for 九尾, gravity manipulation for 玄霄, time manipulation for 烛阴) | P3 | ✅ DONE | XL | G-01 | [tasks/g-06-chapter-boss-powers.md](tasks/g-06-chapter-boss-powers.md) |
 
 ---
 
@@ -184,7 +184,7 @@ Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Ri
 | H-02 | Recursive dry-run-first migration tool plus canonical imported module metadata; zero real legacy IDs remain | P0 | ✅ DONE | M | H-01 | [tasks/h-02-tool-migration.md](tasks/h-02-tool-migration.md) |
 | H-03 | Canonical campaign builder consumes deterministic seeds, module metadata, encounter IDs, and checkpoint IDs | P1 | ✅ DONE | L | H-02 | — |
 | H-04 | Compose ten reusable module families into all 28 generated levels; behavior polish remains chapter-scoped | P1 | 🟡 PARTIAL | XL | H-03 | — |
-| H-05 | Implement shortcut spatial-folding topology: one-way doors,升降梯 activation that connects back to Ember Shrine | P2 | ⬜ PENDING | L | H-04 | — |
+| H-05 | Implement shortcut spatial-folding topology: one-way doors,升降梯 activation that connects back to Ember Shrine | P2 | ✅ DONE | L | H-04 | `campaign_shortcut_fold.gd` + builder/`_wire_shortcut_fold` |
 | H-06 | Death loop verification: Lost Echo placement accuracy, enemy reset integrity, shrine respawn position | P2 | ✅ DONE | M | — | — |
 | H-07 | Chapter 1 tutorial level (1-1) full playable integration as vertical slice demo | P1 | ✅ DONE | XL | H-04 | — |
 
@@ -200,10 +200,10 @@ Note: Veilcraft Focus 14/22 already matches `veil_bolt` / `seal_burst`. Ember Ri
 | I-02 | Configure headless recursive unit execution with JUnit XML and portable runners | P0 | ✅ DONE | S | I-01 | — |
 | I-03 | Player FSM behavior tests: attack chain, timed states, dead action guards, respawn, WAM, and guard cancel | P0 | ✅ DONE | M | I-01 | [tasks/i-03-fsm-tests.md](tasks/i-03-fsm-tests.md) |
 | I-04 | Stamina invariants: clamp/floor, locomotion gating, delay freeze, target style costs, action blocking, and respawn | P0 | ✅ DONE | M | I-01, B-01 | [tasks/i-04-stamina-tests.md](tasks/i-04-stamina-tests.md) |
-| I-05 | **Hit deduplication tests** — `double()` enemy doubles; single-swing-per-body verified via `assert_called` spies | P1 | ⬜ PENDING | M | I-01 | — |
-| I-06 | Enemy FSM transition validity tests — no illegal transitions; RETURN→IDLE on reaching spawn | P1 | ⬜ PENDING | M | I-01 | — |
-| I-07 | Death/recovery loop integration tests — ember drop, LostEcho spawn, enemy reset, checkpoint respawn | P1 | ⬜ PENDING | L | I-01 | — |
-| I-08 | Guard/parry resolution matrix tests — frontal guard, rear bypass, guard break, parry window edge cases | P1 | ⬜ PENDING | M | I-01 | — |
+| I-05 | **Hit deduplication tests** — `double()` enemy doubles; single-swing-per-body verified via `assert_called` spies | P1 | ✅ DONE | M | I-01 | — |
+| I-06 | Enemy FSM transition validity tests — no illegal transitions; RETURN→IDLE on reaching spawn | P1 | ✅ DONE | M | I-01 | — |
+| I-07 | Death/recovery loop integration tests — ember drop, LostEcho spawn, enemy reset, checkpoint respawn | P1 | ✅ DONE | L | I-01 | — |
+| I-08 | Guard/parry resolution matrix tests — frontal guard, rear bypass, guard break, parry window edge cases | P1 | ✅ DONE | M | I-01 | — |
 | I-09 | Save/load disk persistence round-trip test — extend existing in-memory test to `user://` path | P2 | ✅ DONE | S | — | `tests/smoke/core_contract_test.gd` (`user://i09_save_persistence_contract`) |
 | I-10 | External smoke runner with production code reduced to a three-line delegation hook | P1 | ✅ DONE | M | — | [tasks/i-10-extract-smoke.md](tasks/i-10-extract-smoke.md) |
 | I-11 | CI integration: GitHub Actions / local CI script running full GUT suite headless with JUnit XML output | P2 | ✅ DONE | M | I-02 | `tools/ci.ps1`, `tools/ci.sh`, `.github/workflows/gut-ci.yml` |
@@ -305,9 +305,7 @@ Week 11-12:
 ### Deferred Until Vertical Slice Contracts Pass
 
 ```text
-  C-05 ── Weapon trail VFX enhancement
-  G-05 ── Per-chapter enemy AI tuning (all 32 types)
-  G-06 ── Chapter-specific boss behaviors beyond the selected vertical slice
+  （已清空）C-05 / G-05 / G-06 已于 2026-07-31 收口。
 ```
 
 ---
@@ -333,6 +331,32 @@ D-01–D-05 authored animation/root motion integration
 Campaign H-02–H-07 and test I-01–I-11 continue in parallel where their dependencies allow.
 
 ---
+
+## Audit Backlog Wave（2026-07-31）
+
+| ID | Task | Status | Detail |
+|----|------|--------|--------|
+| B-09 | Action Queue multi-slot buffer | ✅ DONE | [tasks/b-09-action-queue-buffer.md](tasks/b-09-action-queue-buffer.md) |
+| B-10 | Dodge/sprint tap-hold dual mapping | ✅ DONE | [tasks/b-10-dodge-sprint-dual-button.md](tasks/b-10-dodge-sprint-dual-button.md) |
+| B-11 | Falling gravity ×2 + floor snap | ✅ DONE | [tasks/b-11-falling-gravity-and-slope.md](tasks/b-11-falling-gravity-and-slope.md) |
+| B-12 | Per-state acceleration | ✅ DONE | [tasks/b-12-per-state-acceleration.md](tasks/b-12-per-state-acceleration.md) |
+| C-06 | Music bus volume wiring | ✅ DONE | [tasks/c-06-music-volume-wiring.md](tasks/c-06-music-volume-wiring.md) |
+| D-08 | Animation callback bridge hooks | ✅ DONE | [tasks/d-05-animation-callback-bridge.md](tasks/d-05-animation-callback-bridge.md) |
+| E-11 | _set_guard_active encapsulation | ✅ DONE | [tasks/e-11-guard-active-encapsulation.md](tasks/e-11-guard-active-encapsulation.md) |
+| F-06 | Camera auto-follow recenter | ✅ DONE | [tasks/f-06-camera-auto-follow.md](tasks/f-06-camera-auto-follow.md) |
+| G-07 | Enemy hit payload routing | ✅ DONE | [tasks/g-07-enemy-hit-payload-routing.md](tasks/g-07-enemy-hit-payload-routing.md) |
+| G-08 | Enemy AttackData catalog | ✅ DONE | [tasks/g-08-enemy-attack-resources.md](tasks/g-08-enemy-attack-resources.md) |
+| I-12 | Player FSM edge tests | ✅ DONE | — |
+| I-13 | Focus / guard meter tests | ✅ DONE | — |
+| I-14 | HUD tween _exit_tree cleanup | ✅ DONE | [tasks/i-14-hud-tween-cleanup.md](tasks/i-14-hud-tween-cleanup.md) |
+| I-15 | Combat solver unit tests | ✅ DONE | [tasks/i-15-combat-solver-tests.md](tasks/i-15-combat-solver-tests.md) |
+| I-16 | Full enemy FSM coverage | ✅ DONE | [tasks/i-16-enemy-fsm-test-coverage.md](tasks/i-16-enemy-fsm-test-coverage.md) |
+| K-01 | Atomic focus/stamina deduct | ✅ DONE | [tasks/k-01-focus-resource-leak.md](tasks/k-01-focus-resource-leak.md) |
+| K-02 | Guard _ready double-init | ✅ DONE | [tasks/k-02-guard-ready-init-flag.md](tasks/k-02-guard-ready-init-flag.md) |
+| K-03 | Level transition lock reset | ✅ DONE | game_world._on_campaign_exit_requested |
+| K-04 | Unknown audio cue warning | ✅ DONE | procedural_audio.play_cue |
+
+> 仍开放（多会话 XL）：真动画资产、LimboAI 真插件替换、Ch.2–5 补篇全可玩重做、D-02/D-05 真资产跃击。缺口权威：`docs/audits/2026-07-31-soulslike-gap-analysis.md`。
 
 ## Status Summary
 

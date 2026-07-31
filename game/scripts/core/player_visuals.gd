@@ -8,12 +8,14 @@ const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
 const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 const HandEquipmentScript = preload("res://scripts/data/hand_equipment.gd")
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
+const WeaponTrailProfileScript = preload("res://scripts/fx/weapon_trail_profile.gd")
 
 const MAX_TRAIL_POINTS := 12
 
 var _player: Node3D
 var _trail_surface_tool: SurfaceTool = null
 var _trail_array_mesh: ArrayMesh = null
+var _trail_profile: Dictionary = {}
 
 
 func setup(player_node: Node3D) -> void:
@@ -106,7 +108,7 @@ func build_nodes() -> void:
 	_player.shield_mesh.material_override = make_material(Color("614725"), 0.48, 0.72)
 	_player.visual_root.add_child(_player.shield_mesh)
 
-	# Weapon trail mesh
+	# Weapon trail mesh（C-05：顶点色驱动色强）
 	_player._trail_material = StandardMaterial3D.new()
 	_player._trail_material.albedo_color = Color(1.0, 0.85, 0.5, 0.45)
 	_player._trail_material.emission_enabled = true
@@ -115,6 +117,7 @@ func build_nodes() -> void:
 	_player._trail_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_player._trail_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_player._trail_material.no_depth_test = true
+	_player._trail_material.vertex_color_use_as_albedo = true
 	_player.weapon_trail = MeshInstance3D.new()
 	_player.weapon_trail.name = "WeaponTrail"
 	_player.weapon_trail.visible = false
@@ -270,7 +273,10 @@ func update_weapon_trail() -> void:
 		_player.weapon_trail.visible = false
 		_player._trail_active = false
 		_player._trail_points.clear()
+		_trail_profile.clear()
 		return
+	# C-05：按重量档 + 风格 trail_color 刷新材质
+	_refresh_trail_profile()
 	# Get weapon tip position in global space, then convert to visual_root local
 	var tip_local: Vector3 = _player.weapon_pivot.position + Vector3(0, 1.05, 0)
 	var tip_global: Vector3 = _player.visual_root.to_global(tip_local)
@@ -284,6 +290,29 @@ func update_weapon_trail() -> void:
 		_build_trail_ribbon(_player._trail_points)
 
 
+## 解析当前攻击拖尾档位并写回材质 emission
+func _refresh_trail_profile() -> void:
+	var tags: Array = []
+	if _player.get("_current_attack") != null and _player._current_attack != null:
+		tags = _player._current_attack.tags
+	var weight := WeaponTrailProfileScript.resolve_weight_from_attack(
+		bool(_player.attack_heavy),
+		tags,
+		String(_player.attack_action_id)
+	)
+	var style_color := Color.WHITE
+	if _player.has_method("_style_data"):
+		var style = _player._style_data()
+		if style != null and "trail_color" in style:
+			style_color = style.trail_color
+	_trail_profile = WeaponTrailProfileScript.resolve(weight, style_color)
+	if _player._trail_material != null:
+		var c: Color = _trail_profile["color"]
+		_player._trail_material.albedo_color = Color(c.r, c.g, c.b, float(_trail_profile["alpha"]))
+		_player._trail_material.emission = c
+		_player._trail_material.emission_energy_multiplier = float(_trail_profile["emission"])
+
+
 func _build_trail_ribbon(points: Array[Vector3]) -> void:
 	# Cache SurfaceTool & ArrayMesh to avoid per-frame GPU allocation churn.
 	if _trail_surface_tool == null:
@@ -292,15 +321,18 @@ func _build_trail_ribbon(points: Array[Vector3]) -> void:
 	_trail_surface_tool.clear()
 	_trail_array_mesh.clear_surfaces()
 	_trail_surface_tool.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	var width := 0.06
+	var width := float(_trail_profile.get("width", 0.06))
+	var base: Color = _trail_profile.get("color", Color(1.0, 0.85, 0.5))
+	var peak_alpha := float(_trail_profile.get("alpha", 0.55))
 	for i in range(points.size()):
 		var t := float(i) / maxf(float(points.size() - 1), 1.0)
 		var p := points[i]
 		var right := Vector3.RIGHT if i == points.size() - 1 else (points[i + 1] - points[maxi(i - 1, 0)]).normalized()
 		var across := right.cross(Vector3.UP).normalized() * width
-		_trail_surface_tool.set_color(Color(1.0, 0.85, 0.5, lerpf(0.55, 0.02, t)))
+		var col := Color(base.r, base.g, base.b, lerpf(peak_alpha, 0.02, t))
+		_trail_surface_tool.set_color(col)
 		_trail_surface_tool.add_vertex(p + across)
-		_trail_surface_tool.set_color(Color(1.0, 0.85, 0.5, lerpf(0.55, 0.02, t)))
+		_trail_surface_tool.set_color(col)
 		_trail_surface_tool.add_vertex(p - across)
 	_trail_surface_tool.generate_normals()
 	_trail_surface_tool.commit(_trail_array_mesh)

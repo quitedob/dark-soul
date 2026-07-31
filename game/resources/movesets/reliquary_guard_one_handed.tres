@@ -17,7 +17,9 @@ stamina_cost = 19.8
 damage = 22.0
 guard_power = 27.6
 authored_displacement = Vector3(0, 0, 1.7)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.1
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_fscvs"]
 script = ExtResource("1_tfive")
@@ -33,7 +35,9 @@ damage = 38.0
 poise_damage = 34.0
 guard_power = 49.9
 authored_displacement = Vector3(0, 0, 2.8)
+poise_modifier_windup = 0.0525
 poise_modifier_active = 0.15
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_plxtp"]
 script = ExtResource("1_tfive")
@@ -49,7 +53,9 @@ damage = 58.9
 poise_damage = 52.7
 guard_power = 77.345
 authored_displacement = Vector3(0, 0, 3.6399999)
+poise_modifier_windup = 0.1295
 poise_modifier_active = 0.37
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_mi58q"]
 script = ExtResource("1_tfive")
@@ -65,7 +71,9 @@ damage = 48.64
 poise_damage = 43.52
 guard_power = 63.872
 authored_displacement = Vector3(0, 0, 3.22)
+poise_modifier_windup = 0.0945
 poise_modifier_active = 0.27
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_hoiv7"]
 script = ExtResource("2_j7va1")
@@ -88,7 +96,9 @@ poise_damage = 45.900000000000006
 guard_power = 67.36500000000001
 authored_displacement = Vector3(0, 0, 0.336)
 launch_velocity_y = -12.0
+poise_modifier_windup = 0.0525
 poise_modifier_active = 0.15
+poise_modifier_recovery = 0.0
 hitbox_radius = 1.05
 hitbox_height = 2.55
 hitbox_offset = Vector3(0, -0.1, -0.3)
@@ -108,7 +118,9 @@ damage = 24.200000000000003
 poise_damage = 17.6
 guard_power = 30.360000000000003
 authored_displacement = Vector3(0, 0, 0.7)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.1
+poise_modifier_recovery = 0.0
 hitbox_radius = 0.95
 hitbox_height = 1.55
 hitbox_offset = Vector3(0, 1.05, 0)
@@ -128,7 +140,9 @@ damage = 38.0
 poise_damage = 34.0
 guard_power = 49.9
 authored_displacement = Vector3(0, 0, 2.8)
+poise_modifier_windup = 0.0525
 poise_modifier_active = 0.15
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_2pi2b"]
 script = ExtResource("1_tfive")
@@ -143,7 +157,9 @@ stamina_cost = 22.0
 damage = 22.0
 guard_power = 27.6
 authored_displacement = Vector3(0, 0, 2)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.1
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_h0n1p"]
 script = ExtResource("1_tfive")
@@ -159,7 +175,9 @@ damage = 23.32
 poise_damage = 16.96
 guard_power = 29.256
 authored_displacement = Vector3(0, 0, 2.5)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.1
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_tvpt3"]
 script = ExtResource("1_tfive")
@@ -175,7 +193,9 @@ damage = 24.64
 poise_damage = 17.92
 guard_power = 30.912
 authored_displacement = Vector3(0, 0, 3.1)
+poise_modifier_windup = 0.035
 poise_modifier_active = 0.1
+poise_modifier_recovery = 0.0
 
 [resource]
 script = ExtResource("3_cod4o")

@@ -1,12 +1,13 @@
 class_name WeaponData
 extends Resource
-## 武器数据：按 grip 选择 Moveset；双持不直接翻倍致命伤害
+## 武器数据：按 grip 选择 Moveset；可挂 GuardProfile
 
 @export var weapon_id: StringName
 @export var weapon_class_id: StringName
 @export var one_hand_moveset: MovesetData
 @export var two_hand_moveset: MovesetData
 @export var paired_moveset: MovesetData
+@export var guard_profile: GuardProfile
 @export var default_weapon_art: WeaponArtData
 @export_range(0.5, 5.0, 0.05) var critical_multiplier := 1.0
 @export var supports_backstab := true
@@ -15,6 +16,12 @@ extends Resource
 @export var supports_two_handed := false
 @export var supports_paired := false
 @export var default_grip: StringName = &"one_handed"
+## 展示与网格元数据（逐步替代 HandEquipment 字典）
+@export var display_name: String = ""
+@export var weapon_type: StringName = &"unknown"
+@export var mesh_shape: String = "box"
+@export var mesh_color_hex: String = "9aa3aa"
+@export var hand_slot: StringName = &"right"
 
 
 func resolve_moveset(grip_mode: StringName) -> MovesetData:

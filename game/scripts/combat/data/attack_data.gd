@@ -25,8 +25,11 @@ extends Resource
 @export var authored_displacement := Vector3.ZERO
 @export var launch_velocity_y := 0.0
 @export_group("Action Armor")
+## 前摇动作护甲倍率（站立储备仍生效；0=无额外霸体）
 @export_range(0.0, 2.0, 0.01) var poise_modifier_windup := 0.0
+## 主动段动作护甲倍率
 @export_range(0.0, 2.0, 0.01) var poise_modifier_active := 0.0
+## 后摇默认无动作护甲，避免空挥后不可打断
 @export_range(0.0, 2.0, 0.01) var poise_modifier_recovery := 0.0
 @export_group("Hitbox")
 ## 胶囊半径 / 高度；无 socket 时 offset 相对玩家，有 socket 时相对挂点本地坐标
@@ -39,6 +42,18 @@ extends Resource
 @export var repeat_hit_interval_seconds := 0.0
 ## 下落类：主动段可持续到落地（受 active_seconds 上限约束）
 @export var hitbox_until_land := false
+
+
+## 按攻击阶段读取 ActionArmorModifier（windup/active/recovery）
+func poise_modifier_for_phase(phase: StringName) -> float:
+	match phase:
+		&"windup":
+			return maxf(poise_modifier_windup, 0.0)
+		&"active":
+			return maxf(poise_modifier_active, 0.0)
+		&"recovery":
+			return maxf(poise_modifier_recovery, 0.0)
+	return 0.0
 
 
 func validate() -> Array[String]:
@@ -57,6 +72,11 @@ func validate() -> Array[String]:
 		errors.append("Attack %s is tagged unblockable but blockable is true." % action_id)
 	if &"unparryable" in tags and parryable:
 		errors.append("Attack %s is tagged unparryable but parryable is true." % action_id)
+	# 动作护甲须在合法倍率区间
+	for mod in [poise_modifier_windup, poise_modifier_active, poise_modifier_recovery]:
+		if mod < 0.0 or mod > 2.0:
+			errors.append("Attack %s has out-of-range poise modifier." % action_id)
+			break
 	return errors
 
 

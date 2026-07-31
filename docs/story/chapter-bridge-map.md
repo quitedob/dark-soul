@@ -67,10 +67,10 @@
 
 ## 内容与运行时边界
 
-当前仓库已经定义五章、28 个关卡 ID、章节拓扑、基础程序化空间外壳和 7 个 Boss 注册项。**Boss 叙事血量地板 + `FateChoiceOverlay` 已可写入字符串 `choice_flags`（对齐上表五旗）**；任务、NPC、对话、完整结局矩阵与隐藏结局证物链仍未运行。本文件仍是叙事权威；运行时还需：
+当前仓库已经定义五章、28 个关卡 ID、章节拓扑、基础程序化空间外壳和 7 个 Boss 注册项。**Boss 叙事血量地板 + `FateChoiceOverlay` 已可写入字符串 `choice_flags`（对齐上表五旗）**；**最小竖切已落地**：`QuestState` / `DialogueRunner` / `EndingResolver` + 烬龛「云游」对话（`npc_cloud_wanderer`）。跨章 NPC 迁移与隐藏结局全证物链仍待内容填充。本文件仍是叙事权威；运行时还需扩展：
 
-1. `StoryState` / 既有 `AshenRunState.choice_flags`：扩展支线与 NPC 状态（Boss 命运旗已竖切）。
-2. `QuestState`：触发、阶段、失败/完成和跨章迁移。
-3. `DialogueRunner`：条件对白、一次性对白与结局分支。
+1. `AshenRunState.choice_flags`：继续扩展支线与 NPC 状态（Boss 命运旗 + 云游旗已竖切）。
+2. `QuestState`：已有阶段机；补全跨章任务图。
+3. `DialogueRunner`：已有条件对白；补全更多 NPC 表。
 4. `StoryEventTrigger`：Boss 阈值、拾取物证、关卡出口和过场事件。
-5. `EndingResolver`：只读取既有状态，验证四种结局可达性。
+5. `EndingResolver`：三种基础结局 + 隐藏 `forge` 可达性校验已实现；烬座 UI 需接 `throne_choice`。

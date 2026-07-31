@@ -123,5 +123,5 @@ See `game/scripts/app/game_host_bridge.gd`.
 ## Related
 
 - [architecture.md](../architecture.md) — composition root  
-- [validation.md](../validation.md) — `core_contract_test` covers round-trip  
+- [validation.md](../validation.md) — `core_contract_test` covers round-trip; I-07 death-loop contracts cover Lost Echo + checkpoint respawn  
 - [chapter-bridge-map.md](../story/chapter-bridge-map.md) — narrative flags (design authority)  

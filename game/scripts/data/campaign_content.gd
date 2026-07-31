@@ -48,9 +48,13 @@ static func levels() -> Array[Dictionary]:
 		var chapter := int(level_id.substr(6, 2))
 		var level := int(level_id.substr(9, 2))
 		record["seed"] = chapter * 100 + level
-		record["modules"] = _modules_for(record)
 		record["encounter_id"] = StringName("encounter_%02d_%02d" % [chapter, level])
 		record["checkpoint_id"] = StringName("shrine_%02d_%02d" % [chapter, level])
+		record["modules"] = _modules_for(record)
+		# 章节作用域模块行为参数（伤害类型、周期、行程等）
+		record["module_configs"] = _module_configs_for(record)
+		# 非 Boss 关启用 shortcut 空间折叠（单向门 + 升降梯回祠堂）
+		record["shortcut_fold"] = _shortcut_fold_for(record)
 	return records
 
 
@@ -77,9 +81,10 @@ static func bosses() -> Array[Dictionary]:
 
 
 static func _modules_for(level: Dictionary) -> Array[StringName]:
-	# 第一章关卡显式模块表，覆盖拓扑推断
+	# 全 28 关显式组合十类可复用模块族（章节作用域）
 	var level_id := StringName(level.get("id", &""))
 	match level_id:
+		# —— Ch.1 灵墟 ——
 		&"level_01_01":
 			return [&"fragile_floor", &"gate_exit"]
 		&"level_01_02":
@@ -90,29 +95,115 @@ static func _modules_for(level: Dictionary) -> Array[StringName]:
 			return [&"hazard", &"poison_fire_zone", &"fragile_floor", &"switch_offering", &"gate_exit"]
 		&"level_01_05":
 			return [&"arena_seal"]
-	var modules: Array[StringName] = []
-	var topology := StringName(level.get("topology", &""))
+		# —— Ch.2 血铁（攻城危害 / 阵型）——
+		&"level_02_01":
+			return [&"hazard", &"fragile_floor", &"gate_exit"]
+		&"level_02_02":
+			return [&"projectile_lane", &"hazard", &"gate_exit"]
+		&"level_02_03":
+			return [&"switch_offering", &"fragile_floor", &"gate_exit"]
+		&"level_02_04":
+			return [&"moving_platform", &"switch_offering", &"fragile_floor", &"gate_exit"]
+		&"level_02_05":
+			return [&"switch_offering", &"projectile_lane", &"gate_exit"]
+		&"level_02_06":
+			return [&"arena_seal"]
+		# —— Ch.3 玉障（幻象 / 双面）——
+		&"level_03_01":
+			return [&"illusion_marker", &"fragile_floor", &"gate_exit"]
+		&"level_03_02":
+			return [&"illusion_marker", &"switch_offering", &"hazard", &"gate_exit"]
+		&"level_03_03":
+			return [&"projectile_lane", &"illusion_marker", &"gate_exit"]
+		&"level_03_04":
+			return [&"moving_platform", &"illusion_marker", &"switch_offering", &"gate_exit"]
+		&"level_03_05":
+			return [&"illusion_marker", &"switch_offering", &"gate_exit"]
+		&"level_03_06":
+			return [&"arena_seal"]
+		# —— Ch.4 天崩（垂直 / 炼丹 / 重力）——
+		&"level_04_01":
+			return [&"moving_platform", &"fragile_floor", &"gate_exit"]
+		&"level_04_02":
+			return [&"moving_platform", &"poison_fire_zone", &"switch_offering", &"gate_exit"]
+		&"level_04_03":
+			return [&"gravity_visual_zone", &"hazard", &"switch_offering", &"gate_exit"]
+		&"level_04_04":
+			return [&"arena_seal"]
+		&"level_04_05":
+			return [&"arena_seal"]
+		&"level_04_06":
+			return [&"arena_seal"]
+		# —— Ch.5 烬座（倒悬 / 非欧）——
+		&"level_05_01":
+			return [&"gate_exit"]
+		&"level_05_02":
+			return [&"gravity_visual_zone", &"moving_platform", &"switch_offering", &"gate_exit"]
+		&"level_05_03":
+			return [&"illusion_marker", &"switch_offering", &"gravity_visual_zone", &"gate_exit"]
+		&"level_05_04":
+			return [&"switch_offering", &"gate_exit"]
+		&"level_05_05":
+			return [&"arena_seal"]
+	# 兜底：拓扑启发式（不应触达若表完整）
+	return [&"gate_exit"]
+
+
+static func _module_configs_for(level: Dictionary) -> Dictionary:
+	# 按章节打磨模块数值；完整美术非本任务范围
+	var chapter_id := StringName(level.get("chapter_id", &""))
+	var configs := {}
+	match chapter_id:
+		&"chapter_01":
+			configs["hazard"] = {"damage_per_second": 7.0, "damage_type": &"ember"}
+			configs["poison_fire_zone"] = {"damage_type": &"poison", "damage_per_second": 8.0}
+			configs["fragile_floor"] = {"collapse_delay": 2.0}
+			configs["switch_offering"] = {"required_count": 1}
+		&"chapter_02":
+			configs["hazard"] = {"damage_per_second": 11.0, "damage_type": &"fire", "size": Vector3(5.0, 0.45, 5.0)}
+			configs["projectile_lane"] = {"interval": 1.55, "size": Vector3(3.2, 2.2, 14.0), "damage": 14.0}
+			configs["fragile_floor"] = {"collapse_delay": 1.35}
+			configs["moving_platform"] = {"travel": Vector3(0.0, 4.2, 0.0), "travel_time": 2.6}
+			configs["switch_offering"] = {"required_count": 2}
+		&"chapter_03":
+			configs["illusion_marker"] = {"illusion_kind": &"false_path"}
+			configs["fragile_floor"] = {"collapse_delay": 1.1}
+			configs["hazard"] = {"damage_per_second": 6.0, "damage_type": &"confusion"}
+			configs["projectile_lane"] = {"interval": 2.2, "damage": 10.0}
+			configs["moving_platform"] = {"travel": Vector3(3.5, 0.0, 0.0), "travel_time": 3.4}
+			configs["switch_offering"] = {"required_count": 1}
+		&"chapter_04":
+			configs["moving_platform"] = {"travel": Vector3(0.0, 5.0, 2.0), "travel_time": 2.2}
+			configs["fragile_floor"] = {"collapse_delay": 0.85}
+			configs["poison_fire_zone"] = {"damage_type": &"alchemy_vapor", "damage_per_second": 13.0}
+			configs["gravity_visual_zone"] = {"visual_direction": Vector3.DOWN, "size": Vector3(7.0, 5.0, 7.0)}
+			configs["hazard"] = {"damage_per_second": 9.0, "damage_type": &"debris"}
+			configs["switch_offering"] = {"required_count": 2}
+		&"chapter_05":
+			configs["gravity_visual_zone"] = {"visual_direction": Vector3(0.0, -1.0, 0.0), "size": Vector3(8.0, 6.0, 8.0)}
+			configs["moving_platform"] = {"travel": Vector3(0.0, -3.5, 0.0), "travel_time": 2.8}
+			configs["illusion_marker"] = {"illusion_kind": &"samsara_fork"}
+			configs["switch_offering"] = {"required_count": 3}
+		_:
+			pass
+	return configs
+
+
+static func _shortcut_fold_for(level: Dictionary) -> Dictionary:
+	# H-05：Boss / 纯叙事岸边不塞折叠，其余关生成单向门+升降梯
 	var kind := StringName(level.get("kind", &""))
-	match topology:
-		&"hazard_wing", &"memory_canyon", &"vertical_library":
-			modules.append(&"hazard")
-		&"vertical_tower", &"vertical_floating_path", &"floating_platform_cluster", &"reflection_dual_plane", &"inverted_multi_surface":
-			modules.append(&"moving_platform")
-		&"looping_forest", &"shifting_maze", &"non_euclidean_branches":
-			modules.append(&"illusion_marker")
-	if kind in [&"hazard_puzzle", &"gravity_puzzle"]:
-		modules.append(&"poison_fire_zone" if kind == &"hazard_puzzle" else &"gravity_visual_zone")
-	if kind in [&"choice", &"puzzle", &"narrative_puzzle"]:
-		modules.append(&"switch_offering")
-	if kind in [&"boss", &"sub_boss", &"final_boss"]:
-		modules.append(&"arena_seal")
-	else:
-		modules.append(&"gate_exit")
-	if topology in [&"courtyard", &"hazard_wing"]:
-		modules.append(&"fragile_floor")
-	if topology in [&"layered_ramparts", &"processional_path"]:
-		modules.append(&"projectile_lane")
-	return modules
+	if kind in [&"boss", &"sub_boss", &"final_boss", &"narrative"]:
+		return {"enabled": false}
+	var checkpoint_id := String(level.get("checkpoint_id", "ember_shrine"))
+	return {
+		"enabled": true,
+		"one_way_door": true,
+		"elevator": true,
+		"shortcut_ids": {
+			"one_way": "%s:one_way_door" % checkpoint_id,
+			"elevator": "%s:elevator" % checkpoint_id,
+		},
+	}
 
 
 static func _chapter(id: StringName, display_name: String, theme_id: StringName, start_level_id: StringName, exit_level_id: StringName, boss_ids: Array[StringName]) -> Dictionary:

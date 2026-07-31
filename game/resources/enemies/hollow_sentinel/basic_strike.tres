@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/attack_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+action_id = &"enemy_hollow_sentinel"
+display_name_key = &"enemy_hollow_sentinel"
+animation_name = &"enemy_hollow_sentinel"
+windup_seconds = 0.55
+active_seconds = 0.18
+recovery_seconds = 0.70
+damage = 16.0
+poise_damage = 22.0
+guard_power = 23.7
+authored_displacement = Vector3(0, 0, 1.4)
+tags = Array[StringName]([&"enemy", &"light"])
+hitbox_radius = 1.35
+hitbox_height = 1.55
+hitbox_offset = Vector3(0, 1, -0.9)
+maximum_hits_per_target = 1

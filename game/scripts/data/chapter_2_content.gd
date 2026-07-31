@@ -120,6 +120,9 @@ static func boss() -> Dictionary:
 		"max_health": 580.0, "reward": 600,
 		"arena": "mountaintop_colosseum",
 		"chapter": 2, "chinese_name": "刑天",
+		# 外观：重甲精英体型 + 双斧（工厂未注册 guandao 网格，双斧为其可用近似形状）
+		"body_type": "elite_armored", "weapon_shape": "blood_axe",
+		"body_color": "2a1515", "weapon_color": "8a2a1a", "eye_emission": "ff3300",
 		"phases": {
 			"1": {
 				"threshold": 1.0,

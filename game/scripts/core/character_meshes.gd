@@ -40,6 +40,7 @@ static func build_enemy(parent: Node3D, enemy_type: String, body_mat: StandardMa
 	match enemy_type:
 		"cinder_guardian": _build_guardian(parent, body_mat)
 		"ash_stalker":     _build_stalker(parent, body_mat)
+		"ember_skirmisher": _build_skirmisher(parent, body_mat)
 		_:                 _build_sentinel(parent, body_mat)
 
 
@@ -138,6 +139,25 @@ static func _build_stalker(parent: Node3D, mat: StandardMaterial3D) -> void:
 	# Light leather armor
 	var leather_mat := _mat_variant(mat, Color(0.22, 0.18, 0.14), 0.68, 0.20)
 	_box(parent, Vector3(0.66, 0.18, 0.05), Vector3(0, 1.0, -0.14), Vector3(0, 0, 0), leather_mat)
+
+
+## G-03：远程伏击者——瘦高菱影斗篷轮廓
+static func _build_skirmisher(parent: Node3D, mat: StandardMaterial3D) -> void:
+	var body_mat := _mat_variant(mat, mat.albedo_color, mat.metallic, mat.roughness)
+	_build_humanoid(parent, body_mat, {
+		"height": 1.78, "shoulder_width": 0.34, "chest_depth": 0.20,
+		"limb_thickness": 0.075,
+	})
+	# 尖顶兜帽
+	var hood := _mat_variant(mat, mat.albedo_color.darkened(0.2), 0.92, 0.04)
+	_cylinder(parent, 0.08, 0.26, 0.32, Vector3(0, 1.78, 0.02), Vector3.ZERO, hood)
+	# 斗篷后摆（远程剪影）
+	var cloak := _mat_variant(mat, mat.albedo_color.darkened(0.35), 0.95, 0.02)
+	_prism(parent, Vector3(0.7, 1.1, 0.32), Vector3(0, 0.9, 0.26), Vector3.ZERO, cloak)
+	# 肩甲菱片
+	var gem := _mat_emissive(mat, Color(0.9, 0.25, 0.55), 2.2)
+	_sphere(parent, 0.06, 0.1, Vector3(0.28, 1.35, -0.08), gem)
+	_sphere(parent, 0.06, 0.1, Vector3(-0.28, 1.35, -0.08), gem)
 
 
 static func _build_guardian(parent: Node3D, mat: StandardMaterial3D) -> void:

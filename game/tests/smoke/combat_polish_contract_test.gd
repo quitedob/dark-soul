@@ -60,6 +60,9 @@ func _test_root_motion_poc() -> void:
 	_expect(bridge.enabled, "Animation bridge failed to enable.")
 	_expect(bridge.skeleton != null and bridge.anim_tree != null, "Skeleton/AnimationTree missing.")
 	_expect(bridge.sample_light_root_delta() >= 0.5, "Light attack root track should move ~0.55m.")
+	_expect(bridge.is_physics_callback(), "AnimationTree must use Physics callback.")
+	_expect(bridge.has_strafe_blendspace(), "Lock-on Strafe BlendSpace2D missing.")
+	_expect(bridge.sample_leap_root_delta() >= 2.0, "Twin Colossi leap root track too short.")
 	body.queue_free()
 
 

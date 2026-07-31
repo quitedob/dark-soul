@@ -79,3 +79,46 @@ func test_focus_never_exceeds_max() -> void:
 	player.state = player.State.LOCOMOTION
 	player._update_stamina(10.0)
 	assert_eq(player.focus, player.max_focus)
+
+
+## I-13：专注仅在 LOCOMOTION 回复
+func test_focus_regen_only_in_locomotion() -> void:
+	player.focus = 40.0
+	player.state = player.State.ATTACK_ACTIVE
+	player._update_stamina(1.0)
+	assert_eq(player.focus, 40.0, "非站立不应回专注")
+	player.state = player.State.LOCOMOTION
+	player._update_stamina(1.0)
+	assert_almost_eq(player.focus, 40.0 + player.FOCUS_REGEN_RATE, 0.001)
+
+
+## I-13：Guard Meter 延迟后回复；破防/举盾时不回
+func test_guard_meter_regen_delay_and_gates() -> void:
+	player.guard_meter = 50.0
+	player._guard_meter_regen_delay = 1.0
+	player.guard_active = false
+	player.state = player.State.LOCOMOTION
+	player._update_guard_meter(0.5)
+	assert_almost_eq(player.guard_meter, 50.0, 0.001, "延迟中不应回复")
+	assert_almost_eq(player._guard_meter_regen_delay, 0.5, 0.001)
+	player._update_guard_meter(0.5)
+	player._update_guard_meter(0.5)
+	assert_gt(player.guard_meter, 50.0, "延迟结束后应回复")
+	var after_regen: float = player.guard_meter
+	player.guard_active = true
+	player._update_guard_meter(1.0)
+	assert_almost_eq(player.guard_meter, after_regen, 0.001, "举盾中不回 Meter")
+	player.guard_active = false
+	player.state = player.State.GUARD_BROKEN
+	player._guard_meter_regen_delay = 0.0
+	player.guard_meter = 40.0
+	player._update_guard_meter(1.0)
+	assert_almost_eq(player.guard_meter, 40.0, 0.001, "破防中不回 Meter")
+
+
+## I-13：专注经济上限夹紧
+func test_focus_set_clamps_range() -> void:
+	player.set_focus(999.0)
+	assert_eq(player.focus, player.max_focus)
+	player.set_focus(-5.0)
+	assert_eq(player.focus, 0.0)

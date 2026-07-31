@@ -24,3 +24,5 @@ stamina_dodge = 24.0
 wam_light = 0.10
 wam_heavy = 0.15
 wam_guard = 0.40
+trail_color = Color(0.95, 0.82, 0.45, 1)
+hit_vfx_scale = 1.0

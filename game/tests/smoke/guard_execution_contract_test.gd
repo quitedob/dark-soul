@@ -11,6 +11,8 @@ var _failures: Array[String] = []
 
 func _init() -> void:
 	_test_guard_meter_and_direct_break()
+	_test_guard_weight_class_stability()
+	_test_hand_equipment_resource_authority()
 	_test_execution_profiles()
 	_test_back_sector_logic()
 	if _failures.is_empty():
@@ -26,6 +28,7 @@ func _test_guard_meter_and_direct_break() -> void:
 	var profile := HandEq.get_guard_profile("reliquary_shield")
 	_expect(not profile.is_empty(), "Shield guard profile missing.")
 	_expect(float(profile.get("max_guard_meter", 0.0)) > 0.0, "max_guard_meter missing.")
+	_expect(int(profile.get("weight_class", -1)) == 1, "Reliquary shield should be MEDIUM weight.")
 
 	var payload := {
 		"damage": 20.0,
@@ -55,6 +58,52 @@ func _test_guard_meter_and_direct_break() -> void:
 	var stam := GuardResolver.resolve(payload, true, fwd, 1.0, profile, 100.0)
 	_expect(bool(stam["guard_broken"]), "Low stamina should break.")
 	_expect(String(stam["guard_broken_reason"]) == "stamina", "Reason should be stamina.")
+
+
+func _test_guard_weight_class_stability() -> void:
+	# E-06：轻/中/重盾稳定性与破防阈值递进
+	var light := HandEq.get_guard_profile("jade_buckler")
+	var medium := HandEq.get_guard_profile("reliquary_shield")
+	var heavy := HandEq.get_guard_profile("furnace_greatshield")
+	_expect(int(light.get("weight_class", -1)) == 0, "Buckler weight_class should be LIGHT.")
+	_expect(int(medium.get("weight_class", -1)) == 1, "Kite weight_class should be MEDIUM.")
+	_expect(int(heavy.get("weight_class", -1)) == 2, "Greatshield weight_class should be HEAVY.")
+	_expect(float(light["stability"]) < float(medium["stability"]), "Light stability should be below medium.")
+	_expect(float(medium["stability"]) < float(heavy["stability"]), "Medium stability should be below heavy.")
+	_expect(
+		float(light["direct_break_threshold"]) < float(medium["direct_break_threshold"]),
+		"Light direct-break threshold should be lower."
+	)
+	_expect(
+		float(medium["direct_break_threshold"]) < float(heavy["direct_break_threshold"]),
+		"Heavy direct-break threshold should be higher."
+	)
+	# 同一次冲击：轻盾更易破精，重盾更耐
+	var payload := {
+		"damage": 25.0, "stagger": 12.0, "guard_damage": 40.0,
+		"direction": Vector3(0, 0, 1), "blockable": true,
+	}
+	var fwd := Vector3(0, 0, -1)
+	var light_hit := GuardResolver.resolve(payload, true, fwd, 100.0, light, 100.0)
+	var heavy_hit := GuardResolver.resolve(payload, true, fwd, 100.0, heavy, 100.0)
+	_expect(bool(light_hit["guarded"]) and bool(heavy_hit["guarded"]), "Both shields should guard frontal hit.")
+	_expect(
+		float(light_hit["stamina_cost"]) > float(heavy_hit["stamina_cost"]),
+		"Light shield should cost more stamina than heavy."
+	)
+
+
+func _test_hand_equipment_resource_authority() -> void:
+	# A-07：主路径 Guard/Weapon 走 Resource，而非裸字典权威
+	var guard_res := HandEq.get_guard_profile_resource("reliquary_shield")
+	_expect(guard_res != null, "Reliquary GuardProfile resource missing.")
+	_expect(guard_res is GuardProfile, "Guard resource type mismatch.")
+	var weapon := HandEq.get_weapon_data("guardian_sword")
+	_expect(weapon != null, "Guardian sword WeaponData resource missing.")
+	_expect(weapon is WeaponData, "WeaponData type mismatch.")
+	var item := HandEq.get_item("reliquary_shield")
+	_expect(item.has("guard_profile"), "get_item should expose GuardProfile resource.")
+	_expect(item.has("guard") and not item["guard"].is_empty(), "get_item guard dict projection missing.")
 
 
 func _test_execution_profiles() -> void:

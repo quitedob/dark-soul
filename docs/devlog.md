@@ -1,5 +1,183 @@
 ﻿# Ashen Hollow Development Log
 
+## 2026-07-31 — Soulslike Gap Analysis 纠偏
+
+### Scope
+
+对照外部「类魂全景审查稿」与仓库实况：纠正已过时的手感债务判断，固化权威缺口文档与三期演进路线；并落地 Phase 1–3 最小实现。
+
+### Delivered
+
+- 权威缺口文档：`docs/audits/2026-07-31-soulslike-gap-analysis.md`
+- 纠错要点：B-09 多槽队列 / B-10 tap-hold / B-11 下落重力+snap / C-01 本地 HitStop / E-08 脆弱态 **均已落地**，不可再当开放债
+- **Phase 1：** method-track 接管轻击/跃击 hitbox；B-12 角速度；敌人 `PoiseResolver` + 相位 WAM；D-02 root motion 物理接入
+- **Phase 2：** dagger/fist GuardProfile；哨兵 AttackData `.tres`；Ch.1 heal-punish 覆盖；相变 VFX 色键；H-05/I-16/A-07 收口；Ch.1 Feel Gate 清单
+- **Phase 3：** `QuestState` / `DialogueRunner` / `EndingResolver` + 烬龛云游对话竖切；`story_runtime_contract_test`
+- 明确排除：RAM/EAC 逆向、ds3os 联机、Markov 替代 DialogueRunner、Unity clone 照搬
+
+### Parent verify
+
+```powershell
+$Godot = "E:\godot\Godot_v4.7.1-stable_win64_console.exe"
+& $Godot --headless --path game --script res://tests/smoke/story_runtime_contract_test.gd
+& $Godot --headless --path game --script res://tests/smoke/enemy_attack_catalog_contract_test.gd
+& $Godot --headless --path game --script res://tests/smoke/poise_contract_test.gd
+```
+
+### Still open
+
+真蒙皮资产、LimboAI 真插件、Ch.2–5 全可玩重做、跨章 NPC 迁移与隐藏结局全证物内容填充。
+
+---
+
+## 2026-07-31 — I-16 Enemy FSM + Chapter 2 Playable Slice
+
+### Scope
+
+- **I-16**：敌人 FSM ≥14 测 + Boss 相 ≥5 测（GUT `state_machines/`）
+- **Ch.2**：`game_world` 接入 `Chapter2Content` 遭遇（`02_01`–`02_06` 刑天）；多 Boss `defeated_bosses` 存档修复
+- Smoke：`ASHEN_CHAPTER2_SLICE_CONTRACTS_OK`
+
+### Verify
+
+```powershell
+$Godot = "E:\godot\Godot_v4.7.1-stable_win64_console.exe"
+& $Godot --headless --path game -s res://addons/gut/gut_cmdln.gd -gdir=res://tests/unit/state_machines -gexit
+& $Godot --headless --path game --script res://tests/smoke/chapter2_slice_contract_test.gd
+```
+
+### Follow-ups
+
+- Ch.2 文档支线（锻造/战旗谜题）仍为设计超标，未进 MVP
+- Boss 抓投 `_begin_grab_telegraph` monitoring 时序噪音可单开修
+- Ch.3–5 遭遇工厂接线同模式扩展
+
+---
+
+## 2026-07-31 — Audit Backlog Wave（K/B/C/E/F/G/I 收口）
+
+### Scope
+
+从 `docs/tasks-master` + 审计扩表 backlog 批量实装可落地项；学习 `example/` 的 Action Queue / dodge-sprint / camera recenter 模式。禁止全局 `Engine.time_scale`。
+
+### Delivered
+
+| 簇 | IDs | 要点 |
+|----|-----|------|
+| 资源正确性 | K-01 / K-02 / G-07 | 原子扣费、防双初始化、去掉硬编码 execution_break |
+| 手感 | B-09 / B-10 / B-11 / B-12 | 多槽队列、tap/hold、下落重力、状态加速度 |
+| 抛光 | C-06 / E-11 / F-06 / I-14 / K-03 / K-04 | Music 总线、guard setter、镜头回跟、tween 清理、关卡锁、cue 警告 |
+| 战斗中项 | D-08 / G-08 | 动画回调钩子、EnemyAttackCatalog |
+| 测试 | I-12 / I-13 / I-15 | FSM 边沿、focus/guard、三求解器单测 |
+| 故事钩子 | G-06 消费 | 玩家读取 `g06_time_dilation`（移速/回复/动画） |
+
+### Parent verify
+
+```powershell
+$Godot = "E:\godot\Godot_v4.7.1-stable_win64_console.exe"
+& $Godot --headless --path game --script res://tests/smoke/weapon_trail_contract_test.gd
+& $Godot --headless --path game --script res://tests/smoke/enemy_ai_tuning_contract_test.gd
+& $Godot --headless --path game --script res://tests/smoke/boss_chapter_powers_contract_test.gd
+& $Godot --headless --path game --script res://tests/smoke/enemy_attack_catalog_contract_test.gd
+```
+
+### Still open（多会话 XL）
+
+- I-16 全敌 FSM 覆盖
+- 真动画资产 / LimboAI 真插件 / Ch.2–5 补篇全可玩重做
+- A-07、D-02/D-05、H-05 等原表 Pending
+
+---
+
+## 2026-07-31 — Deferred Trio Closed（C-05 / G-05 / G-06）
+
+### Scope
+
+父 agent 按 `godot-builder`/`godot-director` 编排，绑定 `example/godot-ai-builder-main/skills/*`（effects / polish / enemies / gdscript）+ 项目 docs。**收口**此前 ⏸️ DEFERRED 三项。
+
+### Waves
+
+| Wave | Tasks | 结果 |
+|------|-------|------|
+| 1 | C-05 Weapon trail | ✅ 重量档 + `trail_color`；`ASHEN_WEAPON_TRAIL_CONTRACTS_OK` |
+| 2 | G-05 Enemy AI tuning | ✅ Catalog + behavior 注册表；`ASHEN_ENEMY_AI_TUNING_CONTRACTS_OK` |
+| 3 | G-06 Boss chapter powers | ✅ type 微执行器；九尾/玄霄/烛阴；`ASHEN_BOSS_CHAPTER_POWERS_OK` |
+
+### Parent verify
+
+```powershell
+$Godot = "E:\godot\Godot_v4.7.1-stable_win64_console.exe"
+& $Godot --headless --path game --script res://tests/smoke/weapon_trail_contract_test.gd
+& $Godot --headless --path game --script res://tests/smoke/enemy_ai_tuning_contract_test.gd
+& $Godot --headless --path game --script res://tests/smoke/boss_chapter_powers_contract_test.gd
+```
+
+### Docs
+
+- `docs/tasks/c-05-weapon-trail-vfx.md` / `g-05-enemy-ai-tuning.md` / `g-06-chapter-boss-powers.md`
+- `docs/systems/enemy-ai.md` — behavior 已接线
+- `docs/tasks-master.md` — Deferred 清零；Done **78**
+
+### Known follow-ups
+
+- ~~玩家侧完整消费 `g06_time_dilation`~~ → 已在 backlog wave 落地
+- Ch.2–5 精英全量补 behavior 字段（Ch.1 已补；catalog 有缺省）
+- ~~G-07 / G-08~~ → 已在 backlog wave 落地
+
+---
+
+## 2026-07-30 — Multi-Agent Skill Waves（非延后 backlog 收口）
+
+### Scope
+
+父 agent 按 `godot-builder`/`godot-director` 编排，四波并行/串行子 agent，每任务绑定 `example/godot-ai-builder-main/skills/*` + 项目 docs。**不做** C-05 / G-05 / G-06。
+
+### Waves
+
+| Wave | Tasks | 结果 |
+|------|-------|------|
+| 1 | A-05, B-02/B-03, C-03/C-04, E-05, F-01/F-03–05, I-09/I-11 | ✅ schema/CI/锁敌/缓冲/trauma/audio |
+| 2 | E-01→E-02→E-06→A-07；G-02/G-03/G-04 | ✅ 连续 Poise、盾重、Resource 装备；治疗惩罚/远程敌/相变 VFX |
+| 3 | D-01→D-06；H-04→H-05；G-01 | ✅ AnimationTree 根运动/处决；28 关模块+shortcut；Boss 宏 BT compat |
+| 4 | I-05–I-08 | ✅ 命中去重 / 敌 FSM / 死亡环 / 格挡矩阵 GUT |
+
+### Parent verify（smoke exit 0）
+
+`combat` / `poise` / `chapter1` / `death_loop` / `combat_resource_schema` / `animation_root_motion` / `g01_macro_bt` / `heal_punish` / `boss_polish` / `level_module`
+
+### Docs
+
+- `docs/tasks-master.md` Status Summary 按实测重写（Done **75** / Deferred **3** / 后续 TODO **19**）
+- C-05、G-05、G-06 标 ⏸️ DEFERRED
+
+### Known follow-ups（非本波）
+
+- GUT `test_target_style_costs_*` 与 grip 解析成本硬编码漂移
+- LimboAI 真插件可热替换 `BossMacroBT`（现 `compat_macro`）
+- 审计扩表 B-09+ / K / I-12+ 等 🔴 TODO
+
+---
+
+## 2026-07-30 — I-07 Death/Recovery Loop Integration Tests
+
+### Scope
+
+Complete death-loop coverage: ember drop, LostEcho spawn/recover, enemy reset, checkpoint respawn (smoke + GUT).
+
+### Tests
+
+- Smoke: `tests/smoke/death_loop_contract_test.gd` → `ASHEN_DEATH_LOOP_CONTRACTS_OK`
+- GUT: `tests/unit/systems/test_death_loop.gd` (6 cases)
+
+### Verify
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" --headless --path "e:/godot/darksoul/game" --script tests/smoke/death_loop_contract_test.gd
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" --headless --path "e:/godot/darksoul/game" -s addons/gut/gut_cmdln.gd "-gdir=res://tests/unit/systems/" "-gprefix=test_death_loop" -gexit
+```
+
+---
+
 ## 2026-07-30 — Boss Grab Pairing · Combat Camera · Fate Choice UI
 
 ### Scope

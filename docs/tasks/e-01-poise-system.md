@@ -1,7 +1,7 @@
 # E-01 — Continuous Poise and Action Armor
 
 **Priority:** P1 (critical)  
-**Status:** 🟡 PARTIAL — standing reserve + break-on-empty shipped 2026-07-30; per-phase AttackData WAM ownership still open (E-02)  
+**Status:** ✅ DONE — standing reserve + break-on-empty + per-phase AttackData WAM (player/resolver/factory) shipped 2026-07-30  
 **Effort:** L (week)  
 **Depends On:** A-03 (`AttackData`), B-01  
 **Blocks:** E-02, E-03, E-08, E-09, E-10  
@@ -164,14 +164,14 @@ Parry / Guard 已处理？
 
 ## Acceptance Criteria
 
-- [ ] 玩家二值 `hyper_armor` gameplay 判定被连续 Poise 替代
-- [ ] 玩家和普通敌人使用同一 Poise 术语与 resolver 契约
-- [ ] 每个攻击阶段从 `AttackData` 读取 ActionArmorModifier
-- [ ] 重武器霸体可被连续打破，轻武器不依赖换血
-- [ ] HP、Guard Meter、Poise、Execution Break 独立结算
+- [x] 玩家二值 `hyper_armor` gameplay 判定被连续 Poise 替代
+- [x] 玩家和普通敌人使用同一 Poise 术语与 resolver 契约
+- [x] 每个攻击阶段从 `AttackData` 读取 ActionArmorModifier
+- [x] 重武器霸体可被连续打破，轻武器不依赖换血
+- [x] HP、Guard Meter、Poise、Execution Break 独立结算
 - [ ] HUD 能区分普通 Poise 与 Boss Execution Break
-- [ ] Headless contract 覆盖 hold、break、reset 和状态边界
-- [ ] 现有 guard/parry 和 smoke contracts 继续通过
+- [x] Headless contract 覆盖 hold、break、reset 和状态边界
+- [x] 现有 guard/parry 和 smoke contracts 继续通过
 
 ## Risks
 

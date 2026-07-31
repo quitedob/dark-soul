@@ -83,18 +83,28 @@ static func _break_result(result: Dictionary, absorption: float, reason: String,
 static func profile_from_resource(profile: Resource) -> Dictionary:
 	if profile == null:
 		return {}
-	# 兼容 GuardProfile Resource 字段
+	# 兼容 GuardProfile Resource；稳定性/击穿走盾重生效值
+	var weight_class := int(profile.get("weight_class")) if profile.get("weight_class") != null else 1
+	var stability := float(profile.get("stability"))
+	var direct_break := float(profile.get("direct_break_threshold"))
+	# 优先调用生效方法（若存在）
+	if profile.has_method("effective_stability"):
+		stability = float(profile.call("effective_stability"))
+	if profile.has_method("effective_direct_break_threshold"):
+		direct_break = float(profile.call("effective_direct_break_threshold"))
 	return {
 		"absorption": float(profile.get("physical_absorption")),
-		"stability": float(profile.get("stability")),
+		"stability": stability,
 		"front_dot": cos(deg_to_rad(float(profile.get("guard_angle_degrees")) * 0.5)),
 		"max_guard_meter": float(profile.get("max_guard_meter")),
-		"direct_break_threshold": float(profile.get("direct_break_threshold")),
+		"direct_break_threshold": direct_break,
 		"guard_meter_damage_multiplier": float(profile.get("guard_meter_damage_multiplier")),
 		"stamina_damage_multiplier": float(profile.get("stamina_damage_multiplier")),
+		"weight_class": weight_class,
 		"can_parry": bool(profile.get("can_parry")),
 		"parry_start_seconds": float(profile.get("parry_start_seconds")),
 		"parry_active_seconds": float(profile.get("parry_active_seconds")),
 		"parry_recovery_seconds": float(profile.get("parry_recovery_seconds")),
 		"parry_miss_multiplier": float(profile.get("parry_miss_multiplier")),
+		"parry_stamina_cost": float(profile.get("parry_stamina_cost")) if profile.get("parry_stamina_cost") != null else 10.0,
 	}

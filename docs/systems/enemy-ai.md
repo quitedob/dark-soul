@@ -8,7 +8,7 @@
 
 ## Scope
 
-Documents the **shipping** chase FSM, not the future LimboAI behavior-tree target (G-01).
+Documents the **shipping** chase FSM plus the G-01 boss **macro decision** layer.
 
 ```text
 IDLE -> CHASE -> WINDUP -> ACTIVE -> RECOVERY -> CHASE
@@ -18,6 +18,15 @@ ANY -> DEAD -> reset_enemy -> IDLE
 ```
 
 Decision refresh interval: `AI_DECISION_INTERVAL = 0.1s`.
+
+### Boss macro layer (G-01)
+
+Guardians mount `BossMacroController` (`scripts/boss/boss_macro_controller.gd`):
+
+- **Macro:** BT-style selector (`BossMacroBT`) writes blackboard intents: `patrol` / `engage` / `disengage` / `phase` / `heal_punish`.
+- **Micro:** Existing FSM still runs windup/active/recovery and physics.
+- **Backend:** `LimboAIPluginPath.backend_id()` → `compat_macro` until `game/addons/limboai/` is installed; then swap to LimboAI BTPlayer keeping the same blackboard keys.
+- **Probe:** `get_macro_intent()` / `get_macro_selected_attack()` on `enemy.gd`.
 
 ---
 
@@ -105,7 +114,18 @@ This keeps enemies mobile on freshly loaded procedural levels before nav bake se
 
 ## Content `behavior` Labels
 
-Fields like `slow_patrol`, `teleport_ambush`, `defensive_hold` are **design tags** on chapter dictionaries. The current FSM does **not** branch on them yet — treat as documentation for future AI (G-01 / G-04).
+Fields like `slow_patrol`, `teleport_ambush`, `defensive_hold` map through **`EnemyBehaviorRegistry`** (G-05) to family modules under `scripts/enemy/behaviors/`. `setup_from_content` normalizes via `EnemyAiCatalog` (aggro/leash/nav) then mounts `_behavior_module` for IDLE / engage / CHASE / ACTIVE hooks.
+
+| Family | Runtime effect |
+|--------|----------------|
+| patrol | IDLE orbit around `spawn_origin` |
+| hold | Tighter leash, lower chase accel |
+| ambush | First engage short teleport |
+| skirmish / ranged | Preferred-distance band |
+| hazard | ACTIVE pull / zone pulse |
+| special | Dive / clone meta / aura ticks |
+
+Boss chapter powers (teleport chains / gravity / time) remain **G-06**, not G-05.
 
 ---
 
@@ -116,12 +136,12 @@ Fields like `slow_patrol`, `teleport_ambush`, `defensive_hold` are **design tags
 - Restore HP, clear poise, return to `spawn_origin`, phase 1, disengage.
 - Called on shrine rest and death-loop recovery.
 
-Covered by `tests/smoke/death_loop_contract_test.gd`.
+Covered by `tests/smoke/death_loop_contract_test.gd` and GUT `tests/unit/systems/test_death_loop.gd` (I-07).
 
 ---
 
 ## Related
 
 - [combat-execution-guard-weapon-arts.md](combat-execution-guard-weapon-arts.md) — player-side vulnerability windows  
-- [tasks/g-01-limboai-bt.md](../tasks/g-01-limboai-bt.md) — future BT architecture  
+- [tasks/g-01-limboai-bt.md](../tasks/g-01-limboai-bt.md) — Boss macro BT (compat + LimboAI path)  
 - [bestiary/enemies-master.md](../bestiary/enemies-master.md) — design roster  

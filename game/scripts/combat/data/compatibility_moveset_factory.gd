@@ -179,7 +179,13 @@ static func _charged_tier(
 	attack.windup_seconds = maxf(heavy_base.windup_seconds * windup_mul, 0.1)
 	attack.authored_displacement = Vector3(0.0, 0.0, heavy_base.authored_displacement.z * lunge_mul)
 	attack.guard_power = attack.damage + attack.poise_damage * 0.35
+	# 蓄力：late windup + active 有限护甲；recovery 恒为 0
 	attack.poise_modifier_active = minf(heavy_base.poise_modifier_active * float(g["wam"]) + extra_wam, 1.5)
+	attack.poise_modifier_windup = minf(
+		maxf(heavy_base.poise_modifier_windup, attack.poise_modifier_active * 0.28) + extra_wam * 0.5,
+		1.2
+	)
+	attack.poise_modifier_recovery = 0.0
 	# 蓄力对 Boss Execution Break 额外贡献
 	attack.execution_break_damage = maxf(heavy_base.poise_damage * 0.45 * damage_mul, 8.0)
 	if &"charged" not in attack.tags:
@@ -194,7 +200,8 @@ static func _attack(style: CombatStyleData, heavy: bool, g: Dictionary) -> Attac
 	attack.action_id = StringName("%s_%s" % [style.style_id, "heavy" if heavy else "light"])
 	attack.display_name_key = attack.action_id
 	attack.windup_seconds = (style.windup_heavy if heavy else style.windup_light) * float(g["windup"])
-	attack.active_seconds = (style.active_heavy if heavy else style.active_light) * float(g["active"])
+	# active 必须 >0，施法风格 style 里可为 0，工厂钳到最小窗
+	attack.active_seconds = maxf((style.active_heavy if heavy else style.active_light) * float(g["active"]), 0.08)
 	attack.recovery_seconds = (style.recovery_heavy if heavy else style.recovery_light) * float(g["recovery"])
 	attack.stamina_cost = (style.stamina_heavy if heavy else style.stamina_light) * float(g["stamina"])
 	# 法术近战走 Focus；体力可保持 0
@@ -205,7 +212,11 @@ static func _attack(style: CombatStyleData, heavy: bool, g: Dictionary) -> Attac
 	attack.guard_power = attack.damage + attack.poise_damage * 0.35
 	var lunge := (style.lunge_heavy if heavy else style.lunge_light) * float(g["lunge"])
 	attack.authored_displacement = Vector3(0.0, 0.0, lunge)
-	attack.poise_modifier_active = (style.wam_heavy if heavy else style.wam_light) * float(g["wam"])
+	# 分阶段 WAM：轻击仅短 active；重击 late windup+active；recovery 无护甲
+	var active_wam := (style.wam_heavy if heavy else style.wam_light) * float(g["wam"])
+	attack.poise_modifier_active = active_wam
+	attack.poise_modifier_windup = active_wam * (0.35 if heavy else 0.0)
+	attack.poise_modifier_recovery = 0.0
 	attack.tags = [&"melee", &"heavy" if heavy else &"light"]
 	attack.execution_break_damage = attack.poise_damage * (0.55 if heavy else 0.25)
 	# Twin：零闪避取消；Crescent：宽取消窗；其余 recovery 尾 40%
@@ -232,7 +243,10 @@ static func _leap(style: CombatStyleData) -> AttackData:
 	leap.guard_power = style.leap_damage + style.leap_stagger * 0.35
 	leap.authored_displacement = Vector3(0.0, 0.0, style.leap_lunge)
 	leap.launch_velocity_y = style.leap_velocity_y
+	# leap 与普攻分属不同 AttackData，不可共用布尔霸体
 	leap.poise_modifier_active = style.wam_leap
+	leap.poise_modifier_windup = style.wam_leap * 0.45
+	leap.poise_modifier_recovery = 0.0
 	leap.execution_break_damage = style.leap_stagger * 0.7
 	leap.tags = [&"melee", &"heavy", &"leap", &"weapon_art"]
 	return leap
@@ -279,7 +293,10 @@ static func _derive(
 	attack.guard_power = attack.damage + attack.poise_damage * 0.35
 	attack.authored_displacement = Vector3(0.0, 0.0, base.authored_displacement.z * lunge_mul)
 	attack.launch_velocity_y = launch_y
+	# 派生招继承三阶段护甲（recovery 仍为 0）
 	attack.poise_modifier_active = base.poise_modifier_active
+	attack.poise_modifier_windup = base.poise_modifier_windup
+	attack.poise_modifier_recovery = 0.0
 	attack.tags = tags.duplicate()
 	# 派生招继承取消窗比例
 	if base.dodge_cancel_seconds >= 0.0:

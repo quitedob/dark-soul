@@ -50,6 +50,13 @@ enum GripMode {
 	PAIRED,
 }
 
+## D-02：代码位移 / 动画根运动 / 混合
+enum MovementMode {
+	CODE_DRIVEN,
+	ANIMATION_DRIVEN,
+	HYBRID,
+}
+
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const SpellProjectileScene = preload("res://scenes/components/spell_projectile.tscn")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
@@ -67,6 +74,7 @@ const SafePlacement = preload("res://scripts/core/safe_placement.gd")
 const CompatibilityMovesetFactory = preload("res://scripts/combat/data/compatibility_moveset_factory.gd")
 const ExecutionSolverScript = preload("res://scripts/combat/execution_solver.gd")
 const ExecutionProfileScript = preload("res://scripts/combat/data/execution_profile.gd")
+const ExecutionPairedDirectorScript = preload("res://scripts/combat/execution_paired_director.gd")
 const PlayerAnimationBridgeScript = preload("res://scripts/combat/player_animation_bridge.gd")
 const STYLE_RESOURCES := {
 	CombatStyle.RELIQUARY_GUARD: preload("res://resources/combat_styles/reliquary_guard.tres"),
@@ -126,7 +134,6 @@ var attack_damage := 24.0
 var attack_stagger := 16.0
 var attack_cost := 20.0
 var attack_heavy := false
-var hyper_armor := false
 var base_poise_health := 100.0
 var max_poise_health := 100.0
 var poise_health := 100.0
@@ -134,6 +141,7 @@ var armor_pdr := 0.15
 var poise_regen_delay := 3.0
 var poise_regen_rate := 25.0
 var _poise_delay_timer := 0.0
+## 当前阶段动作护甲倍率（AttackData 三阶段，非二值霸体）
 var _wam_active := 0.0
 var combat_style: CombatStyle = CombatStyle.RELIQUARY_GUARD
 var right_hand_item := "guardian_sword"
@@ -148,11 +156,19 @@ var _execution_target: Node3D = null
 var _execution_profile = null
 var _execution_damage_applied := false
 var _execution_kind: StringName = &""
+var _execution_director = null  # ExecutionPairedDirector
 var _anim_bridge = null  # PlayerAnimationBridge
+var _movement_mode: int = MovementMode.HYBRID
+## D-08：动画回调闩锁；有 method track 时接管 hitbox 开闭
+var _anim_hitbox_latched := false
+var _anim_combo_latched := false
+## 本招是否 defer hitbox 到动画轨（轻击/跃击有 timing 轨时）
+var _hitbox_anim_deferred := false
 var attack_hand := "right"
 var attack_action_id := "sword_light"
 var _leap_is_curved := false
 var _leap_second_hit := false
+var _leap_uses_root_motion := false
 var _pending_cast := &""
 var _cast_resolved := false
 var dodge_direction := Vector3.FORWARD
@@ -160,10 +176,27 @@ var knockback_velocity := Vector3.ZERO
 var lock_target: Node3D
 var interaction_target: Node
 var configured := false
+## K-02：setup/_ready 只初始化子系统一次
+var _subsystems_initialized := false
 var _buffered_action := ""
 var _buffer_timer := 0.0
 const INPUT_BUFFER_WINDOW := 0.15
+## B-09：多槽动作队列（毫秒到期）
+const ACTION_Q_BUFFER_MS := 150
+var _action_queue: Dictionary = {}
+## B-10：闪避/冲刺同键 tap/hold
+const DODGE_SPRINT_THRESHOLD := 0.2
+var _ds_timer := 0.0
+var _ds_sprinting := false
 const MOVE_ACCELERATION := 24.0
+## B-12：分状态线/角加速度（动作承诺）
+const ATTACK_ACCELERATION := 3.0
+const ROLL_ACCELERATION := 2.0
+const LOCOMOTION_ANGULAR_ACCELERATION := 10.0
+const SPRINT_ANGULAR_ACCELERATION := 8.0
+const ROLL_ANGULAR_ACCELERATION := 2.0
+const ATTACK_ANGULAR_ACCELERATION := 3.0
+const LOCK_ANGULAR_ACCELERATION := 12.0
 const DEFAULT_GRAVITY := 24.0
 const STAMINA_REGEN_RATE := 30.0
 const FOCUS_REGEN_RATE := 4.0
@@ -185,6 +218,10 @@ const LOCK_ON_CAMERA_SLERP := 4.5
 # F-05：断锁后镜头回正时长与插值速度
 const LOCK_CAMERA_RECOVER_TIME := 0.5
 const LOCK_CAMERA_RECOVER_SPEED := 5.0
+# F-06：无手动镜头输入后自动回跟
+const CAMERA_RECENTER_DELAY := 1.5
+const CAMERA_RECENTER_SPEED := 4.0
+var _camera_recenter_timer := 0.0
 const LOCK_CAMERA_DEFAULT_PITCH := -0.18
 
 var visual_root: Node3D
@@ -245,11 +282,7 @@ func setup(world, audio, hud) -> void:
 	audio_node = audio
 	hud_node = hud
 	configured = true
-	_spells = PlayerSpellsScript.new()
-	_spells.setup(self, world)
-	_initialize_movesets()
-	_visuals = PlayerVisualsScript.new()
-	_visuals.setup(self)
+	_ensure_combat_subsystems(world)
 	_emit_stats()
 	_emit_focus()
 	poise_changed.emit(poise_health, max_poise_health)
@@ -261,15 +294,14 @@ func setup(world, audio, hud) -> void:
 func _ready() -> void:
 	gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity", 24.0))
 	add_to_group("player")
-	_spells = PlayerSpellsScript.new()
-	_spells.setup(self, world_node)
-	_initialize_movesets()
-	_visuals = PlayerVisualsScript.new()
-	_visuals.setup(self)
-	_visuals.build_nodes()
+	# K-02：已由 setup() 初始化则不再重建 _spells/_visuals
+	_ensure_combat_subsystems(world_node)
+	if _visuals != null:
+		_visuals.build_nodes()
 	_configure_spring_arm_collision()  # F-01：关卡几何层 mask 校验与固化
 	_anim_bridge = PlayerAnimationBridgeScript.new()
 	_anim_bridge.setup(self)
+	_connect_animation_bridge()
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_emit_stats()
@@ -281,10 +313,106 @@ func _ready() -> void:
 	hands_changed.emit(right_hand_item, left_hand_item, get_hand_action_labels())
 
 
+## D-08：连接动画桥信号；默认不改 state_time 权威
+func _connect_animation_bridge() -> void:
+	if _anim_bridge == null:
+		return
+	if not _anim_bridge.hitbox_activated.is_connected(_on_anim_hitbox_activated):
+		_anim_bridge.hitbox_activated.connect(_on_anim_hitbox_activated)
+	if not _anim_bridge.hitbox_deactivated.is_connected(_on_anim_hitbox_deactivated):
+		_anim_bridge.hitbox_deactivated.connect(_on_anim_hitbox_deactivated)
+	if not _anim_bridge.combo_window_opened.is_connected(_on_anim_combo_opened):
+		_anim_bridge.combo_window_opened.connect(_on_anim_combo_opened)
+	if not _anim_bridge.combo_window_closed.is_connected(_on_anim_combo_closed):
+		_anim_bridge.combo_window_closed.connect(_on_anim_combo_closed)
+	if not _anim_bridge.forward_impulse_requested.is_connected(_on_anim_forward_impulse):
+		_anim_bridge.forward_impulse_requested.connect(_on_anim_forward_impulse)
+
+
+## AnimationPlayer method track 转发到桥（占位轨路径指向玩家）
+func anim_event_hitbox_on() -> void:
+	if _anim_bridge != null:
+		_anim_bridge.anim_event_hitbox_on()
+
+
+func anim_event_hitbox_off() -> void:
+	if _anim_bridge != null:
+		_anim_bridge.anim_event_hitbox_off()
+
+
+func anim_event_combo_open() -> void:
+	if _anim_bridge != null:
+		_anim_bridge.anim_event_combo_open()
+
+
+func anim_event_combo_close() -> void:
+	if _anim_bridge != null:
+		_anim_bridge.anim_event_combo_close()
+
+
+func anim_event_push_forward(amount: float = 0.0) -> void:
+	if _anim_bridge != null:
+		_anim_bridge.anim_event_push_forward(amount)
+
+
+func _on_anim_hitbox_activated() -> void:
+	_anim_hitbox_latched = true
+	# 动画轨权威：仅在 defer 模式下由回调开启命中盒
+	if _hitbox_anim_deferred and state in [State.ATTACK_ACTIVE, State.LEAP_ACTIVE, State.GUARD_THRUST]:
+		_begin_melee_swing()
+
+
+func _on_anim_hitbox_deactivated() -> void:
+	_anim_hitbox_latched = false
+	if _hitbox_anim_deferred and combat_area != null:
+		combat_area.end_swing()
+
+
+func _on_anim_combo_opened() -> void:
+	_anim_combo_latched = true
+
+
+func _on_anim_combo_closed() -> void:
+	_anim_combo_latched = false
+
+
+func _on_anim_forward_impulse(amount: float) -> void:
+	# method track 前冲：覆盖当帧水平速度（米级冲量 → 瞬时速度）
+	var push := amount if amount > 0.001 else 0.45
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.001:
+		return
+	forward = forward.normalized()
+	velocity.x = forward.x * push * 10.0
+	velocity.z = forward.z * push * 10.0
+
+
+## K-02：子系统单次初始化（setup 优先，_ready 兜底）
+func _ensure_combat_subsystems(world) -> void:
+	if _subsystems_initialized and _spells != null and _visuals != null:
+		# setup 后补 world 引用（若 _ready 先跑时 world 为空）
+		if world != null and world_node == null:
+			world_node = world
+		return
+	if world != null:
+		world_node = world
+	_spells = PlayerSpellsScript.new()
+	_spells.setup(self, world_node)
+	_initialize_movesets()
+	_visuals = PlayerVisualsScript.new()
+	_visuals.setup(self)
+	_subsystems_initialized = true
+
+
 func _physics_process(delta: float) -> void:
+	_tick_g06_time_dilation(delta)
+	var dilation := _g06_dilation()
 	_update_lock_target()
 	_update_gamepad_camera(delta)
 	_update_camera_rig(delta)
+	_process_action_queue()
+	_process_dodge_sprint(delta)
 	if state != State.DEAD:
 		# HitStop：冻本实体输入与状态推进，世界/重力继续
 		if not _visual_frozen:
@@ -295,8 +423,10 @@ func _physics_process(delta: float) -> void:
 			_update_context_windows(delta)
 		_was_on_floor = is_on_floor()
 		_previous_vertical_velocity = velocity.y
+		# B-11：下落加倍重力；G-06 局部时间膨胀只乘本实体
 		if not is_on_floor():
-			velocity.y -= gravity * delta
+			var grav_mult := 2.0 if velocity.y < 0.0 else 1.0
+			velocity.y -= gravity * grav_mult * dilation * delta
 		elif velocity.y <= 0.0:
 			velocity.y = 0.0
 		# 冻结时清水平意图，避免攻击位移继续滑行
@@ -310,6 +440,26 @@ func _physics_process(delta: float) -> void:
 	_update_visual_pose()
 	# B-03：debug / combat tip 下刷新输入缓冲可视化
 	_update_input_buffer_debug()
+
+
+## G-06：读取局部时间膨胀（默认 1）
+func _g06_dilation() -> float:
+	return float(get_meta("g06_time_dilation", 1.0))
+
+
+## G-06：TTL 递减并同步动画播放速率
+func _tick_g06_time_dilation(delta: float) -> void:
+	if has_meta("g06_time_dilation_ttl"):
+		var ttl := float(get_meta("g06_time_dilation_ttl")) - delta
+		if ttl <= 0.0:
+			if has_meta("g06_time_dilation"):
+				remove_meta("g06_time_dilation")
+			remove_meta("g06_time_dilation_ttl")
+		else:
+			set_meta("g06_time_dilation_ttl", ttl)
+	var dilation := _g06_dilation()
+	if _anim_bridge != null and _anim_bridge.enabled:
+		_anim_bridge.set_speed_scale(dilation)
 
 
 func _update_landing_and_safe_transform() -> void:
@@ -396,6 +546,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and state != State.DEAD:
 		if lock_target == null or not is_instance_valid(lock_target):
 			_camera_recover_timer = 0.0
+			_camera_recenter_timer = CAMERA_RECENTER_DELAY
 			var motion := event as InputEventMouseMotion
 			camera_rig.rotation.y -= motion.relative.x * mouse_sensitivity * camera_sensitivity_scale
 			var pitch_direction := 1.0 if invert_camera_y else -1.0
@@ -628,7 +779,7 @@ func _handle_action_input() -> void:
 		if not _is_heavy_held() or state_time <= 0.0:
 			_release_heavy_charge()
 		return
-	# recovery 尾段闪避取消窗：立即闪避，不走 buffer
+	# recovery 尾段闪避取消窗：立即闪避，不走 buffer（B-10：dodge just_pressed）
 	if state == State.ATTACK_RECOVERY and _current_attack != null \
 			and _current_attack.dodge_cancel_seconds >= 0.0 \
 			and state_time <= _current_attack.dodge_cancel_seconds \
@@ -640,6 +791,9 @@ func _handle_action_input() -> void:
 			return
 		_try_buffer_action()
 		return
+	# B-09：优先消费多槽队列；兼容旧单槽
+	if _try_consume_action_queue():
+		return
 	if _buffered_action != "" and _buffer_timer > 0.0:
 		_execute_buffered_action()
 		return
@@ -647,8 +801,7 @@ func _handle_action_input() -> void:
 	_buffered_action = ""
 	if Input.is_action_just_pressed("jump"):
 		_try_jump()
-	elif Input.is_action_just_pressed("dodge"):
-		_try_dodge()
+	# B-10：闪避由 _process_dodge_sprint tap 触发；此处仅兼容旧 just_pressed 边缘
 	elif _action_just_pressed(&"left_secondary", [&"parry"]):
 		_execute_hand_action("left", "secondary")
 	elif Input.is_action_just_pressed("special_attack"):
@@ -674,6 +827,85 @@ func _try_jump() -> void:
 	_play_audio("dodge", -10.0, 1.35)
 
 
+## B-09：入队（可与其它动作并存，自动过期）
+func enqueue_action(action: StringName, duration_ms: int = ACTION_Q_BUFFER_MS) -> void:
+	_action_queue[action] = Time.get_ticks_msec() + duration_ms
+
+
+## B-09：清理过期槽
+func _process_action_queue() -> void:
+	var now := Time.get_ticks_msec()
+	for key in _action_queue.keys():
+		if int(_action_queue[key]) <= now:
+			_action_queue.erase(key)
+
+
+## B-09：查询并可选消费
+func action_queued(action: StringName, consume: bool = false) -> bool:
+	if not _action_queue.has(action):
+		return false
+	if int(_action_queue[action]) <= Time.get_ticks_msec():
+		_action_queue.erase(action)
+		return false
+	if consume:
+		_action_queue.erase(action)
+	return true
+
+
+## B-09：LOCOMOTION 下按优先级消费队列
+func _try_consume_action_queue() -> bool:
+	const ORDER: Array[StringName] = [
+		&"dodge", &"left_secondary", &"right_secondary", &"right_primary",
+		&"left_primary", &"special_attack", &"cast_spell",
+	]
+	for action in ORDER:
+		if not action_queued(action, true):
+			continue
+		_dispatch_queued_action(String(action))
+		return true
+	return false
+
+
+func _dispatch_queued_action(action: String) -> void:
+	match action:
+		"dodge":
+			_try_dodge()
+		"left_secondary":
+			_execute_hand_action("left", "secondary")
+		"right_secondary":
+			_execute_hand_action("right", "secondary")
+		"right_primary":
+			if not _try_execution():
+				_execute_hand_action("right", "primary")
+		"left_primary":
+			_execute_hand_action("left", "primary")
+		"special_attack":
+			_try_style_skill()
+		"cast_spell":
+			_try_cast_for_style()
+
+
+## B-10：dodge 短按闪避、长按冲刺；Shift 仍可单独冲刺
+func _process_dodge_sprint(delta: float) -> void:
+	if state == State.DEAD or _visual_frozen:
+		return
+	if Input.is_action_pressed("dodge"):
+		_ds_timer += delta
+		if _ds_timer >= DODGE_SPRINT_THRESHOLD and state == State.LOCOMOTION:
+			_ds_sprinting = true
+	elif Input.is_action_just_released("dodge"):
+		var was_tap := _ds_timer > 0.0 and _ds_timer < DODGE_SPRINT_THRESHOLD and not _ds_sprinting
+		_ds_sprinting = false
+		_ds_timer = 0.0
+		if was_tap:
+			if state == State.LOCOMOTION:
+				_try_dodge()
+			elif _can_buffer_in_current_state():
+				enqueue_action(&"dodge")
+	elif not Input.is_action_pressed("dodge"):
+		_ds_timer = 0.0
+		_ds_sprinting = false
+
 
 func _can_buffer_in_current_state() -> bool:
 	return state in [State.ATTACK_RECOVERY, State.ATTACK_WINDUP, State.ATTACK_ACTIVE,
@@ -682,26 +914,33 @@ func _can_buffer_in_current_state() -> bool:
 
 
 func _try_buffer_action() -> void:
-	# B-03：单槽 150ms 输入缓冲；后按覆盖先按
+	# B-09：多槽队列 + 兼容单槽 HUD 显示
 	if Input.is_action_just_pressed("dodge"):
+		enqueue_action(&"dodge")
 		_buffered_action = "dodge"
 		_buffer_timer = INPUT_BUFFER_WINDOW
 	elif _action_just_pressed(&"left_secondary", [&"parry"]):
+		enqueue_action(&"left_secondary")
 		_buffered_action = "left_secondary"
 		_buffer_timer = INPUT_BUFFER_WINDOW
 	elif _action_just_pressed(&"right_secondary", [&"heavy_attack", &"heavy_attack_alt"]):
+		enqueue_action(&"right_secondary")
 		_buffered_action = "right_secondary"
 		_buffer_timer = INPUT_BUFFER_WINDOW
 	elif _action_just_pressed(&"right_primary", [&"light_attack", &"light_attack_alt"]):
+		enqueue_action(&"right_primary")
 		_buffered_action = "right_primary"
 		_buffer_timer = INPUT_BUFFER_WINDOW
 	elif _action_just_pressed(&"left_primary", [&"guard"]):
+		enqueue_action(&"left_primary")
 		_buffered_action = "left_primary"
 		_buffer_timer = INPUT_BUFFER_WINDOW
 	elif Input.is_action_just_pressed("special_attack"):
+		enqueue_action(&"special_attack")
 		_buffered_action = "special_attack"
 		_buffer_timer = INPUT_BUFFER_WINDOW
 	elif Input.is_action_just_pressed("cast_spell"):
+		enqueue_action(&"cast_spell")
 		_buffered_action = "cast_spell"
 		_buffer_timer = INPUT_BUFFER_WINDOW
 
@@ -712,6 +951,7 @@ func get_input_buffer_debug() -> Dictionary:
 		"action": _buffered_action,
 		"timer": _buffer_timer,
 		"window_ms": int(INPUT_BUFFER_WINDOW * 1000.0),
+		"queue_size": _action_queue.size(),
 	}
 
 
@@ -720,8 +960,11 @@ func _update_input_buffer_debug() -> void:
 	if hud_node == null or not is_instance_valid(hud_node) or not hud_node.has_method("set_input_buffer_debug"):
 		return
 	var show_debug := _combat_tip_mode or OS.is_debug_build()
-	if not show_debug or _buffered_action == "" or _buffer_timer <= 0.0:
-		hud_node.set_input_buffer_debug("")
+	if not show_debug or (_buffered_action == "" and _action_queue.is_empty()) or _buffer_timer <= 0.0:
+		if show_debug and not _action_queue.is_empty():
+			hud_node.set_input_buffer_debug("Q %d" % _action_queue.size())
+		else:
+			hud_node.set_input_buffer_debug("")
 		return
 	var remain_ms := int(ceil(_buffer_timer * 1000.0))
 	hud_node.set_input_buffer_debug("BUF %s %dms / %dms" % [
@@ -735,21 +978,8 @@ func _execute_buffered_action() -> void:
 	var action := _buffered_action
 	_buffered_action = ""
 	_buffer_timer = 0.0
-	match action:
-		"dodge":
-			_try_dodge()
-		"left_secondary":
-			_execute_hand_action("left", "secondary")
-		"right_secondary":
-			_execute_hand_action("right", "secondary")
-		"right_primary":
-			_execute_hand_action("right", "primary")
-		"left_primary":
-			_execute_hand_action("left", "primary")
-		"special_attack":
-			_try_style_skill()
-		"cast_spell":
-			_try_cast_for_style()
+	_action_queue.erase(StringName(action))
+	_dispatch_queued_action(action)
 
 
 func _update_state(delta: float) -> void:
@@ -803,25 +1033,31 @@ func _update_state(delta: float) -> void:
 				_change_state(State.ATTACK_RECOVERY, 0.34)
 		State.LEAP_WINDUP:
 			_face_lock_target(delta)
-			var leap_forward := -global_transform.basis.z
-			var profile := _style_data()
-			var leap_entry_speed: float = profile.leap_lunge * 0.65
-			velocity.x = leap_forward.x * leap_entry_speed
-			velocity.z = leap_forward.z * leap_entry_speed
+			if _leap_uses_root_motion and _apply_anim_root_motion(delta):
+				pass
+			else:
+				var leap_forward := -global_transform.basis.z
+				var profile := _style_data()
+				var leap_entry_speed: float = profile.leap_lunge * 0.65
+				velocity.x = leap_forward.x * leap_entry_speed
+				velocity.z = leap_forward.z * leap_entry_speed
 			if state_time <= 0.0:
-				_change_state(State.LEAP_ACTIVE, profile.leap_active)
+				_change_state(State.LEAP_ACTIVE, _style_data().leap_active)
 		State.LEAP_ACTIVE:
-			var attack_forward := -global_transform.basis.z
-			var profile := _style_data()
-			var leap_speed: float = profile.leap_lunge
-			velocity.x = attack_forward.x * leap_speed
-			velocity.z = attack_forward.z * leap_speed
-			if _leap_is_curved and not _leap_second_hit and state_time <= profile.leap_active * 0.47:
+			if _leap_uses_root_motion and _apply_anim_root_motion(delta):
+				pass
+			else:
+				var attack_forward := -global_transform.basis.z
+				var profile := _style_data()
+				var leap_speed: float = profile.leap_lunge
+				velocity.x = attack_forward.x * leap_speed
+				velocity.z = attack_forward.z * leap_speed
+			if _leap_is_curved and not _leap_second_hit and state_time <= _style_data().leap_active * 0.47:
 				_leap_second_hit = true
 				combat_area.end_swing()
 				_begin_melee_swing()
 			if state_time <= 0.0:
-				_change_state(State.ATTACK_RECOVERY, profile.leap_recovery)
+				_change_state(State.ATTACK_RECOVERY, _style_data().leap_recovery)
 		State.CAST:
 			_slow_horizontal(delta, acceleration * 2.0)
 			_face_lock_target(delta)
@@ -884,18 +1120,35 @@ func _update_locomotion(delta: float) -> void:
 	camera_right.y = 0.0
 	camera_right = camera_right.normalized()
 	var direction := (camera_right * input_vector.x + camera_forward * -input_vector.y).normalized()
-	var sprinting := Input.is_action_pressed("sprint") and direction.length_squared() > 0.0 and stamina > 0.0
-	var target_speed := sprint_speed if sprinting else move_speed
+	var sprinting := _wants_sprint() and direction.length_squared() > 0.0 and stamina > 0.0
+	var dilation := _g06_dilation()
+	var target_speed := (sprint_speed if sprinting else move_speed) * dilation
+	# B-12：按状态取加速度
+	var accel: float = _get_current_acceleration()
 	if sprinting:
 		_spend_stamina(18.0 * delta, 0.25, false)
-	velocity.x = move_toward(velocity.x, direction.x * target_speed, acceleration * delta)
-	velocity.z = move_toward(velocity.z, direction.z * target_speed, acceleration * delta)
+	# HYBRID：速度仍代码驱动；锁敌侧移走 BlendSpace2D
+	velocity.x = move_toward(velocity.x, direction.x * target_speed, accel * delta)
+	velocity.z = move_toward(velocity.z, direction.z * target_speed, accel * delta)
 	if lock_target != null:
 		_face_lock_target(delta)
 	elif direction.length_squared() > 0.001:
-		_face_direction(direction, delta * 10.0)
+		_face_direction(direction, delta * _get_current_angular_acceleration())
 	if _anim_bridge != null and _anim_bridge.enabled and state == State.LOCOMOTION:
-		_anim_bridge.travel_locomotion(direction.length_squared() > 0.01)
+		var locked := lock_target != null and is_instance_valid(lock_target)
+		if locked:
+			# 相对面朝：x=右，y=前（输入已是相机空间，再投到角色局部）
+			var facing := -global_transform.basis.z
+			facing.y = 0.0
+			facing = facing.normalized() if facing.length_squared() > 0.001 else camera_forward
+			var right := global_transform.basis.x
+			right.y = 0.0
+			right = right.normalized() if right.length_squared() > 0.001 else camera_right
+			var local_x := direction.dot(right) if direction.length_squared() > 0.001 else 0.0
+			var local_y := direction.dot(facing) if direction.length_squared() > 0.001 else 0.0
+			_anim_bridge.travel_locomotion(true, true, Vector2(local_x, local_y))
+		else:
+			_anim_bridge.travel_locomotion(direction.length_squared() > 0.01, false)
 
 
 func _try_execution() -> bool:
@@ -933,6 +1186,9 @@ func _try_execution() -> bool:
 	_execution_kind = kind
 	_execution_damage_applied = false
 	guard_active = false
+	# D-06：配对导演 + AnimationTree 处决轨
+	_execution_director = ExecutionPairedDirectorScript.new()
+	_execution_director.begin(self, target, profile, kind, _anim_bridge, true)
 	var tip := "BACKSTAB" if kind == &"back" else ("WEAK POINT" if kind == &"weak_point" else "RIPOSTE")
 	_show_combat_tip(tip, 0.55)
 	_play_audio("heavy", -5.0, 0.85)
@@ -968,6 +1224,10 @@ func set_camera_director_override(active: bool) -> void:
 
 
 func _align_execution_pose(delta: float) -> void:
+	# D-06：优先配对导演锚点对齐
+	if _execution_director != null and _execution_director.active:
+		_execution_director.update_pose(delta)
+		return
 	if _execution_target == null or not is_instance_valid(_execution_target):
 		return
 	var anchor := Vector3.UP * 1.1
@@ -984,7 +1244,7 @@ func _align_execution_pose(delta: float) -> void:
 	var face := _execution_target.global_position - global_position
 	face.y = 0.0
 	if face.length_squared() > 0.001:
-		_face_direction(face.normalized(), delta * 14.0)
+		_face_direction(face.normalized(), delta * _get_current_angular_acceleration())
 	velocity = Vector3.ZERO
 
 
@@ -996,6 +1256,17 @@ func _update_execution_damage_event() -> void:
 	var elapsed := 0.0
 	if state_duration > 0.0:
 		elapsed = state_duration - state_time
+	# D-06：事件点伤害经配对导演（单次）
+	if _execution_director != null and _execution_director.active:
+		var weapon := _current_weapon()
+		var crit := weapon.critical_multiplier if weapon != null else 1.0
+		var base := 28.0
+		if _current_moveset() != null and _current_moveset().neutral_light != null:
+			base = _current_moveset().neutral_light.damage
+		var amount: float = base * float(crit) * float(_execution_profile.critical_multiplier)
+		if _execution_director.try_damage_event(elapsed, amount):
+			_execution_damage_applied = true
+		return
 	if elapsed < _execution_profile.damage_event_seconds:
 		return
 	_execution_damage_applied = true
@@ -1012,6 +1283,10 @@ func _update_execution_damage_event() -> void:
 
 
 func _finish_execution() -> void:
+	# D-06：取消/完成均释放 claim，恢复可玩
+	if _execution_director != null and _execution_director.active:
+		_execution_director.complete(&"finished")
+	_execution_director = null
 	if _execution_target != null and is_instance_valid(_execution_target) and _execution_target.has_method("release_execution_claim"):
 		_execution_target.release_execution_claim(self)
 	_execution_target = null
@@ -1043,21 +1318,27 @@ func _commit_attack(
 	hand: String,
 	action_id: String
 ) -> void:
-	_current_attack = resolved.duplicate()
+	# K-01：先干跑校验，全部通过后再原子扣 stamina/focus
+	var attack := resolved.duplicate() as AttackData
 	if resolved == moveset.neutral_light or resolved == moveset.neutral_heavy:
 		if not action_id.is_empty():
-			_current_attack.action_id = StringName(action_id)
-	_current_attack.hand = StringName(hand)
-	attack_cost = _current_attack.stamina_cost
-	var focus_cost := _current_attack.focus_cost
-	if stamina < attack_cost:
+			attack.action_id = StringName(action_id)
+	attack.hand = StringName(hand)
+	var cost := attack.stamina_cost
+	var focus_cost := attack.focus_cost
+	if stamina < cost:
 		_show_message("NOT ENOUGH STAMINA", 0.8)
 		return
-	# 法术近战等：扣 Focus（对齐施法路径）
+	if focus_cost > 0.0 and focus < focus_cost:
+		_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
+		return
+	if state in [State.DEAD, State.STAGGER, State.GRABBED]:
+		return
+	# 原子扣费（校验已全部通过）
+	_current_attack = attack
+	attack_cost = cost
+	_spend_stamina(cost, 0.85)
 	if focus_cost > 0.0:
-		if focus < focus_cost:
-			_show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
-			return
 		focus = maxf(focus - focus_cost, 0.0)
 		_emit_focus()
 	attack_heavy = heavy or _attack_has_tag(_current_attack, &"heavy")
@@ -1066,7 +1347,6 @@ func _commit_attack(
 	attack_damage = _current_attack.damage
 	attack_stagger = _current_attack.poise_damage
 	_consume_context_windows(_current_attack)
-	_spend_stamina(attack_cost, 0.85)
 	if not is_on_floor() and _current_attack.launch_velocity_y < 0.0:
 		velocity.y = minf(velocity.y, _current_attack.launch_velocity_y)
 	_announce_context_attack(_current_attack)
@@ -1157,7 +1437,7 @@ func _release_heavy_charge() -> void:
 
 
 func _update_attack_active_motion(delta: float) -> void:
-	# 跳攻/下落攻以 hitbox 判定为主；直剑轻击优先 root motion
+	# 跳攻/下落攻以 hitbox 判定为主；直剑轻击优先 root motion（D-02）
 	var forward := -global_transform.basis.z
 	var is_jump := _current_attack != null and _attack_has_tag(_current_attack, &"jump")
 	var is_falling := _current_attack != null and (
@@ -1169,18 +1449,36 @@ func _update_attack_active_motion(delta: float) -> void:
 		if _current_attack != null:
 			velocity.y = minf(velocity.y, _current_attack.launch_velocity_y)
 		return
+	if _movement_mode == MovementMode.ANIMATION_DRIVEN and _apply_anim_root_motion(delta):
+		return
 	if _anim_bridge != null and _anim_bridge.enabled and not is_jump and not attack_heavy:
-		var rm: Vector3 = _anim_bridge.consume_root_motion()
-		if rm.length_squared() > 0.00001:
-			var world_rm := global_transform.basis * rm
-			velocity.x = world_rm.x / maxf(delta, 0.0001)
-			velocity.z = world_rm.z / maxf(delta, 0.0001)
+		if _apply_anim_root_motion(delta):
 			return
 	var lunge := _current_attack.authored_displacement.z if _current_attack != null else _style_value(&"lunge", attack_heavy)
 	if is_jump:
 		lunge *= 0.55
 	velocity.x = forward.x * lunge
 	velocity.z = forward.z * lunge
+
+
+func _apply_anim_root_motion(delta: float) -> bool:
+	# D-02：提取 position/rotation 根运动并写入 CharacterBody3D
+	if _anim_bridge == null or not _anim_bridge.enabled:
+		return false
+	var rm: Vector3 = _anim_bridge.consume_root_motion()
+	var rr: Quaternion = _anim_bridge.consume_root_motion_rotation()
+	var applied := false
+	if rm.length_squared() > 0.00001:
+		var world_rm := global_transform.basis * rm
+		velocity.x = world_rm.x / maxf(delta, 0.0001)
+		velocity.z = world_rm.z / maxf(delta, 0.0001)
+		applied = true
+	if rr != Quaternion.IDENTITY and rr.length_squared() > 0.0:
+		var yaw := rr.get_euler().y
+		if absf(yaw) > 0.0001:
+			rotate_y(yaw)
+			applied = true
+	return applied
 
 
 func _resolve_context_attack(moveset: MovesetData, heavy: bool) -> AttackData:
@@ -1219,10 +1517,43 @@ func _hand_weapon_type(hand: String) -> StringName:
 func _is_sprint_context() -> bool:
 	if not is_on_floor() or stamina <= 0.0:
 		return false
-	if not Input.is_action_pressed("sprint"):
+	if not _wants_sprint():
 		return false
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z).length()
 	return horizontal >= move_speed * 1.05
+
+
+## B-10：冲刺意图（经典 sprint 键或 dodge 长按）
+func _wants_sprint() -> bool:
+	if _ds_sprinting:
+		return true
+	return Input.is_action_pressed("sprint")
+
+
+## B-12：按状态线加速度（缺省回站立基准）
+func _get_current_acceleration() -> float:
+	match state:
+		State.LOCOMOTION:
+			return MOVE_ACCELERATION
+		State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.ATTACK_RECOVERY, State.LEAP_WINDUP, State.LEAP_ACTIVE:
+			return ATTACK_ACCELERATION
+		State.DODGE:
+			return ROLL_ACCELERATION
+		_:
+			return acceleration
+
+
+## B-12：按状态角速度（翻滚/攻击承诺转向）
+func _get_current_angular_acceleration() -> float:
+	match state:
+		State.DODGE:
+			return ROLL_ANGULAR_ACCELERATION
+		State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.ATTACK_RECOVERY, State.LEAP_WINDUP, State.LEAP_ACTIVE:
+			return ATTACK_ANGULAR_ACCELERATION
+		State.LOCOMOTION:
+			return SPRINT_ANGULAR_ACCELERATION if _wants_sprint() else LOCOMOTION_ANGULAR_ACCELERATION
+		_:
+			return LOCOMOTION_ANGULAR_ACCELERATION
 
 
 func _consume_context_windows(attack: AttackData) -> void:
@@ -1413,17 +1744,18 @@ func _action_just_pressed(action: StringName, aliases: Array[StringName]) -> boo
 func _update_guard_active() -> void:
 	# 双持 / 破防失去副手格挡能力
 	if grip_mode == GripMode.TWO_HANDED or state == State.GUARD_BROKEN:
-		guard_active = false
+		_set_guard_active(false)
 		return
 	var left_definition := HandEquipmentScript.get_item(left_hand_item)
 	var left_action := String(left_definition.get("primary", ""))
 	var semantic_pressed := InputMap.has_action("left_primary") and Input.is_action_pressed("left_primary")
 	var legacy_pressed := InputMap.has_action("guard") and Input.is_action_pressed("guard")
-	guard_active = (
+	var want_guard := (
 		state == State.LOCOMOTION
 		and left_action in ["shield_guard", "spell_shield"]
 		and (semantic_pressed or legacy_pressed)
 	)
+	_set_guard_active(want_guard)
 	_sync_guard_meter_cap()
 
 
@@ -1452,9 +1784,22 @@ func _update_guard_meter(delta: float) -> void:
 		guard_meter_changed.emit(guard_meter, max_guard_meter)
 
 
+## E-11：格挡唯一入口（仅 LOCOMOTION 可开启）
+func _set_guard_active(value: bool) -> void:
+	var next := value
+	if next:
+		if state != State.LOCOMOTION or state == State.GUARD_BROKEN:
+			next = false
+		var guard_profile: Dictionary = HandEquipmentScript.get_guard_profile(left_hand_item)
+		if guard_profile.is_empty() or grip_mode == GripMode.TWO_HANDED:
+			next = false
+	if guard_active == next:
+		return
+	guard_active = next
+
+
 func set_guard_active(active: bool) -> void:
-	var guard_profile: Dictionary = HandEquipmentScript.get_guard_profile(left_hand_item)
-	guard_active = active and not guard_profile.is_empty() and state != State.GUARD_BROKEN
+	_set_guard_active(active)
 
 
 func _execute_hand_action(hand: String, slot: String) -> void:
@@ -1473,7 +1818,7 @@ func _execute_hand_action(hand: String, slot: String) -> void:
 				_start_heavy_charge("right", action_id)
 		"shield_guard", "spell_shield":
 			if grip_mode != GripMode.TWO_HANDED:
-				guard_active = true
+				_set_guard_active(true)
 		"shield_parry":
 			_try_parry()
 		"right_axe_strike":
@@ -1607,6 +1952,10 @@ func _try_leap_attack(curved_pair: bool) -> void:
 	_spend_stamina(cost, 0.9)
 	if is_on_floor():
 		velocity.y = _current_attack.launch_velocity_y
+	# D-05：Twin Colossi 直线 leap 走 AnimationTree 根运动前冲
+	_leap_uses_root_motion = not curved_pair and _anim_bridge != null and _anim_bridge.enabled
+	if _leap_uses_root_motion:
+		_anim_bridge.travel_leap(false)
 	_show_combat_tip(
 		LocalizationScript.text("CRESCENT LEAP" if curved_pair else "COLOSSAL LEAP"),
 		0.65
@@ -1699,33 +2048,67 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 	if state in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE] \
 			and new_state not in [State.ATTACK_ACTIVE, State.GUARD_THRUST, State.LEAP_ACTIVE]:
 		combat_area.end_swing()
-		hyper_armor = false
 	if new_state != State.LOCOMOTION:
 		guard_active = false
 	state = new_state
 	state_time = duration
 	state_duration = duration
-	_wam_active = 0.0
+	# D-02：按状态切换位移模式（闪避保持代码驱动）
+	_movement_mode = _movement_mode_for_state(new_state)
+	# 按状态阶段刷新动作护甲（windup/active/recovery）— E-02 相位 WAM
+	_wam_active = _action_armor_for_state()
+	_hitbox_anim_deferred = _should_defer_hitbox_to_anim(state)
 	if state == State.ATTACK_ACTIVE:
-		_wam_active = _current_attack.poise_modifier_active if _current_attack != null else (_style_data().wam_heavy if attack_heavy else _style_data().wam_light)
-	elif state == State.LEAP_ACTIVE:
-		_wam_active = _style_data().wam_leap
-	hyper_armor = _wam_active > 0.0
-	if state == State.ATTACK_ACTIVE:
-		_begin_melee_swing()
+		if not _hitbox_anim_deferred:
+			_begin_melee_swing()
 		_play_audio("heavy" if attack_heavy else "swing", -5.0, 1.0)
 	elif state == State.GUARD_THRUST:
 		_begin_melee_swing()
 		_play_audio("swing", -7.0, 1.2)
 	elif state == State.LEAP_ACTIVE:
-		_begin_melee_swing()
+		if not _hitbox_anim_deferred:
+			_begin_melee_swing()
 		_play_audio("heavy" if not _leap_is_curved else "swing", -4.5, 0.9 if not _leap_is_curved else 1.2)
 	elif state == State.PARRY:
 		_play_audio("swing", -9.0, 1.45)
 	elif state == State.STAGGER or state == State.GUARD_BROKEN or state == State.DEAD or state == State.GRABBED:
 		combat_area.end_swing()
+		# 处决中被打断：导演强制取消恢复
+		if _execution_director != null and _execution_director.active:
+			_execution_director.force_cancel(&"interrupted")
+			_execution_director = null
 	elif state == State.EXECUTE_WINDUP:
 		combat_area.end_swing()
+
+
+func _movement_mode_for_state(s: State) -> int:
+	match s:
+		State.DODGE, State.STAGGER, State.GUARD_BROKEN, State.GRABBED, State.DEAD:
+			return MovementMode.CODE_DRIVEN
+		State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.ATTACK_RECOVERY:
+			# 直剑轻击动画驱动；重击暂退回代码 lunge
+			if attack_heavy:
+				return MovementMode.CODE_DRIVEN
+			return MovementMode.ANIMATION_DRIVEN
+		State.LEAP_WINDUP, State.LEAP_ACTIVE:
+			return MovementMode.ANIMATION_DRIVEN if _leap_uses_root_motion else MovementMode.CODE_DRIVEN
+		State.EXECUTE_WINDUP, State.EXECUTE_ACTIVE, State.EXECUTE_RECOVERY:
+			return MovementMode.CODE_DRIVEN
+		_:
+			return MovementMode.HYBRID
+
+
+## 有 method-track timing 时由动画开闭 hitbox（重击仍用 state 计时）
+func _should_defer_hitbox_to_anim(s: State) -> bool:
+	if _anim_bridge == null or not _anim_bridge.enabled:
+		return false
+	if not _anim_bridge.has_timing_method_tracks:
+		return false
+	if s == State.ATTACK_ACTIVE and not attack_heavy:
+		return true
+	if s == State.LEAP_ACTIVE and _leap_uses_root_motion:
+		return true
+	return false
 
 
 func _begin_melee_swing() -> void:
@@ -1796,6 +2179,30 @@ func _is_guarding_hit(hit_direction: Variant) -> bool:
 	return bool(result["guarded"])
 
 
+## 从当前 AttackData 阶段读取 ActionArmorModifier；无招式时回退风格 leap/guard
+func _action_armor_for_state() -> float:
+	if _current_attack != null:
+		match state:
+			State.ATTACK_WINDUP, State.LEAP_WINDUP:
+				return _current_attack.poise_modifier_for_phase(&"windup")
+			State.ATTACK_ACTIVE, State.LEAP_ACTIVE:
+				return _current_attack.poise_modifier_for_phase(&"active")
+			State.ATTACK_RECOVERY:
+				return _current_attack.poise_modifier_for_phase(&"recovery")
+			State.GUARD_THRUST:
+				return maxf(_current_attack.poise_modifier_for_phase(&"active"), _style_data().wam_guard)
+	match state:
+		State.LEAP_WINDUP:
+			return _style_data().wam_leap * 0.45
+		State.LEAP_ACTIVE:
+			return _style_data().wam_leap
+		State.GUARD_THRUST:
+			return _style_data().wam_guard
+		State.ATTACK_ACTIVE:
+			return _style_data().wam_heavy if attack_heavy else _style_data().wam_light
+	return 0.0
+
+
 func _update_poise(delta: float) -> void:
 	if _poise_delay_timer > 0.0:
 		_poise_delay_timer = maxf(_poise_delay_timer - delta, 0.0)
@@ -1808,17 +2215,18 @@ func _update_poise(delta: float) -> void:
 
 func _update_stamina(delta: float) -> void:
 	_update_guard_meter(delta)
+	var dilation := _g06_dilation()
 	if state == State.LOCOMOTION:
 		if stamina_delay > 0.0:
 			stamina_delay -= delta
 		else:
 			var previous := stamina
-			stamina = minf(stamina + stamina_regen * delta, max_stamina)
+			stamina = minf(stamina + stamina_regen * dilation * delta, max_stamina)
 			if not is_equal_approx(previous, stamina):
 				_queue_stats_update()
 		if focus < max_focus:
 			var previous_focus_int := floori(focus)
-			focus = minf(focus + FOCUS_REGEN_RATE * delta, max_focus)
+			focus = minf(focus + FOCUS_REGEN_RATE * dilation * delta, max_focus)
 			if floori(focus) != previous_focus_int:
 				_emit_focus()
 
@@ -1945,7 +2353,9 @@ func _face_lock_target(delta: float) -> void:
 	if lock_target == null or not is_instance_valid(lock_target):
 		return
 	var point: Vector3 = lock_target.get_target_point() if lock_target.has_method("get_target_point") else lock_target.global_position
-	_face_direction(point - global_position, delta * 12.0)
+	# 锁敌转向受分状态角速度约束（攻击中更钝）
+	var ang := minf(_get_current_angular_acceleration(), LOCK_ANGULAR_ACCELERATION)
+	_face_direction(point - global_position, delta * ang)
 
 
 func _face_direction(direction: Vector3, weight: float) -> void:
@@ -1972,6 +2382,7 @@ func _update_camera_rig(delta: float) -> void:
 	# F-03：锁敌用 Quaternion slerp，禁止 look_at 瞬转
 	if lock_target != null and is_instance_valid(lock_target):
 		_camera_recover_timer = 0.0
+		_camera_recenter_timer = CAMERA_RECENTER_DELAY
 		var point: Vector3 = lock_target.get_target_point() if lock_target.has_method("get_target_point") else lock_target.global_position
 		var direction: Vector3 = point - camera_rig.global_position
 		var horizontal_direction := Vector3(direction.x, 0.0, direction.z)
@@ -1991,6 +2402,14 @@ func _update_camera_rig(delta: float) -> void:
 		var weight := clampf(delta * LOCK_CAMERA_RECOVER_SPEED, 0.0, 1.0)
 		camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, rotation.y, weight)
 		camera_pitch.rotation.x = lerp_angle(camera_pitch.rotation.x, LOCK_CAMERA_DEFAULT_PITCH, weight)
+		return
+	# F-06：无手动输入一段时间后，镜头回跟角色朝向（速度越快越贴）
+	_camera_recenter_timer = maxf(_camera_recenter_timer - delta, 0.0)
+	if _camera_recenter_timer <= 0.0 and state != State.DEAD:
+		var h_speed := Vector2(velocity.x, velocity.z).length()
+		var dynamic_speed := maxf(CAMERA_RECENTER_SPEED * (h_speed / maxf(sprint_speed, 0.01)), 1.0)
+		var w := clampf(delta * dynamic_speed, 0.0, 1.0)
+		camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, rotation.y, w)
 
 
 func _update_gamepad_camera(delta: float) -> void:
@@ -2003,6 +2422,7 @@ func _update_gamepad_camera(delta: float) -> void:
 	if look.length_squared() <= 0.0001:
 		return
 	_camera_recover_timer = 0.0
+	_camera_recenter_timer = CAMERA_RECENTER_DELAY
 	var angular_speed := 2.4 * camera_sensitivity_scale
 	camera_rig.rotation.y -= look.x * angular_speed * delta
 	var pitch_direction := 1.0 if invert_camera_y else -1.0

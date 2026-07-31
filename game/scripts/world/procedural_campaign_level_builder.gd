@@ -3,6 +3,7 @@ extends RefCounted
 
 const ThemeFactory = preload("res://scripts/world/level_theme_factory.gd")
 const LevelModules = preload("res://scripts/levels/procedural_level_modules.gd")
+const ShortcutFold = preload("res://scripts/world/campaign_shortcut_fold.gd")
 
 const TILE_SIZE := 6.0
 const FLOOR_HEIGHT := 0.6
@@ -14,6 +15,7 @@ static func build(level_data: Dictionary) -> Node3D:
 	root.set_meta("level_id", level_data["id"])
 	root.set_meta("topology", level_data["topology"])
 	root.set_meta("seed", _seed_for(level_data))
+	root.set_meta("shortcut_fold", level_data.get("shortcut_fold", {}))
 	var theme := ThemeFactory.create(level_data["theme_id"])
 	var cells := _topology_cells(level_data["topology"], _seed_for(level_data))
 	var geometry := Node3D.new()
@@ -23,6 +25,7 @@ static func build(level_data: Dictionary) -> Node3D:
 		_add_tile(geometry, cells[index], theme, index, _seed_for(level_data))
 	_add_height_ramps(geometry, cells, theme)
 	_add_modules(root, level_data, cells, theme)
+	_add_shortcut_fold(root, level_data, cells, theme)
 	_add_markers(root, cells)
 	_add_navigation(root, cells)
 	root.set_meta("geometry_signature", _cell_signature(cells))
@@ -207,9 +210,16 @@ static func _add_modules(root: Node3D, level_data: Dictionary, cells: Array[Vect
 	for index in range(module_children.size()):
 		var module := module_children[index] as Node3D
 		var ratio := float(index + 1) / float(module_children.size() + 1)
-		var cell_index := clampi(roundi(ratio * float(cells.size() - 1)), 1, cells.size() - 2)
+		var cell_index := clampi(roundi(ratio * float(cells.size() - 1)), 1, maxi(cells.size() - 2, 1))
 		module.position = _cell_position(cells[cell_index]) + Vector3(0.0, FLOOR_HEIGHT * 0.5, 0.0)
 	root.add_child(modules)
+
+
+static func _add_shortcut_fold(root: Node3D, level_data: Dictionary, cells: Array[Vector3i], theme: Dictionary) -> void:
+	# H-05：单向门 + 升降梯空间折叠
+	var fold := ShortcutFold.build(level_data, cells, theme["structure"])
+	if fold != null:
+		root.add_child(fold)
 
 
 static func _add_markers(root: Node3D, cells: Array[Vector3i]) -> void:

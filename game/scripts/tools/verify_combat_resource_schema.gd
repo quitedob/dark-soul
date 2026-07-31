@@ -29,6 +29,47 @@ static func run() -> Array[String]:
 	errors.append_array(verify_instantiate_and_schema())
 	errors.append_array(verify_compatibility_weapons())
 	errors.append_array(verify_authored_tres())
+	errors.append_array(verify_enemy_attack_catalog())
+	return errors
+
+
+## G-08：敌人 AttackData 目录全部通过 validate()
+static func verify_enemy_attack_catalog() -> Array[String]:
+	var errors: Array[String] = []
+	var catalog = load("res://scripts/data/enemy_attack_catalog.gd")
+	if catalog == null:
+		errors.append("Cannot load EnemyAttackCatalog.")
+		return errors
+	catalog.clear_cache()
+	var attacks: Array = catalog.all_built_attacks()
+	if attacks.is_empty():
+		errors.append("EnemyAttackCatalog returned no AttackData.")
+		return errors
+	# 至少覆盖 3 原型 + 守护者多阶段
+	if attacks.size() < 10:
+		errors.append("EnemyAttackCatalog expected >=10 attacks, got %d." % attacks.size())
+	var seen_ids := {}
+	for attack in attacks:
+		if not (attack is AttackData):
+			errors.append("Enemy catalog entry is not AttackData.")
+			continue
+		var a: AttackData = attack
+		var errs := a.validate()
+		if not errs.is_empty():
+			errors.append("Enemy AttackData %s invalid: %s" % [a.action_id, str(errs)])
+		# 数值应与 tuning 表一致（抽样哨兵）
+		if String(a.action_id) == "enemy_hollow_sentinel":
+			if not is_equal_approx(a.damage, 16.0) or not is_equal_approx(a.windup_seconds, 0.55):
+				errors.append("Sentinel AttackData parity mismatch vs EnemyTuningData.")
+		seen_ids[String(a.action_id)] = true
+	if not seen_ids.has("enemy_ash_stalker") or not seen_ids.has("enemy_ember_skirmisher"):
+		errors.append("Enemy catalog missing ash_stalker or ember_skirmisher AttackData.")
+	# dict 回退：active=0 不得伪装成合法 AttackData
+	var bad_attack: Variant = catalog.try_from_profile_dict({
+		"windup": 0.5, "active": 0.0, "recovery": 0.4, "damage": 1.0, "stagger": 1.0,
+	})
+	if bad_attack != null:
+		errors.append("try_from_profile_dict must reject active=0 (Boss special moves).")
 	return errors
 
 

@@ -29,7 +29,6 @@ leap_stagger = 48.0
 leap_stamina = 38.0
 leap_lunge = 4.8
 leap_velocity_y = 4.2
-has_hyper_armor = true
 wam_light = 0.211
 wam_heavy = 0.35
 wam_leap = 0.50

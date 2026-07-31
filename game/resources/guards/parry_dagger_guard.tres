@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="GuardProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/guard_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"parry_dagger"
+weight_class = 0
+guard_angle_degrees = 90.0
+physical_absorption = 0.35
+stability = 0.42
+max_guard_meter = 70.0
+direct_break_threshold = 52.0
+guard_meter_damage_multiplier = 1.15
+stamina_damage_multiplier = 1.1
+can_parry = true
+parry_start_seconds = 0.333
+parry_active_seconds = 0.266
+parry_recovery_seconds = 0.40
+parry_miss_multiplier = 1.0
+parry_stamina_cost = 8.0

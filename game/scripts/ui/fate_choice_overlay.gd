@@ -35,10 +35,12 @@ func open_for_flag(story_flag: StringName) -> bool:
 	_open = true
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	modulate.a = 0.0
-	var tw := create_tween()
-	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	tw.tween_property(self, "modulate:a", 1.0, 0.25)
+	# CanvasLayer 无 modulate；淡入挂在遮罩 Control 上
+	if _dim != null:
+		_dim.modulate.a = 0.0
+		var tw := create_tween()
+		tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tw.tween_property(_dim, "modulate:a", 1.0, 0.25)
 	return true
 
 

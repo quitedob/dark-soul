@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="GuardProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/guard_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"spirit_stone"
+weight_class = 0
+guard_angle_degrees = 180.0
+physical_absorption = 0.58
+stability = 0.55
+max_guard_meter = 55.0
+direct_break_threshold = 48.0
+guard_meter_damage_multiplier = 1.35
+stamina_damage_multiplier = 1.1
+can_parry = false
+parry_start_seconds = 0.0
+parry_active_seconds = 0.0
+parry_recovery_seconds = 0.0
+parry_miss_multiplier = 1.0
+parry_stamina_cost = 0.0

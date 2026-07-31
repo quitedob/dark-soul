@@ -1,5 +1,6 @@
 class_name ProceduralLevelModules
 extends RefCounted
+## 十类可复用关卡模块族：几何构建 + 配置写入 meta（行为由 CampaignModuleRuntime 激活）
 
 const MODULE_IDS: Array[StringName] = [
 	&"hazard",
@@ -29,6 +30,9 @@ static func build(module_id: StringName, config: Dictionary, material: Material)
 	match module_id:
 		&"hazard":
 			_add_area(root, "HazardArea", config.get("size", Vector3(4.0, 0.4, 4.0)), &"hazard", material)
+			# 伤害区参数：章节 polish 可覆盖
+			root.set_meta("damage_per_second", float(config.get("damage_per_second", 8.0)))
+			root.set_meta("damage_type", StringName(config.get("damage_type", &"ember")))
 		&"gate_exit":
 			_add_body(root, "Gate", config.get("size", Vector3(3.0, 3.0, 0.5)), &"gate", material)
 			_add_marker(root, "ExitMarker", config.get("exit_offset", Vector3(0.0, 0.0, -2.0)))
@@ -39,6 +43,7 @@ static func build(module_id: StringName, config: Dictionary, material: Material)
 			_add_area(root, "ProjectileLane", config.get("size", Vector3(3.0, 2.0, 12.0)), &"projectile_lane", material)
 			_add_marker(root, "ProjectileOrigin", config.get("origin_offset", Vector3(0.0, 1.0, -6.0)))
 			root.set_meta("interval", float(config.get("interval", 2.0)))
+			root.set_meta("damage", float(config.get("damage", 12.0)))
 		&"poison_fire_zone":
 			_add_area(root, "DamageZone", config.get("size", Vector3(4.0, 0.3, 4.0)), &"damage_zone", material)
 			root.set_meta("damage_type", StringName(config.get("damage_type", &"poison")))
@@ -53,6 +58,7 @@ static func build(module_id: StringName, config: Dictionary, material: Material)
 			root.set_meta("travel_time", float(config.get("travel_time", 3.0)))
 		&"illusion_marker":
 			_add_marker(root, "IllusionMarker", config.get("offset", Vector3.ZERO))
+			_add_area(root, "IllusionSense", config.get("size", Vector3(3.0, 2.0, 3.0)), &"illusion_sense", material)
 			root.set_meta("illusion_kind", StringName(config.get("illusion_kind", &"false_path")))
 		&"gravity_visual_zone":
 			_add_area(root, "GravityVisualZone", config.get("size", Vector3(6.0, 4.0, 6.0)), &"gravity_visual", material)
@@ -71,9 +77,10 @@ static func build_level(level_definition: Dictionary, material: Material) -> Nod
 	root.set_meta("encounter_id", level_definition.get("encounter_id", &""))
 	root.set_meta("checkpoint_id", level_definition.get("checkpoint_id", &""))
 	var module_ids: Array = level_definition.get("modules", [])
+	var configs: Dictionary = level_definition.get("module_configs", {})
 	for index in range(module_ids.size()):
 		var module_id := StringName(module_ids[index])
-		var config := {}
+		var config := _config_for(configs, module_id)
 		if module_id == &"arena_seal":
 			config["encounter_id"] = level_definition.get("encounter_id", &"encounter")
 		var module := build(module_id, config, material)
@@ -81,6 +88,16 @@ static func build_level(level_definition: Dictionary, material: Material) -> Nod
 			module.set_meta("module_index", index)
 			root.add_child(module)
 	return root
+
+
+static func _config_for(configs: Dictionary, module_id: StringName) -> Dictionary:
+	# 同时兼容 String / StringName 键
+	if configs.has(module_id):
+		return (configs[module_id] as Dictionary).duplicate(true)
+	var key := String(module_id)
+	if configs.has(key):
+		return (configs[key] as Dictionary).duplicate(true)
+	return {}
 
 
 static func _add_area(root: Node3D, node_name: String, size: Vector3, module_group: StringName, material: Material) -> void:

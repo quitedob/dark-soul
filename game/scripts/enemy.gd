@@ -9,6 +9,7 @@ signal grab_started(target)
 signal grab_ended(target)
 signal weak_point_exposed(enemy)
 signal story_resolution_entered(enemy)
+signal phase_changed(enemy, new_phase: int)  # G-04：相变抛光入口
 
 enum State {
 	IDLE,
@@ -31,6 +32,7 @@ enum EnemyType {
 	HOLLOW_SENTINEL,
 	ASH_STALKER,
 	CINDER_GUARDIAN,
+	EMBER_SKIRMISHER,  # G-03：远程/伏击第三原型
 }
 
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
@@ -40,6 +42,17 @@ const ChapterEnemyFactory = preload("res://scripts/combat/enemy_factory.gd")
 const BossCatalog = preload("res://scripts/combat/data/boss_execution_catalog.gd")
 const GrabProfileScript = preload("res://scripts/combat/data/grab_profile.gd")
 const GrabPairedDirectorScript = preload("res://scripts/combat/grab_paired_director.gd")
+const RangedAmbushBehavior = preload("res://scripts/enemy/ranged_ambush_behavior.gd")
+const EnemyProjectileScene = preload("res://scenes/actors/enemy_projectile.tscn")
+const HealingPunishCatalog = preload("res://scripts/boss/healing_punish_catalog.gd")
+const EnemyHealReact = preload("res://scripts/enemy/heal_react.gd")
+const BossMacroControllerScript = preload("res://scripts/boss/boss_macro_controller.gd")
+const EnemyAiCatalog = preload("res://scripts/data/enemy_ai_catalog.gd")
+const PoiseResolverScript = preload("res://scripts/combat/poise_resolver.gd")
+const EnemyBehaviorRegistry = preload("res://scripts/enemy/enemy_behavior_registry.gd")
+const EnemyTuningData = preload("res://scripts/data/enemy_tuning.gd")
+const EnemyAttackCatalog = preload("res://scripts/data/enemy_attack_catalog.gd")
+const BossAttackExecutorScript = preload("res://scripts/boss/boss_attack_executor.gd")
 const AI_DECISION_INTERVAL := 0.1
 const WEAK_POINT_EXPOSE_DEFAULT := 3.2
 const GRAB_CHANCE := 0.22
@@ -97,12 +110,31 @@ var _phase := 1
 var _phase_transition_played := false
 var _phase_two_played := false
 var _heal_speed_id := 0
+## Boss 治疗惩罚 Profile（数据驱动，可章节覆盖）
+var _heal_punish_profile = null
+## 治疗惩罚冷却剩余秒
+var _heal_punish_cooldown := 0.0
+## 当前治疗惩罚变体名（gap_close / ranged_snipe / aoe_burst）
+var _active_heal_punish_variant: StringName = &""
+## AoE burst 半径；>0 时 ACTIVE 帧结算径向伤害
+var _heal_punish_aoe_radius := 0.0
+## G-01：Boss 宏决策控制器（兼容 BT；微执行仍走本 FSM）
+var _macro_ai = null
 const PHASE_TWO_THRESHOLD := 0.5
 const PHASE_THREE_THRESHOLD := 0.25
 # 内容驱动阶段：threshold<0 表示用默认常量；attacks 按阶段索引
 var _content_phase_two_threshold := -1.0
 var _content_phase_three_threshold := -1.0
 var _content_phase_attacks: Dictionary = {}
+## G-05：behavior 模块（巡逻/守点/伏击等）
+var _behavior_module: RefCounted = null
+var _behavior_id := ""
+## G-06：当前招式 dict + type 执行器
+var _active_attack_profile: Dictionary = {}
+var _boss_attack_executor = null
+## G-08：当前 AttackData（无则走 dict 回退）
+var _current_attack_data: AttackData = null
+var _content_phase_four_threshold := -1.0
 var attack_windup := 0.55
 var attack_active := 0.18
 var attack_recovery := 0.70
@@ -152,10 +184,18 @@ func setup(world, target, audio, spawn_position, is_guardian = false, new_type: 
 	if guardian and boss_break_profile == null:
 		content_id = "boss_giant_gate" if content_id.is_empty() else content_id
 		_setup_boss_break_profile()
+	# G-01：仅 Boss/守护者挂载宏决策层
+	if guardian:
+		_ensure_macro_ai()
+	else:
+		_macro_ai = null
 	if is_inside_tree():
 		_ensure_nodes()
 		_apply_tuning()
 		reset_enemy()
+	else:
+		# SceneTree._init 阶段 is_inside_tree 可能仍为 false；先灌数值，入树 _ready 再完整初始化
+		_apply_tuning()
 
 
 ## 用章节内容字典配置敌人（数值 + 外观）
@@ -164,9 +204,22 @@ func setup_from_content(world, target, audio, spawn_position, content: Dictionar
 	content_id = String(content.get("id", ""))
 	_attack_profile = Dictionary(content.get("attack", {}))
 	_parse_boss_phases(content)
-	setup(world, target, audio, spawn_position, is_guardian, EnemyType.HOLLOW_SENTINEL)
+	# G-03：按 archetype / behavior 映射远程伏击原型
+	var content_type := _content_enemy_type(content)
+	setup(world, target, audio, spawn_position, is_guardian, content_type)
 	if is_guardian:
 		_setup_boss_break_profile()
+		# G-02：加载治疗惩罚 Profile（支持 healing_punish 覆盖）
+		_heal_punish_profile = HealingPunishCatalog.profile_for(content_id, chapter_content)
+
+
+## 章节字典 → EnemyType（默认近战哨兵）
+func _content_enemy_type(content: Dictionary) -> EnemyType:
+	var archetype := String(content.get("archetype", "")).to_lower()
+	var behavior := String(content.get("behavior", "")).to_lower()
+	if archetype == "ember_skirmisher" or behavior == "ranged_ambush" or behavior == "ranged_artillery":
+		return EnemyType.EMBER_SKIRMISHER
+	return EnemyType.HOLLOW_SENTINEL
 
 
 func _setup_boss_break_profile() -> void:
@@ -185,6 +238,7 @@ func _parse_boss_phases(content: Dictionary) -> void:
 	# 解析 ChapterContent.boss().phases 为阈值与招式表
 	_content_phase_two_threshold = -1.0
 	_content_phase_three_threshold = -1.0
+	_content_phase_four_threshold = -1.0
 	_content_phase_attacks.clear()
 	var phases = content.get("phases", {})
 	if not phases is Dictionary or phases.is_empty():
@@ -200,6 +254,8 @@ func _parse_boss_phases(content: Dictionary) -> void:
 			_content_phase_two_threshold = threshold
 		elif phase_num == 3 and threshold >= 0.0:
 			_content_phase_three_threshold = threshold
+		elif phase_num == 4 and threshold >= 0.0:
+			_content_phase_four_threshold = threshold
 
 
 func _ready() -> void:
@@ -237,6 +293,9 @@ func _physics_process(delta: float) -> void:
 		poise_reset_time -= delta
 		if poise_reset_time <= 0.0:
 			poise = 0.0
+	# 治疗惩罚冷却递减
+	if _heal_punish_cooldown > 0.0:
+		_heal_punish_cooldown = maxf(_heal_punish_cooldown - delta, 0.0)
 	state_time = maxf(state_time - delta, 0.0)
 	if _execution_claim_time > 0.0:
 		_execution_claim_time = maxf(_execution_claim_time - delta, 0.0)
@@ -274,6 +333,9 @@ func reset_enemy() -> void:
 	_phase_transition_played = false
 	_phase_two_played = false
 	_heal_speed_id += 1  # invalidate any pending heal-speed timer
+	_heal_punish_cooldown = 0.0
+	_active_heal_punish_variant = &""
+	_heal_punish_aoe_radius = 0.0
 	_story_resolution = false
 	navigation_refresh = 0.0
 	_cached_has_target = false
@@ -292,16 +354,21 @@ func reset_enemy() -> void:
 	_set_visual_palette()
 	set_physics_process(true)
 	health_changed.emit(health, max_health)
+	# G-01：重置宏层意图为巡逻
+	if guardian:
+		_ensure_macro_ai()
+		_macro_ai.reset()
+		_tick_macro_decision()
 
 
 func receive_hit(damage, stagger, hit_direction, source) -> void:
+	# G-07：薄适配器；execution_break 由 AttackData payload 权威提供，不硬编码
 	receive_hit_payload({
 		"damage": damage,
 		"stagger": stagger,
 		"poise": stagger,
 		"direction": hit_direction,
 		"source": source,
-		"execution_break_damage": maxf(float(stagger), 0.0) * 0.35,
 		"tags": [],
 		"blockable": true,
 		"parryable": true,
@@ -335,7 +402,18 @@ func receive_hit_payload(payload: Dictionary) -> void:
 		navigation_refresh = 0.0
 	_set_engaged(true)
 	_apply_execution_break_from_payload(payload)
-	poise += incoming_stagger
+	# E-01：与玩家共用 PoiseResolver；外部仍用累加字段 poise（0→limit）以兼容重置契约
+	var remaining := maxf(poise_limit - poise, 0.0)
+	var wam := _enemy_wam_for_state()
+	var poise_result: Dictionary = PoiseResolverScript.resolve(
+		remaining,
+		poise_limit,
+		wam,
+		0.0,
+		incoming_stagger
+	)
+	var settled := maxf(float(poise_result.get("settled_poise", 0.0)), 0.0)
+	poise = clampf(poise_limit - settled, 0.0, poise_limit)
 	poise_reset_time = 1.6
 	var direction := Vector3.ZERO
 	var hit_direction = payload.get("direction", Vector3.ZERO)
@@ -346,16 +424,17 @@ func receive_hit_payload(payload: Dictionary) -> void:
 		knockback_velocity = direction.normalized() * (1.8 if guardian else 3.0)
 	if state == State.WEAK_POINT_EXPOSED:
 		return
+	var broken := not bool(poise_result.get("holds", true))
 	if (
-		not guardian
+		broken
+		and not guardian
 		and supports_riposte
-		and poise >= poise_limit
 		and guard_power >= HEAVY_GUARD_BREAK_POWER
 	):
 		poise = 0.0
 		_change_state(State.GUARD_BROKEN, GUARD_BROKEN_SECONDS)
 		return
-	if poise >= poise_limit:
+	if broken:
 		poise = 0.0
 		_change_state(State.STAGGER, stagger_duration)
 
@@ -400,6 +479,22 @@ func receive_parry(source: Node = null) -> void:
 		_change_state(State.STAGGER, 1.05 if guardian else 1.35)
 	else:
 		_change_state(State.PARRY_VULNERABLE, PARRY_VULN_SECONDS)
+
+
+## E-02：攻击相位 WAM（重击 active 有护甲；无 AttackData 时重装默认）
+func _enemy_wam_for_state() -> float:
+	if _current_attack_data != null:
+		match state:
+			State.WINDUP:
+				return _current_attack_data.poise_modifier_for_phase(&"windup")
+			State.ACTIVE:
+				return _current_attack_data.poise_modifier_for_phase(&"active")
+			State.RECOVERY:
+				return _current_attack_data.poise_modifier_for_phase(&"recovery")
+	# 无 AttackData 时：ACTIVE 给轻量霸体（兼容旧路径）
+	if state == State.ACTIVE and bool(_active_attack_profile.get("heavy", false)):
+		return 0.85
+	return 0.0
 
 
 func is_execution_candidate(kind: StringName) -> bool:
@@ -489,26 +584,74 @@ func _release_execution_claim() -> void:
 
 
 func on_player_healing() -> void:
+	# 玩家开奶：Boss 走数据驱动 punish 变体；小怪短时加速追击
 	if state == State.DEAD or not is_instance_valid(target_node):
+		return
+	if state in [State.WEAK_POINT_EXPOSED, State.GRAB_ACTIVE, State.GRAB_WINDUP]:
 		return
 	if not engaged:
 		_set_engaged(true)
 		_change_state(State.CHASE)
 		_refresh_decision_cache()
-	if guardian and _cached_distance_to_target > 3.0:
-		attack_index += 1
-		_apply_long_range_attack()
-		_change_state(State.WINDUP, attack_windup * 0.7)
-	elif not guardian:
-		var original_speed := move_speed
-		move_speed *= 1.5
-		_heal_speed_id += 1
-		var current_id := _heal_speed_id
-		var restore_timer := get_tree().create_timer(1.8)
-		restore_timer.timeout.connect(func():
-			if is_instance_valid(self) and _heal_speed_id == current_id:
-				move_speed = original_speed
-		)
+	else:
+		_refresh_decision_cache()
+	if guardian:
+		# G-01：先写黑板开奶标志，宏层发 heal_punish 意图后再微执行
+		_ensure_macro_ai()
+		_macro_ai.set_player_healing(true)
+		_tick_macro_decision()
+		_try_boss_heal_punish()
+		_macro_ai.set_player_healing(false)
+	else:
+		_heal_speed_id = EnemyHealReact.apply_chase_boost(self, _heal_speed_id)
+
+
+## Boss 治疗惩罚：按距离/阶段选 gap_close / ranged_snipe / aoe_burst
+func _try_boss_heal_punish() -> void:
+	if _heal_punish_cooldown > 0.0:
+		return
+	if _heal_punish_profile == null:
+		_heal_punish_profile = HealingPunishCatalog.profile_for(content_id, chapter_content)
+	var resolved: Dictionary = HealingPunishCatalog.resolve(
+		_heal_punish_profile,
+		_cached_distance_to_target,
+		_current_phase()
+	)
+	attack_index += 1
+	attack_is_low_sweep = false
+	attack_windup = float(resolved.get("windup", 0.5))
+	attack_active = float(resolved.get("active", 0.2))
+	attack_recovery = float(resolved.get("recovery", 0.7))
+	attack_damage = float(resolved.get("damage", 28.0))
+	attack_stagger = float(resolved.get("stagger", 34.0))
+	attack_lunge = float(resolved.get("lunge", 0.0))
+	attack_heavy = bool(resolved.get("heavy", true))
+	_active_heal_punish_variant = StringName(String(resolved.get("variant", "gap_close")))
+	_heal_punish_aoe_radius = float(resolved.get("aoe_radius", 0.0))
+	_heal_punish_cooldown = float(_heal_punish_profile.cooldown_sec)
+	var scale := float(resolved.get("windup_scale", 0.7))
+	if telegraph_material != null:
+		telegraph_material.albedo_color = Color(1.0, 0.22, 0.04, 0.62) if attack_heavy else Color(1.0, 0.08, 0.04, 0.56)
+		telegraph_material.emission = Color(1.0, 0.12, 0.02) if attack_heavy else Color(1.0, 0.02, 0.01)
+	_change_state(State.WINDUP, attack_windup * scale)
+
+
+## 治疗 AoE burst：对半径内目标瞬时结算
+func _apply_heal_punish_aoe() -> void:
+	var radius := _heal_punish_aoe_radius
+	_heal_punish_aoe_radius = 0.0
+	if radius <= 0.0 or world_node == null or not world_node.has_method("get_target_candidates"):
+		return
+	for candidate in world_node.get_target_candidates():
+		if candidate is Node3D and _horizontal_distance(global_position, candidate.global_position) <= radius:
+			if candidate.has_method("receive_hit"):
+				var dir: Vector3 = (candidate.global_position - global_position)
+				dir.y = 0.0
+				if dir.length_squared() < 0.0001:
+					dir = -global_transform.basis.z
+				else:
+					dir = dir.normalized()
+				candidate.receive_hit(attack_damage, attack_stagger, dir, self)
 
 
 func get_target_point() -> Vector3:
@@ -531,7 +674,11 @@ func _update_state(delta: float) -> void:
 	var distance_to_target := _cached_distance_to_target
 	match state:
 		State.IDLE:
-			_slow_horizontal(delta, acceleration)
+			# G-05：behavior 模块驱动 IDLE（巡逻/守点等）
+			if _behavior_module != null and _behavior_module.has_method("update_idle"):
+				_behavior_module.update_idle(self, delta)
+			else:
+				_slow_horizontal(delta, acceleration)
 			if (
 				has_target
 				and not _target_is_in_sanctuary()
@@ -549,6 +696,12 @@ func _update_state(delta: float) -> void:
 			):
 				_set_engaged(false)
 				_change_state(State.RETURN)
+			elif enemy_type == EnemyType.EMBER_SKIRMISHER:
+				# G-03：保持射程、过近后撤、到位射击
+				_update_ranged_ambush_chase(target_position, distance_to_target, delta)
+			elif _behavior_module != null and _behavior_module.has_method("desired_chase_velocity"):
+				# G-05：游走/侧翼距离带
+				_update_skirmish_chase(target_position, distance_to_target, delta)
 			elif distance_to_target <= attack_range and absf(target_position.y - global_position.y) < 2.5:
 				_start_attack()
 			else:
@@ -561,8 +714,13 @@ func _update_state(delta: float) -> void:
 				_change_state(State.ACTIVE, attack_active)
 		State.ACTIVE:
 			var forward := -global_transform.basis.z
-			velocity.x = forward.x * attack_lunge
-			velocity.z = forward.z * attack_lunge
+			# 远程：射击时轻微后撤；近战：前冲 lunge
+			var lunge_sign := -0.55 if enemy_type == EnemyType.EMBER_SKIRMISHER else 1.0
+			velocity.x = forward.x * attack_lunge * lunge_sign
+			velocity.z = forward.z * attack_lunge * lunge_sign
+			# G-05：危害/特殊 ACTIVE 钩子
+			if _behavior_module != null and _behavior_module.has_method("on_attack_active"):
+				_behavior_module.on_attack_active(self, target_node)
 			if state_time <= 0.0:
 				_change_state(State.RECOVERY, attack_recovery)
 		State.RECOVERY:
@@ -651,6 +809,72 @@ func _chase_target(target_position: Vector3, delta: float) -> void:
 		_face_direction(direction, delta * 8.0)
 
 
+## G-03：远程伏击追击——到位开火，过近后撤
+func _update_ranged_ambush_chase(target_position: Vector3, distance_to_target: float, delta: float) -> void:
+	var preferred := RangedAmbushBehavior.preferred_distance(chapter_content)
+	var retreat_at := RangedAmbushBehavior.retreat_trigger(chapter_content)
+	if (
+		RangedAmbushBehavior.should_fire(distance_to_target, attack_range, retreat_at)
+		and absf(target_position.y - global_position.y) < 3.5
+	):
+		_start_attack()
+		return
+	var desired := RangedAmbushBehavior.desired_horizontal_velocity(
+		global_position, target_position, move_speed, preferred, retreat_at
+	)
+	velocity.x = move_toward(velocity.x, desired.x, acceleration * delta)
+	velocity.z = move_toward(velocity.z, desired.z, acceleration * delta)
+	var face := target_position - global_position
+	face.y = 0.0
+	if face.length_squared() > 0.001:
+		_face_direction(face.normalized(), delta * 8.0)
+
+
+## G-05：游走族追击（理想距离带 + 侧向）
+func _update_skirmish_chase(target_position: Vector3, distance_to_target: float, delta: float) -> void:
+	if distance_to_target <= attack_range and absf(target_position.y - global_position.y) < 2.5:
+		_start_attack()
+		return
+	var desired: Vector3 = _behavior_module.desired_chase_velocity(global_position, target_position, move_speed)
+	velocity.x = move_toward(velocity.x, desired.x, acceleration * delta)
+	velocity.z = move_toward(velocity.z, desired.z, acceleration * delta)
+	var face := target_position - global_position
+	face.y = 0.0
+	if face.length_squared() > 0.001:
+		_face_direction(face.normalized(), delta * 8.0)
+
+
+## G-03：生成朝向目标的敌人投射物
+func _spawn_enemy_projectile() -> void:
+	if not is_inside_tree():
+		return
+	var aim := _cached_target_position - global_position
+	aim.y = 0.0
+	if aim.length_squared() < 0.001:
+		aim = -global_transform.basis.z
+	else:
+		aim = aim.normalized()
+	# 略抬仰角，避免贴地扫掠漏检
+	aim = (aim + Vector3.UP * 0.08).normalized()
+	var projectile = EnemyProjectileScene.instantiate()
+	var spawn_pos := global_position + Vector3(0.0, 1.15, 0.0) + aim * 0.55
+	var parent_node: Node = world_node if world_node != null else get_tree().current_scene
+	if parent_node == null:
+		parent_node = self
+	parent_node.add_child(projectile)
+	projectile.global_position = spawn_pos
+	projectile.setup(self, aim, attack_damage, attack_stagger, {
+		"proj_speed": float(chapter_content.get("proj_speed", 11.5)),
+		"proj_lifetime": float(chapter_content.get("proj_lifetime", 2.6)),
+		"action_id": "ember_shade_bolt",
+		"tags": ["projectile", "enemy", "ranged"],
+		"blockable": true,
+		"parryable": false,
+		"guard_damage": attack_damage + attack_stagger * 0.2,
+	})
+	_play_audio("swing", -8.0, 1.15)
+
+
 func _refresh_decision_cache() -> void:
 	navigation_refresh = AI_DECISION_INTERVAL
 	_cached_has_target = _has_valid_target()
@@ -658,11 +882,17 @@ func _refresh_decision_cache() -> void:
 		_cached_target_position = global_position
 		_cached_distance_to_target = INF
 		_cached_chase_direction = Vector3.ZERO
+		# G-01：无目标时仍刷新宏意图（脱战/巡逻）
+		if guardian:
+			_tick_macro_decision()
 		return
 	_cached_target_position = _get_target_position()
 	_cached_distance_to_target = _horizontal_distance(global_position, _cached_target_position)
 	navigation_agent.target_position = _cached_target_position
 	_cached_chase_direction = _safe_navigation_direction(_cached_target_position)
+	# G-01：Boss 宏观决策 tick（意图写黑板；FSM 继续微执行）
+	if guardian:
+		_tick_macro_decision()
 
 
 func _safe_navigation_direction(target_position: Vector3) -> Vector3:
@@ -798,7 +1028,8 @@ func enter_story_resolution() -> void:
 	velocity = Vector3.ZERO
 	knockback_velocity = Vector3.ZERO
 	_set_engaged(false)
-	_change_state(State.IDLE, 0.0)
+	# 剧情冻结强制回 IDLE，绕过常规转移表
+	_change_state(State.IDLE, 0.0, true)
 	story_resolution_entered.emit(self)
 
 
@@ -809,28 +1040,29 @@ func is_in_story_resolution() -> bool:
 func _select_attack_profile() -> void:
 	var distance_to_target := _cached_distance_to_target
 	attack_is_low_sweep = false
-	if enemy_type == EnemyType.ASH_STALKER:
-		attack_index += 1
-		attack_windup = 0.22
-		attack_active = 0.10
-		attack_recovery = 0.18
-		attack_damage = 8.0
-		attack_stagger = 8.0
-		attack_lunge = 0.8
+	_current_attack_data = null
+	if enemy_type == EnemyType.EMBER_SKIRMISHER:
+		# G-03：远程弹道；章节 dict 优先，否则原型 AttackData
+		if not _attack_profile.is_empty():
+			_resolve_attack_data_or_dict(_attack_profile, &"content_skirmisher")
+		else:
+			_apply_attack_data(EnemyAttackCatalog.resolve_prototype("ember_skirmisher"))
 		attack_heavy = false
+		attack_is_low_sweep = false
+	elif enemy_type == EnemyType.ASH_STALKER:
+		attack_index += 1
+		_apply_attack_data(EnemyAttackCatalog.resolve_prototype("ash_stalker"))
 		attack_is_low_sweep = true  # 潜行低扫，可被跳跃豁免
 	elif not guardian:
-		attack_windup = 0.55
-		attack_active = 0.18
-		attack_recovery = 0.70
-		attack_damage = 16.0
-		attack_stagger = 22.0
-		attack_lunge = 1.4
-		attack_heavy = false
+		# 章节普攻 dict → AttackData；无则哨兵原型
+		if not _attack_profile.is_empty():
+			_resolve_attack_data_or_dict(_attack_profile, &"content_melee")
+		else:
+			_apply_attack_data(EnemyAttackCatalog.resolve_prototype("hollow_sentinel"))
 		attack_is_low_sweep = distance_to_target <= attack_range * 0.85
 	else:
 		attack_index += 1
-		# 优先消费章节 Boss 招式表
+		# 优先消费章节 Boss 招式表（G-06 type 依赖 dict）
 		if not _content_phase_attacks.is_empty():
 			_apply_content_phase_attack()
 		elif distance_to_target < 2.0:
@@ -846,6 +1078,22 @@ func _select_attack_profile() -> void:
 	telegraph_material.emission = Color(1.0, 0.12, 0.02) if attack_heavy else Color(1.0, 0.02, 0.01)
 
 
+## G-08：写入 AttackData 并缓存引用
+func _apply_attack_data(attack: AttackData) -> void:
+	_current_attack_data = attack
+	EnemyAttackCatalog.apply_to_enemy(self, attack)
+
+
+## G-08：能建合法 AttackData 则用之，否则 dict 回退
+func _resolve_attack_data_or_dict(profile: Dictionary, action_id: StringName) -> void:
+	var attack := EnemyAttackCatalog.try_from_profile_dict(profile, action_id)
+	if attack != null:
+		_apply_attack_data(attack)
+		return
+	_current_attack_data = null
+	EnemyTuningData.apply_attack_profile(self, profile)
+
+
 func _phase_two_cut() -> float:
 	return _content_phase_two_threshold if _content_phase_two_threshold >= 0.0 else PHASE_TWO_THRESHOLD
 
@@ -858,6 +1106,9 @@ func _phase_three_cut() -> float:
 
 
 func _current_phase() -> int:
+	# G-06：支持第 4 相（烛阴结局阈值）
+	if _content_phase_four_threshold >= 0.0 and get_health_ratio() <= _content_phase_four_threshold:
+		return 4
 	var three_cut := _phase_three_cut()
 	if three_cut >= 0.0 and get_health_ratio() <= three_cut:
 		return 3
@@ -867,92 +1118,68 @@ func _current_phase() -> int:
 
 
 func _apply_content_phase_attack() -> void:
-	# 按当前阶段循环 ChapterContent 招式
+	# 按当前阶段循环 ChapterContent 招式（保留 type 供 G-06 执行）
 	var phase := _current_phase()
 	var attacks: Array = _content_phase_attacks.get(phase, [])
 	if attacks.is_empty():
 		attacks = _content_phase_attacks.get(1, [])
 	if attacks.is_empty():
 		_apply_mid_range_attack()
+		_active_attack_profile.clear()
 		return
 	var profile: Dictionary = attacks[(attack_index - 1) % attacks.size()]
-	attack_windup = float(profile.get("windup", 0.6))
-	attack_active = float(profile.get("active", 0.2))
-	attack_recovery = float(profile.get("recovery", 0.7))
-	attack_damage = float(profile.get("damage", 20.0))
-	attack_stagger = float(profile.get("stagger", 24.0))
-	attack_lunge = float(profile.get("lunge", 1.4))
-	attack_heavy = bool(profile.get("heavy", false))
+	# G-06：dict 始终保留（cone_aoe / multi_hit 等 type 钩子）
+	_active_attack_profile = profile.duplicate(true)
+	var action_id := StringName(String(profile.get("name", "boss_phase_attack")))
+	# G-08：合法招式走 AttackData；active=0 等特殊招走 dict
+	_resolve_attack_data_or_dict(profile, action_id)
+
+
+## G-06：确保招式执行器
+func _ensure_boss_attack_executor() -> void:
+	if _boss_attack_executor == null:
+		_boss_attack_executor = BossAttackExecutorScript.new()
+
+
+## G-06：在 ACTIVE/RECOVERY 钩子跑 type
+func _run_boss_attack_hook(phase_name: String) -> void:
+	if _active_attack_profile.is_empty():
+		return
+	if String(_active_attack_profile.get("type", "")).is_empty():
+		return
+	_ensure_boss_attack_executor()
+	if phase_name == "active":
+		_boss_attack_executor.execute_active(self, target_node, _active_attack_profile)
+	elif phase_name == "recovery":
+		_boss_attack_executor.execute_recovery(self, target_node, _active_attack_profile)
 
 
 func _apply_close_range_attack() -> void:
+	# G-08：近距表走 AttackData 目录（数值同 EnemyTuningData）
 	var phase := _current_phase()
-	attack_heavy = false
-	if phase >= 2 and attack_index % 3 == 0:
-		attack_heavy = true
-		if phase == 3:
-			attack_windup = 0.45; attack_active = 0.18; attack_recovery = 0.40
-			attack_damage = 28.0; attack_stagger = 34.0; attack_lunge = 1.5
-		else:
-			attack_windup = 0.55; attack_active = 0.20; attack_recovery = 0.48
-			attack_damage = 24.0; attack_stagger = 28.0; attack_lunge = 1.3
-		return
-	if phase == 3:
-		attack_windup = 0.32; attack_active = 0.12; attack_recovery = 0.34
-		attack_damage = 26.0; attack_stagger = 30.0; attack_lunge = 1.4
-	elif phase == 2:
-		attack_windup = 0.38; attack_active = 0.14; attack_recovery = 0.40
-		attack_damage = 22.0; attack_stagger = 26.0; attack_lunge = 1.3
-	else:
-		attack_windup = 0.48; attack_active = 0.16; attack_recovery = 0.52
-		attack_damage = 18.0; attack_stagger = 22.0; attack_lunge = 1.1
+	var heavy := phase >= 2 and attack_index % 3 == 0
+	_apply_attack_data(EnemyAttackCatalog.resolve_guardian(&"close", phase, heavy))
 
 
 func _apply_mid_range_attack() -> void:
 	var phase := _current_phase()
-	attack_heavy = attack_index % 2 == 1
-	if attack_heavy:
-		if phase == 3:
-			attack_windup = 0.78; attack_active = 0.26; attack_recovery = 0.68
-			attack_damage = 44.0; attack_stagger = 52.0; attack_lunge = 2.6
-		elif phase == 2:
-			attack_windup = 0.95; attack_active = 0.30; attack_recovery = 0.82
-			attack_damage = 38.0; attack_stagger = 46.0; attack_lunge = 2.4
-		else:
-			attack_windup = 1.18; attack_active = 0.34; attack_recovery = 1.08
-			attack_damage = 34.0; attack_stagger = 42.0; attack_lunge = 2.1
-	else:
-		if phase == 3:
-			attack_windup = 0.48; attack_active = 0.16; attack_recovery = 0.46
-			attack_damage = 32.0; attack_stagger = 40.0; attack_lunge = 2.1
-		elif phase == 2:
-			attack_windup = 0.58; attack_active = 0.18; attack_recovery = 0.56
-			attack_damage = 28.0; attack_stagger = 34.0; attack_lunge = 1.9
-		else:
-			attack_windup = 0.72; attack_active = 0.22; attack_recovery = 0.78
-			attack_damage = 24.0; attack_stagger = 30.0; attack_lunge = 1.65
+	var heavy := attack_index % 2 == 1
+	_apply_attack_data(EnemyAttackCatalog.resolve_guardian(&"mid", phase, heavy))
 
 
 func _apply_long_range_attack() -> void:
 	var phase := _current_phase()
-	attack_heavy = true
-	if phase == 3:
-		attack_windup = 0.88; attack_active = 0.38; attack_recovery = 0.78
-		attack_damage = 54.0; attack_stagger = 58.0; attack_lunge = 4.2
-	elif phase == 2:
-		attack_windup = 1.08; attack_active = 0.38; attack_recovery = 0.95
-		attack_damage = 46.0; attack_stagger = 52.0; attack_lunge = 3.8
-	else:
-		attack_windup = 1.35; attack_active = 0.38; attack_recovery = 1.25
-		attack_damage = 40.0; attack_stagger = 48.0; attack_lunge = 3.2
+	_apply_attack_data(EnemyAttackCatalog.resolve_guardian(&"long", phase, true))
 
 
 func _trigger_phase_transition() -> void:
 	var new_phase := _current_phase()
+	var phases_fired: Array[int] = []
 	# Use `if` (not `elif`) so both phases cascade when a single hit crosses two thresholds.
 	if new_phase >= 2 and not _phase_transition_played:
 		_phase_transition_played = true
 		_phase = 2
+		phases_fired.append(2)
 		# Phase 2: weapon ignites in fiery orange
 		weapon_material.albedo_color = Color(1.0, 0.35, 0.08)
 		weapon_material.emission_enabled = true
@@ -968,6 +1195,7 @@ func _trigger_phase_transition() -> void:
 	if new_phase >= 3 and not _phase_two_played:
 		_phase_two_played = true
 		_phase = 3
+		phases_fired.append(3)
 		# Phase 3: weapon burns white-hot, body glows with ember cracks
 		weapon_material.albedo_color = Color(1.0, 0.7, 0.3)
 		weapon_material.emission = Color(1.0, 0.5, 0.1)
@@ -987,9 +1215,62 @@ func _trigger_phase_transition() -> void:
 	if state in [State.CHASE, State.WINDUP, State.ACTIVE, State.RECOVERY]:
 		combat_area.end_swing()
 		_change_state(State.STAGGER, 0.6)
+	# G-04：通知抛光层（镜头 / 场地 VFX / 姿态混合）
+	for fired_phase in phases_fired:
+		phase_changed.emit(self, fired_phase)
 
 
-func _change_state(new_state: State, duration: float = 0.0) -> void:
+## I-06：FSM 转移合法性；同态允许刷新时长
+func can_transition_to(from_state: State, to_state: State) -> bool:
+	if from_state == to_state:
+		return true
+	# 死亡终态：仅 reset_enemy 直写 IDLE，禁止 _change_state 复活
+	if from_state == State.DEAD:
+		return false
+	# 受击/处决/死亡打断：任意存活态可进
+	if to_state in [
+		State.STAGGER,
+		State.PARRY_VULNERABLE,
+		State.GUARD_BROKEN,
+		State.WEAK_POINT_EXPOSED,
+		State.DEAD,
+	]:
+		return true
+	match from_state:
+		State.IDLE:
+			# 仇恨开战；治疗惩罚可从空闲直接前摇
+			return to_state in [State.CHASE, State.WINDUP]
+		State.CHASE:
+			return to_state in [State.RETURN, State.WINDUP, State.GRAB_WINDUP]
+		State.WINDUP:
+			return to_state == State.ACTIVE
+		State.ACTIVE:
+			return to_state == State.RECOVERY
+		State.RECOVERY:
+			# 收招回追/回家；Boss 开奶惩罚可插前摇
+			return to_state in [State.CHASE, State.RETURN, State.WINDUP]
+		State.STAGGER, State.PARRY_VULNERABLE, State.GUARD_BROKEN:
+			return to_state in [State.CHASE, State.RETURN, State.WINDUP]
+		State.WEAK_POINT_EXPOSED:
+			return to_state in [State.CHASE, State.RETURN]
+		State.GRAB_WINDUP:
+			return to_state in [State.GRAB_ACTIVE, State.GRAB_RECOVERY]
+		State.GRAB_ACTIVE:
+			return to_state == State.RECOVERY
+		State.GRAB_RECOVERY:
+			return to_state in [State.CHASE, State.RETURN]
+		State.RETURN:
+			# 到家回 IDLE；治疗反应可重新开战
+			return to_state in [State.IDLE, State.CHASE, State.WINDUP]
+		_:
+			return false
+
+
+## force：剧情冻结等绕过合法性（reset 仍直写 state）
+func _change_state(new_state: State, duration: float = 0.0, force: bool = false) -> void:
+	# 非法转移拒绝，保持原态（I-06）
+	if not force and not can_transition_to(state, new_state):
+		return
 	if combat_area != null and state == State.ACTIVE and new_state != State.ACTIVE:
 		combat_area.end_swing()
 	state = new_state
@@ -1001,25 +1282,44 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 		State.WINDUP:
 			_play_audio("heavy" if attack_heavy else "swing", -6.0, 0.82 if guardian else 1.0)
 		State.ACTIVE:
-			var tags: Array = ["melee", "heavy" if attack_heavy else "light"]
-			if attack_is_low_sweep:
-				tags.append("low_sweep")
-			if combat_area != null:
-				combat_area.begin_swing(attack_damage, attack_stagger, {
-					"action_id": "enemy_low_sweep" if attack_is_low_sweep else "enemy_swing",
-					"tags": tags,
-					"blockable": true,
-					"parryable": true,
-					"guard_damage": attack_damage + attack_stagger * 0.25,
-				})
+			_run_boss_attack_hook("active")
+			if enemy_type == EnemyType.EMBER_SKIRMISHER:
+				# G-03：释放投射物，不走近战 CombatArea
+				_spawn_enemy_projectile()
+			elif _heal_punish_aoe_radius > 0.0 and _active_heal_punish_variant == &"aoe_burst":
+				# G-02：治疗 AoE burst 径向结算
+				_apply_heal_punish_aoe()
+				_play_audio("heavy", -4.0, 0.7)
+			else:
+				var tags: Array = ["melee", "heavy" if attack_heavy else "light"]
+				if attack_is_low_sweep:
+					tags.append("low_sweep")
+				if combat_area != null:
+					combat_area.begin_swing(attack_damage, attack_stagger, {
+						"action_id": "enemy_low_sweep" if attack_is_low_sweep else "enemy_swing",
+						"tags": tags,
+						"blockable": true,
+						"parryable": true,
+						"guard_damage": attack_damage + attack_stagger * 0.25,
+					})
+		State.RECOVERY:
+			_run_boss_attack_hook("recovery")
 		State.STAGGER, State.PARRY_VULNERABLE, State.GUARD_BROKEN, State.WEAK_POINT_EXPOSED:
 			if combat_area != null:
 				combat_area.end_swing()
-		State.GRAB_WINDUP, State.GRAB_ACTIVE, State.GRAB_RECOVERY:
+		State.GRAB_WINDUP:
+			# 前摇需保持捕获区开启；勿调用 _end_grab
 			if combat_area != null:
 				combat_area.end_swing()
-			if state != State.GRAB_ACTIVE:
-				_end_grab()
+			if _grab_area != null:
+				_grab_area.monitoring = true
+		State.GRAB_ACTIVE:
+			if combat_area != null:
+				combat_area.end_swing()
+		State.GRAB_RECOVERY:
+			if combat_area != null:
+				combat_area.end_swing()
+			_end_grab()
 		State.DEAD:
 			if combat_area != null:
 				combat_area.end_swing()
@@ -1046,7 +1346,38 @@ func _set_engaged(value: bool) -> void:
 	if engaged == value:
 		return
 	engaged = value
+	# G-05：首次接敌触发伏击/特殊钩子
+	if engaged and _behavior_module != null and _behavior_module.has_method("on_engage"):
+		_behavior_module.on_engage(self, target_node)
 	engagement_changed.emit(self, guardian, engaged)
+
+
+## G-01：确保 Boss 宏决策控制器存在
+func _ensure_macro_ai() -> void:
+	if _macro_ai == null:
+		_macro_ai = BossMacroControllerScript.new()
+
+
+## G-01：同步黑板并刷新宏意图
+func _tick_macro_decision() -> void:
+	if not guardian:
+		return
+	_ensure_macro_ai()
+	_macro_ai.tick_from_enemy(self)
+
+
+## G-01：对外读取当前宏意图（合约 / 调试）
+func get_macro_intent() -> StringName:
+	if _macro_ai == null:
+		return &"patrol"
+	return _macro_ai.current_intent()
+
+
+## G-01：宏层选中的攻击标签（如 PHASE2_MID）
+func get_macro_selected_attack() -> String:
+	if _macro_ai == null or _macro_ai.blackboard == null:
+		return ""
+	return String(_macro_ai.blackboard.selected_attack)
 
 
 func _has_valid_target() -> bool:
@@ -1190,6 +1521,8 @@ func _legacy_type_key() -> String:
 		return "cinder_guardian"
 	if enemy_type == EnemyType.ASH_STALKER:
 		return "ash_stalker"
+	if enemy_type == EnemyType.EMBER_SKIRMISHER:
+		return "ember_skirmisher"
 	return "hollow_sentinel"
 
 
@@ -1207,6 +1540,11 @@ func _apply_palette_colors() -> void:
 		body_material.albedo_color = Color(0.18, 0.17, 0.19)
 		weapon_material.albedo_color = Color(0.38, 0.28, 0.22)
 		eye_material.emission = Color(1.0, 0.45, 0.08)
+	elif enemy_type == EnemyType.EMBER_SKIRMISHER:
+		# 紫红菱影：远程伏击标识色
+		body_material.albedo_color = Color(0.28, 0.12, 0.22)
+		weapon_material.albedo_color = Color(0.75, 0.28, 0.48)
+		eye_material.emission = Color(1.0, 0.35, 0.7)
 	else:
 		body_material.albedo_color = Color(0.22, 0.075, 0.065)
 		weapon_material.albedo_color = Color(0.28, 0.27, 0.29)
@@ -1224,90 +1562,79 @@ func _color_from_hex(hex: String) -> Color:
 
 
 func _apply_tuning() -> void:
+	_ensure_nodes()
 	if not chapter_content.is_empty():
 		_apply_content_tuning()
 		return
+	# 无 content：走 EnemyTuningData 原型表
+	var key := "hollow_sentinel"
 	if guardian:
-		max_health = 260.0
-		move_speed = 3.0
-		acceleration = 12.0
-		aggro_range = 17.0
-		disengage_range = 26.0
-		leash_range = 30.0
-		attack_range = 2.65
-		reward = 220
-		poise_limit = 68.0
-		stagger_duration = 0.42
-		body_shape.radius = 0.58
-		body_shape.height = 2.25
-		body_collision.position.y = 1.12
-		navigation_agent.radius = 0.62
-		navigation_agent.height = 2.3
+		key = "cinder_guardian"
 	elif enemy_type == EnemyType.ASH_STALKER:
-		max_health = 45.0
-		move_speed = 6.0
-		acceleration = 18.0
-		aggro_range = 10.0
-		disengage_range = 17.0
-		leash_range = 14.0
-		attack_range = 1.6
-		reward = 25
-		poise_limit = 12.0
-		stagger_duration = 0.55
-		body_shape.radius = 0.36
-		body_shape.height = 1.6
-		body_collision.position.y = 0.8
-		navigation_agent.radius = 0.40
-		navigation_agent.height = 1.65
-	else:
-		max_health = 80.0
-		move_speed = 3.6
-		acceleration = 15.0
-		aggro_range = 13.0
-		disengage_range = 20.0
-		leash_range = 17.0
-		attack_range = 2.15
-		reward = 35
-		poise_limit = 24.0
-		stagger_duration = 0.48
-		body_shape.radius = 0.45
-		body_shape.height = 1.9
-		body_collision.position.y = 0.95
-		navigation_agent.radius = 0.48
-		navigation_agent.height = 1.9
+		key = "ash_stalker"
+	elif enemy_type == EnemyType.EMBER_SKIRMISHER:
+		key = "ember_skirmisher"
+	var row: Dictionary = EnemyTuningData.TYPE_TUNING.get(key, EnemyTuningData.TYPE_TUNING["hollow_sentinel"])
+	max_health = float(row["max_health"])
+	move_speed = float(row["move_speed"])
+	acceleration = float(row["acceleration"])
+	aggro_range = float(row["aggro_range"])
+	disengage_range = float(row["disengage_range"])
+	leash_range = float(row["leash_range"])
+	attack_range = float(row["attack_range"])
+	reward = int(row["reward"])
+	poise_limit = float(row["poise_limit"])
+	stagger_duration = float(row["stagger_duration"])
+	_apply_body_nav_sizes(
+		float(row["body_radius"]), float(row["body_height"]), float(row["body_y"]),
+		float(row["nav_radius"]), float(row["nav_height"])
+	)
+
+
+## 安全写入碰撞体与导航尺寸（节点未就绪时跳过）
+func _apply_body_nav_sizes(radius: float, height: float, body_y: float, nav_r: float, nav_h: float) -> void:
+	if body_shape != null:
+		body_shape.radius = radius
+		body_shape.height = height
+	if body_collision != null:
+		body_collision.position.y = body_y
+	if navigation_agent != null:
+		navigation_agent.radius = nav_r
+		navigation_agent.height = nav_h
 
 
 func _apply_content_tuning() -> void:
-	# 从章节内容字典灌入战斗数值
-	max_health = float(chapter_content.get("max_health", 80.0))
-	move_speed = float(chapter_content.get("move_speed", 3.6))
+	# 从章节内容字典灌入战斗数值（经 G-05 catalog 标准化）
+	var profile := EnemyAiCatalog.normalize(chapter_content)
+	chapter_content = profile
+	max_health = float(profile.get("max_health", 80.0))
+	move_speed = float(profile.get("move_speed", 3.6))
 	acceleration = 15.0
-	aggro_range = float(chapter_content.get("aggro_range", 13.0))
-	disengage_range = float(chapter_content.get("disengage_range", 20.0))
-	leash_range = float(chapter_content.get("leash_range", 17.0))
-	attack_range = float(chapter_content.get("attack_range", 2.15))
-	reward = int(chapter_content.get("reward", 35))
-	poise_limit = float(chapter_content.get("poise_limit", 24.0))
-	stagger_duration = float(chapter_content.get("stagger_duration", 0.48))
-	if guardian:
-		body_shape.radius = 0.58
-		body_shape.height = 2.25
-		body_collision.position.y = 1.12
-		navigation_agent.radius = 0.62
-		navigation_agent.height = 2.3
-	else:
-		body_shape.radius = 0.42
-		body_shape.height = 1.85
-		body_collision.position.y = 0.92
-		navigation_agent.radius = 0.46
-		navigation_agent.height = 1.85
+	aggro_range = float(profile.get("aggro_range", 13.0))
+	disengage_range = float(profile.get("disengage_range", 20.0))
+	leash_range = float(profile.get("leash_range", 17.0))
+	attack_range = float(profile.get("attack_range", 2.15))
+	reward = int(profile.get("reward", 35))
+	poise_limit = float(profile.get("poise_limit", 24.0))
+	stagger_duration = float(profile.get("stagger_duration", 0.48))
+	_apply_body_nav_sizes(
+		float(profile.get("body_radius", 0.45)),
+		float(profile.get("body_height", 1.9)),
+		float(profile.get("body_y", 0.95)),
+		float(profile.get("nav_radius", 0.48)),
+		float(profile.get("nav_height", 1.9))
+	)
+	if navigation_agent != null:
+		navigation_agent.path_desired_distance = float(profile.get("path_desired_distance", 0.35))
+		navigation_agent.target_desired_distance = float(profile.get("target_desired_distance", 1.5))
+	# G-05：挂接 behavior 模块并应用修饰
+	_behavior_id = String(profile.get("behavior", ""))
+	_behavior_module = EnemyBehaviorRegistry.create_module(_behavior_id)
+	if _behavior_module != null and _behavior_module.has_method("apply_profile_modifiers"):
+		_behavior_module.apply_profile_modifiers(self)
+	# G-08：章节 attack 块灌入 AttackData（非法则 dict 回退）
 	if not _attack_profile.is_empty():
-		attack_windup = float(_attack_profile.get("windup", attack_windup))
-		attack_active = float(_attack_profile.get("active", attack_active))
-		attack_recovery = float(_attack_profile.get("recovery", attack_recovery))
-		attack_damage = float(_attack_profile.get("damage", attack_damage))
-		attack_stagger = float(_attack_profile.get("stagger", attack_stagger))
-		attack_lunge = float(_attack_profile.get("lunge", attack_lunge))
+		_resolve_attack_data_or_dict(_attack_profile, StringName(content_id if not content_id.is_empty() else "content_attack"))
 
 
 func _play_audio(cue: String, volume_db: float, pitch: float) -> void:
@@ -1316,7 +1643,10 @@ func _play_audio(cue: String, volume_db: float, pitch: float) -> void:
 
 
 func _ensure_nodes() -> void:
+	# 已初始化但 shape 引用丢失时补绑
 	if navigation_agent != null:
+		if body_shape == null and body_collision != null and body_collision.shape is CapsuleShape3D:
+			body_shape = body_collision.shape
 		return
 	collision_layer = 4
 	collision_mask = 1

@@ -27,9 +27,9 @@ The world runs on **烬 (Embers)** — remnants of divine fire that once maintai
 ### 🚧 Current Implementation Boundary
 
 - **Designed:** complete five-chapter causality, 28-level content catalog, boss narratives, chapter choices, NPC routes, side quests, and four ending specifications.
-- **Present in code:** chapter/level IDs, topology links, a basic procedural campaign shell, 7 unique boss registry entries, **Boss Execution Break / weak-point executions**, **GrabPairedDirector**, **CombatCameraDirector**, and **FateChoiceOverlay** writing string `choice_flags` on story HP floors.
-- **Not yet playable:** quest state, NPC runtime, dialogue runner, full ending resolution matrix (hidden ending still task-gated), and chapter-wide quest/NPC migration.
-- Treat story documents as implementation specifications for remaining narrative systems; boss fate flags are now writable at runtime.
+- **Present in code:** chapter/level IDs, topology links, a basic procedural campaign shell, 7 unique boss registry entries, **Boss Execution Break / weak-point executions**, **GrabPairedDirector**, **CombatCameraDirector**, **FateChoiceOverlay** writing string `choice_flags`, plus **QuestState / DialogueRunner / EndingResolver** shrine vertical slice (`npc_cloud_wanderer`).
+- **Not yet playable:** chapter-wide quest/NPC migration beyond the shrine Cloud Wanderer vertical slice; hidden ending evidence chain still task-gated for full content.
+- Treat story documents as implementation specifications for remaining narrative systems; boss fate flags are writable; `QuestState` / `DialogueRunner` / `EndingResolver` 最小竖切已落地（见 `docs/audits/2026-07-31-soulslike-gap-analysis.md`）。
 
 ### 📕 Chapters (5 Fractured Regions)
 | Chapter | Name | Theme | File |
@@ -89,6 +89,7 @@ The world runs on **烬 (Embers)** — remnants of divine fire that once maintai
 | [research-godot-jump-collision.md](research-godot-jump-collision.md) | Godot 4.x jump, landing, slopes, stairs, projectile sweep, safe respawn, and collision-tunneling research |
 | [phone-compatibility.md](phone-compatibility.md) | Phone screen size testing results (Chrome DevTools) |
 | [audit-docs-codebase-health.md](audit-docs-codebase-health.md) | Full doc + codebase health assessment |
+| [audits/2026-07-31-soulslike-gap-analysis.md](audits/2026-07-31-soulslike-gap-analysis.md) | **Soulslike gap authority** — 审查纠偏、P0–P2 缺口、三期路线（Phase 1–3 竖切已标注） |
 | [project-structure.md](project-structure.md) | Repository layout, naming rules, safe-change procedures |
 | [devlog.md](devlog.md) | Chronological change log and resume order |
 | [tasks-master.md](tasks-master.md) | **Master task backlog** — dimensions A–J |

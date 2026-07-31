@@ -149,8 +149,8 @@ static func run(world: Node) -> void:
 		"direction": player.global_transform.basis.z, "source": null,
 		"blockable": true, "parryable": true,
 	})
-	if player.guard_active or player.state != 10:
-		push_error("Smoke test failed: real guard break did not stagger")
+	if player.guard_active or player.state != player.State.GUARD_BROKEN:
+		push_error("Smoke test failed: real guard break did not enter GUARD_BROKEN")
 		world.get_tree().quit(1)
 		return
 

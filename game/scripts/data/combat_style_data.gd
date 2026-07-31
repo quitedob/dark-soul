@@ -33,7 +33,7 @@ extends Resource
 @export var leap_lunge := 0.0
 @export var leap_velocity_y := 0.0
 @export_group("Defense")
-@export var has_hyper_armor := false
+## 兼容字段已废弃：动作护甲改由 AttackData 三阶段 WAM 拥有
 @export var wam_light := 0.0
 @export var wam_heavy := 0.0
 @export var wam_leap := 0.0

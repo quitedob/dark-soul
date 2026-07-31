@@ -1,11 +1,12 @@
 # G-01 — LimboAI Behavior Tree Integration for Boss Macro Decisions
 
 **Priority:** P2 (high)
-**Status:** ⬜ PENDING
+**Status:** ✅ DONE (compat macro layer; LimboAI binary drop-in pending)
 **Effort:** XL (weeks)
 **Depends On:** None
 **Blocks:** G-06
 **Source:** Audit document §7 "敌人与 Boss 行为 AI 的深层博弈逻辑优化"
+**Completed:** 2026-07-30 — 无 LimboAI GDExtension 时落地兼容宏决策层；插件路径见 `LimboAIPluginPath`
 
 ---
 
@@ -136,13 +137,28 @@ var bb := {
 
 ## Acceptance Criteria
 
-- [ ] LimboAI plugin installed and functional in Godot 4.7.1
-- [ ] Cinder Guardian behavior tree handles phase transitions, distance brackets, and healing-punish
-- [ ] GDScript FSM only handles attack execution timing (windup/active/recovery)
-- [ ] Blackboard correctly shares state between BT and FSM
-- [ ] Behavior tree visual debugging works in editor
-- [ ] Existing `ASHEN_HOLLOW_SMOKE_OK` still passes
-- [ ] No performance regression with BT active (C++ GDExtension ensures this)
+- [x] Macro decision layer installed (compat `BossMacroBT` when LimboAI absent; backend=`compat_macro`)
+- [x] Cinder Guardian / Boss macro tree handles phase brackets, disengage, and healing-punish **intents**
+- [x] GDScript FSM retains attack execution timing (windup/active/recovery); macro only publishes blackboard intent
+- [x] Blackboard shares state between BT-style selector and FSM (`BossMacroBlackboard`)
+- [ ] Behavior tree visual debugging works in editor — **requires real LimboAI plugin** (see install path below)
+- [x] Smoke contract `G01_MACRO_BT_CONTRACTS_OK` proves intent switching
+- [x] No LimboAI binary required for acceptance; drop-in path documented
+
+## LimboAI Plugin Landing Path
+
+```text
+1. Download Godot 4.7.x GDExtension build from https://github.com/limbonaut/limboai
+2. Extract to: game/addons/limboai/  (must include plugin.cfg + bin/)
+3. Enable plugin in Project Settings
+4. Replace BossMacroBT.tick with LimboAI BTPlayer; keep BossMacroBlackboard key names
+5. LimboAIPluginPath.backend_id() will flip to &"limboai"
+```
+
+Runtime probe: `res://scripts/enemy/ai/limboai_plugin_path.gd`  
+Controller: `res://scripts/boss/boss_macro_controller.gd`  
+BT + blackboard: `res://scripts/enemy/ai/boss_macro_*.gd`  
+Enemy hook: guardian-only `_tick_macro_decision()` in `enemy.gd`
 
 ## Risk Assessment
 

@@ -54,6 +54,22 @@ static func enemies() -> Array[Dictionary]:
 			"behavior": "slow_crusher",
 			"chapter": 1,
 		},
+		{
+			# G-03：第三原型——远程/伏击（投射物 + 后撤）
+			"id": "ember_shade_skirmisher",
+			"display_name": "Ember Shade Skirmisher / 烬影伏击者",
+			"max_health": 48.0, "move_speed": 4.6, "aggro_range": 13.0,
+			"disengage_range": 21.0, "leash_range": 15.0, "attack_range": 9.0,
+			"preferred_distance": 7.0, "retreat_trigger": 4.0,
+			"poise_limit": 12.0, "reward": 30, "stagger_duration": 0.55,
+			"attack": {"windup": 0.52, "active": 0.12, "recovery": 0.72, "damage": 11.0, "stagger": 9.0, "lunge": 0.85},
+			"body_color": "3a1830", "weapon_color": "cc4488", "eye_emission": "ff66aa",
+			"weapon_shape": "glass_shard", "body_type": "ethereal_flicker",
+			"behavior": "ranged_ambush",
+			"archetype": "ember_skirmisher",
+			"proj_speed": 11.5, "proj_lifetime": 2.6,
+			"chapter": 1,
+		},
 	]
 
 
@@ -63,8 +79,10 @@ static func elites() -> Array[Dictionary]:
 			"id": "elite_bronze_mirror_keeper",
 			"display_name": "Bronze Mirror Keeper / 铜镜守护者",
 			"max_health": 200.0, "move_speed": 3.5, "aggro_range": 15.0,
-			"attack_range": 2.5, "poise_limit": 48.0, "reward": 120,
+			"disengage_range": 22.0, "leash_range": 18.0, "attack_range": 2.5,
+			"poise_limit": 48.0, "reward": 120,
 			"special_ability": "mirror_reflect",
+			"behavior": "defensive_hold",
 			"appears_in": "level_01_03", "body_color": "5a4830",
 			"weapon_shape": "bronze_mirror_shield", "body_type": "armored_heavy",
 		},
@@ -72,8 +90,10 @@ static func elites() -> Array[Dictionary]:
 			"id": "elite_elixir_golem",
 			"display_name": "Elixir Golem / 丹药魔像",
 			"max_health": 240.0, "move_speed": 1.8, "aggro_range": 13.0,
-			"attack_range": 3.0, "poise_limit": 80.0, "reward": 150,
+			"disengage_range": 20.0, "leash_range": 16.0, "attack_range": 3.0,
+			"poise_limit": 80.0, "reward": 150,
 			"special_ability": "toxic_burst",
+			"behavior": "area_denial",
 			"appears_in": "level_01_04", "body_color": "2a5a30",
 			"weapon_shape": "stone_fist", "body_type": "massive_golem",
 		},
@@ -118,6 +138,11 @@ static func boss() -> Dictionary:
 			"hit": "stone_sparks",
 			"arena": "moonlight_through_collapsed_dome",
 			"ground_effect": "steam_vents",
+		},
+		# G-02：章节覆盖治疗惩罚偏好（近距 AoE 优先）
+		"healing_punish": {
+			"prefer_variants": ["aoe_burst", "gap_close", "ranged_snipe"],
+			"windup_scale": 0.55,
 		},
 	}
 

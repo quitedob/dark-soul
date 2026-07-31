@@ -72,6 +72,10 @@ Result: `ASHEN_HOLLOW_SMOKE_OK` when the smoke path is enabled.
 
 "E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
   --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/chapter2_slice_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
   --script tests/smoke/death_loop_contract_test.gd
 
 "E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
@@ -79,7 +83,37 @@ Result: `ASHEN_HOLLOW_SMOKE_OK` when the smoke path is enabled.
   --script tests/smoke/combat_contract_test.gd
 ```
 
-Expected prints include `ASHEN_CORE_CONTRACTS_OK`, `ASHEN_POISE_CONTRACTS_OK`, `ASHEN_CHAPTER1_SLICE_CONTRACTS_OK`, `ASHEN_DEATH_LOOP_CONTRACTS_OK`.
+Expected prints include `ASHEN_CORE_CONTRACTS_OK`, `ASHEN_POISE_CONTRACTS_OK`, `ASHEN_CHAPTER1_SLICE_CONTRACTS_OK`, `ASHEN_CHAPTER2_SLICE_CONTRACTS_OK`, `ASHEN_DEATH_LOOP_CONTRACTS_OK`.
+
+I-07 death loop covers ember drop, LostEcho spawn/recover, enemy `reset_enemy`, and checkpoint respawn (smoke + GUT `tests/unit/systems/test_death_loop.gd`).
+
+### Deferred-trio contracts (C-05 / G-05 / G-06)
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/weapon_trail_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/enemy_ai_tuning_contract_test.gd
+
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/boss_chapter_powers_contract_test.gd
+```
+
+Expected: `ASHEN_WEAPON_TRAIL_CONTRACTS_OK`, `ASHEN_ENEMY_AI_TUNING_CONTRACTS_OK`, `ASHEN_BOSS_CHAPTER_POWERS_OK`.
+
+### Enemy AttackData catalog (G-08)
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/enemy_attack_catalog_contract_test.gd
+```
+
+Expected: `ASHEN_ENEMY_ATTACK_CATALOG_OK`.
 
 ### Boss weak-point / polish contracts (E-10 / D-07 / fate UI)
 
@@ -179,16 +213,29 @@ Automated headless tests cannot judge game feel. In the graphical build, verify:
 - `Q` or middle mouse locks to a nearby living enemy and releases on death/range.
 - `E` activates and rests at the shrine; reload restores shrine respawn via `checkpoint_id`.
 - Chapter 1: `level_01_01` → `01_05` encounters, arena seal, boss `守炉灵·巨阙`, victory exit to `level_02_01`.
+- Chapter 2: `level_02_01` → `02_06` encounters, arena seal, boss `血将军·刑天`, victory exit to `level_03_01`; defeating both chapter bosses in the same run keeps each guardian's victory state independent (multi-boss save fix).
 - Death drops embers and respawns at the shrine after the overlay.
 - Touching the Lost Echo restores the dropped amount.
 - Boss weak-point expose → light attack execution → story HP floor → fate modal writes `choice_flags`.
 - Boss grab telegraph is dodgeable; miss recovery is punishable; capture uses GrabCapture Area3D (not CombatArea).
 - Combat camera shots fire on weak-point / grab / fate without locking daily orbit permanently; reduced motion softens trauma.
 
+### Chapter 1 Vertical Slice — Feel Gate（人工）
+
+对照 `docs/audits/2026-07-31-soulslike-gap-analysis.md` Phase 2：
+
+1. 烬龛休息 → 进入 `level_01_01` → 击杀首波哨兵，确认轻击 method-track 命中窗与本地 HitStop。
+2. 翻滚 i-frame 中心段无敌；Space tap=翻滚 / hold=冲刺。
+3. 重击中转向明显变钝（B-12 角速度）。
+4. 削满杂兵韧性进入 STAGGER / 破防可处决。
+5. Boss 相变可见场地 VFX；治疗中触发 heal-punish。
+6. 命运选择写入 `choice_flags`；死亡环失烬可拾回。
+7. 单向捷径门/升降梯可回到烬龛（H-05）。
+
 ## Known Limitations
 
 - Visuals and sounds are generated primitives intended to validate systems, not final production assets.
-- Campaign levels beyond Chapter 1 still use placeholder encounters.
-- The `music_volume` setting in game settings is not yet wired to any audio bus.
-- Independent `GUARD_BROKEN` / `PARRY_VULNERABLE` / Boss weak-point / grab / fate UI are now in prototype; phase-transition VFX and authored grab `.glb` pairs remain open (G-04 remainder).
+- Campaign levels beyond Chapter 2 still use placeholder encounters.
+- Independent `GUARD_BROKEN` / `PARRY_VULNERABLE` / Boss weak-point / grab / fate UI are now in prototype; authored grab `.glb` pairs remain open.
 - Human playtesting is still required for combat balance, telegraph clarity, camera comfort, and accessibility.
+- 真蒙皮动画资产与 LimboAI 真插件仍为后续 XL 项。

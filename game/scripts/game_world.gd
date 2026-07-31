@@ -18,12 +18,18 @@ const WorldEnvScript = preload("res://scripts/core/world_environment.gd")
 const CampaignLevelRuntimeScript = preload("res://scripts/world/campaign_level_runtime.gd")
 const CampaignModuleRuntimeScript = preload("res://scripts/world/campaign_module_runtime.gd")
 const Chapter1ContentScript = preload("res://scripts/data/chapter_1_content.gd")
+const Chapter2ContentScript = preload("res://scripts/data/chapter_2_content.gd")
 const SafePlacement = preload("res://scripts/core/safe_placement.gd")
 const HitStopManagerScript = preload("res://scripts/combat/hit_stop_manager.gd")
 const TraumaShakeScript = preload("res://scripts/components/trauma_shake.gd")
 const CombatCameraDirectorScript = preload("res://scripts/combat/combat_camera_director.gd")
+const BossPhasePolisherScript = preload("res://scripts/boss/boss_phase_polisher.gd")
 const FateChoiceOverlayScript = preload("res://scripts/ui/fate_choice_overlay.gd")
 const FateCatalog = preload("res://scripts/combat/data/boss_fate_catalog.gd")
+const DialogueOverlayScript = preload("res://scripts/ui/dialogue_overlay.gd")
+const DialogueRunnerScript = preload("res://scripts/story/dialogue_runner.gd")
+const ShrineNpcInteractScript = preload("res://scripts/world/shrine_npc_interact.gd")
+const EndingResolverScript = preload("res://scripts/story/ending_resolver.gd")
 
 const SAVE_PATH := "user://ashen_hollow_run_v1.json"
 const SETTINGS_PATH := "user://ashen_hollow_settings_v1.json"
@@ -57,9 +63,12 @@ var _module_runtime: CampaignModuleRuntime
 var _hit_stop_manager: HitStopManager
 var _trauma_shake: TraumaShake
 var _camera_director = null
+var _phase_polisher = null  # G-04 Boss 相变抛光
 var _fate_overlay = null
+var _dialogue_overlay = null
 var _pending_fate_boss = null
 var _level_transition_locked := false
+var _shrine_npc: Area3D = null
 
 
 func _ready() -> void:
@@ -93,6 +102,14 @@ func _load_campaign_level(level_id: StringName) -> bool:
 	if player != null and is_instance_valid(player):
 		_spawn_chapter_encounters()
 		_activate_campaign_modules()
+		# K-系列多 Boss 存档修复：胜利态只按"本关" Boss id 是否已在 defeated_bosses 判定，
+		# 不再用跨关卡共享的全局 victory 位，避免第二章及以后 Boss 关误判。
+		var boss_id := _current_boss_id()
+		victory = _is_boss_defeated(boss_id)
+		if victory and guardian != null and is_instance_valid(guardian):
+			guardian.queue_free()
+			guardian = null
+			_open_boss_victory_exit()
 		player.respawn_at(respawn_position)
 	return true
 
@@ -220,10 +237,18 @@ func _create_systems() -> void:
 	_camera_director.name = "CombatCameraDirector"
 	_camera_director.setup(player, _trauma_shake)
 	add_child(_camera_director)
+	_phase_polisher = BossPhasePolisherScript.new()
+	_phase_polisher.name = "BossPhasePolisher"
+	_phase_polisher.setup(_camera_director)
+	add_child(_phase_polisher)
 	_fate_overlay = FateChoiceOverlayScript.new()
 	_fate_overlay.name = "FateChoiceOverlay"
 	add_child(_fate_overlay)
 	_fate_overlay.choice_made.connect(_on_fate_choice_made)
+	_dialogue_overlay = DialogueOverlayScript.new()
+	_dialogue_overlay.name = "DialogueOverlay"
+	add_child(_dialogue_overlay)
+	_dialogue_overlay.dialogue_finished.connect(_on_dialogue_finished)
 	if player.has_signal("execution_started"):
 		player.execution_started.connect(_on_player_execution_started)
 	_create_interaction_sensor()
@@ -235,6 +260,7 @@ func _create_systems() -> void:
 	checkpoint.activated.connect(_on_checkpoint_activated)
 	checkpoint.rested.connect(_on_checkpoint_rested)
 	add_child(checkpoint)
+	_spawn_shrine_npc()
 
 	var exit_marker := campaign_runtime.get_exit_marker() if campaign_runtime != null else null
 	var gate_pos := exit_marker.global_position + Vector3(0.0, 1.5, 2.0) if exit_marker != null else Vector3(0.0, 1.5, -5.6)
@@ -320,19 +346,25 @@ func _spawn_chapter_encounters() -> void:
 	var level_data := campaign_runtime.get_level_data()
 	var level_id := StringName(level_data.get("id", &"level_01_01"))
 	var chapter_id := String(level_data.get("chapter_id", &"chapter_01"))
+	if chapter_id == "chapter_02":
+		# 第二章·血铁战歌：接入正式内容表遭遇
+		_spawn_chapter2_encounters(origin, level_id)
+		return
 	if chapter_id != "chapter_01":
-		# 非第一章暂用兼容哨兵，后续章节工厂再接入
+		# 三章及以后暂用兼容哨兵 / 潜行 / 远程伏击，后续章节工厂再接入
 		_spawn_enemy(origin + Vector3(-3.5, 0.95, -5.0), false)
 		_spawn_enemy(origin + Vector3(3.5, 0.95, -9.0), false, EnemyScript.EnemyType.ASH_STALKER)
+		_spawn_enemy(origin + Vector3(0.0, 0.95, -12.0), false, EnemyScript.EnemyType.EMBER_SKIRMISHER)
 		return
 	var roster: Array[Dictionary] = Chapter1ContentScript.enemies()
 	if roster.is_empty():
 		return
 	match level_id:
 		&"level_01_01":
-			# 苏醒之庭：2× 失魂
+			# 苏醒之庭：2× 失魂 + 1× 烬影伏击者（G-03）
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -14.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(3.2, 0.95, -17.5), roster[0])
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -20.0), _chapter1_skirmisher(roster))
 		&"level_01_02":
 			# 守门廊：3× 失魂 + 1× 庙卫
 			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -5.0), roster[0])
@@ -340,12 +372,13 @@ func _spawn_chapter_encounters() -> void:
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -11.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -15.0), roster[1])
 		&"level_01_03":
-			# 明镜殿：3× 失魂 + 2× 镜影 + 精英
+			# 明镜殿：3× 失魂 + 2× 镜影 + 1× 烬影伏击 + 精英
 			_spawn_content_enemy(origin + Vector3(-4.0, 0.95, -5.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(4.0, 0.95, -7.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -10.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -13.0), roster[2])
 			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -15.0), roster[2])
+			_spawn_content_enemy(origin + Vector3(5.0, 0.95, -11.0), _chapter1_skirmisher(roster))
 			var elite_03 := _chapter1_elite_for(level_id)
 			if not elite_03.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -18.0), elite_03)
@@ -363,6 +396,25 @@ func _spawn_chapter_encounters() -> void:
 		_:
 			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), roster[0])
 			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
+
+
+func _chapter1_skirmisher(roster: Array[Dictionary]) -> Dictionary:
+	# 取 G-03 烬影伏击者条目；缺失时回退内联原型
+	for entry in roster:
+		if String(entry.get("id", "")) == "ember_shade_skirmisher":
+			return entry
+	return {
+		"id": "ember_shade_skirmisher",
+		"display_name": "Ember Shade Skirmisher / 烬影伏击者",
+		"max_health": 48.0, "move_speed": 4.6, "aggro_range": 13.0,
+		"disengage_range": 21.0, "leash_range": 15.0, "attack_range": 9.0,
+		"preferred_distance": 7.0, "retreat_trigger": 4.0,
+		"poise_limit": 12.0, "reward": 30, "stagger_duration": 0.55,
+		"attack": {"windup": 0.52, "active": 0.12, "recovery": 0.72, "damage": 11.0, "stagger": 9.0, "lunge": 0.85},
+		"body_color": "3a1830", "weapon_color": "cc4488", "eye_emission": "ff66aa",
+		"weapon_shape": "glass_shard", "body_type": "ethereal_flicker",
+		"behavior": "ranged_ambush", "archetype": "ember_skirmisher",
+	}
 
 
 func _chapter1_elite_for(level_id: StringName) -> Dictionary:
@@ -385,15 +437,106 @@ func _chapter1_elite_for(level_id: StringName) -> Dictionary:
 	return {}
 
 
+func _chapter2_enemy_by_id(roster: Array[Dictionary], id: String) -> Dictionary:
+	# 按 id 从二章敌人表中取条目；找不到时返回空字典交由调用方兜底
+	for entry in roster:
+		if String(entry.get("id", "")) == id:
+			return entry
+	return {}
+
+
+func _chapter2_elite_for(level_id: StringName) -> Dictionary:
+	# 按 appears_in 取二章精英并补齐战斗字段（同 Ch.1 精英兜底逻辑）
+	for elite in Chapter2ContentScript.elites():
+		if String(elite.get("appears_in", "")) != String(level_id):
+			continue
+		var payload: Dictionary = elite.duplicate(true)
+		if not payload.has("attack"):
+			payload["attack"] = {
+				"windup": 0.7, "active": 0.22, "recovery": 0.85,
+				"damage": 26.0, "stagger": 32.0, "lunge": 1.6,
+			}
+		payload["disengage_range"] = float(payload.get("disengage_range", 22.0))
+		payload["leash_range"] = float(payload.get("leash_range", 18.0))
+		payload["stagger_duration"] = float(payload.get("stagger_duration", 0.42))
+		payload["weapon_color"] = String(payload.get("weapon_color", "6a6040"))
+		payload["eye_emission"] = String(payload.get("eye_emission", "ffcc44"))
+		return payload
+	return {}
+
+
+func _spawn_chapter2_encounters(origin: Vector3, level_id: StringName) -> void:
+	# 第二章遭遇表：血染山道 → 铁啸关外墙 → 俘虏营 → 烽火台 → 将军营帐 → 刑天斗场
+	var roster: Array[Dictionary] = Chapter2ContentScript.enemies()
+	if roster.is_empty():
+		return
+	match level_id:
+		&"level_02_01":
+			# 血染山道：3× 残兵
+			var soldier := _chapter2_enemy_by_id(roster, "battle_worn_soldier")
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), soldier)
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -9.0), soldier)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), soldier)
+		&"level_02_02":
+			# 铁啸关外墙：2× 残兵 + 2× 战犬亡灵 + 精英·攻城校尉
+			var soldier_02 := _chapter2_enemy_by_id(roster, "battle_worn_soldier")
+			var war_dog := _chapter2_enemy_by_id(roster, "war_dog_wraith")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -5.0), soldier_02)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -8.0), soldier_02)
+			_spawn_content_enemy(origin + Vector3(-2.0, 0.95, -11.5), war_dog)
+			_spawn_content_enemy(origin + Vector3(2.0, 0.95, -12.5), war_dog)
+			var elite_02 := _chapter2_elite_for(level_id)
+			if not elite_02.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_02)
+		&"level_02_03":
+			# 俘虏营：2× 营守亡灵 + 刑具精魄 + 精英·刑讯官
+			var camp_guard := _chapter2_enemy_by_id(roster, "camp_guard_wraith")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), camp_guard)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), camp_guard)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter2_enemy_by_id(roster, "torture_device_spirit"))
+			var elite_03 := _chapter2_elite_for(level_id)
+			if not elite_03.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_03)
+		&"level_02_04":
+			# 烽火台：2× 烽火守望者 + 残兵 + 精英·烽火将
+			var beacon := _chapter2_enemy_by_id(roster, "beacon_keeper_wraith")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), beacon)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), beacon)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter2_enemy_by_id(roster, "battle_worn_soldier"))
+			var elite_04 := _chapter2_elite_for(level_id)
+			if not elite_04.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_04)
+		&"level_02_05":
+			# 将军营帐：3× 将军亲卫
+			var personal_guard := _chapter2_enemy_by_id(roster, "generals_personal_guard")
+			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), personal_guard)
+			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), personal_guard)
+			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), personal_guard)
+		&"level_02_06":
+			# 刑天斗场：仅 Boss 血将军·刑天
+			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter2ContentScript.boss(), true)
+		_:
+			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), roster[0])
+			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), roster[min(1, roster.size() - 1)])
+
+
 func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guardian := false):
 	# 用章节内容生成敌人
 	var payload := content.duplicate(true)
 	if is_guardian and not payload.has("body_type"):
-		payload["body_type"] = "armored_medium"
-		payload["weapon_shape"] = payload.get("weapon_shape", "temple_halberd")
-		payload["body_color"] = payload.get("body_color", "2a2820")
-		payload["weapon_color"] = payload.get("weapon_color", "5a5040")
-		payload["eye_emission"] = payload.get("eye_emission", "ff5518")
+		if String(payload.get("id", "")) == "boss_xing_tian":
+			# 血将军·刑天：重甲精英体型 + 双斧（工厂未注册 guandao 形状，双斧为可用近似）
+			payload["body_type"] = "elite_armored"
+			payload["weapon_shape"] = payload.get("weapon_shape", "blood_axe")
+			payload["body_color"] = payload.get("body_color", "2a1515")
+			payload["weapon_color"] = payload.get("weapon_color", "8a2a1a")
+			payload["eye_emission"] = payload.get("eye_emission", "ff3300")
+		else:
+			payload["body_type"] = "armored_medium"
+			payload["weapon_shape"] = payload.get("weapon_shape", "temple_halberd")
+			payload["body_color"] = payload.get("body_color", "2a2820")
+			payload["weapon_color"] = payload.get("weapon_color", "5a5040")
+			payload["eye_emission"] = payload.get("eye_emission", "ff5518")
 	var enemy = EnemyScene.instantiate()
 	enemy.name = String(payload.get("id", "ChapterEnemy"))
 	enemy.position = spawn_position
@@ -416,6 +559,8 @@ func _wire_enemy_signals(enemy) -> void:
 		enemy.weak_point_exposed.connect(_on_boss_weak_point_exposed)
 	if enemy.has_signal("grab_started"):
 		enemy.grab_started.connect(_on_boss_grab_started.bind(enemy))
+	if enemy.has_signal("phase_changed"):
+		enemy.phase_changed.connect(_on_boss_phase_changed)
 
 
 func _on_campaign_exit_requested(from_level_id: StringName) -> void:
@@ -469,6 +614,8 @@ func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> voi
 	for enemy in enemies:
 		if is_instance_valid(enemy):
 			enemy.reset_enemy()
+	if _phase_polisher != null:
+		_phase_polisher.reset()
 	audio.play_cue("rest", -4.0)
 	hud.show_message(LocalizationScript.text("EMBER RESTORED\nEnemies return to the hollow."), 2.5)
 	_save_run("checkpoint_rest")
@@ -550,6 +697,8 @@ func _on_player_died(death_position: Vector3) -> void:
 	for enemy in enemies:
 		if is_instance_valid(enemy):
 			enemy.reset_enemy()
+	if _phase_polisher != null:
+		_phase_polisher.reset()
 	hud.show_death()
 	await get_tree().create_timer(2.2).timeout
 	respawn_position = _resolve_respawn_position(respawn_position)
@@ -585,17 +734,47 @@ func _resolve_respawn_position(candidate: Vector3) -> Vector3:
 
 func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
 	player.add_embers(reward)
-	if is_guardian and not victory:
-		victory = true
-		hud.hide_boss()
-		hud.show_victory()
-		audio.play_cue("victory", -2.0)
-		run_state.guardian_defeated = true
-		_save_run("guardian_defeated")
-		# Boss 胜后解封并打开通往下一关出口
-		_open_boss_victory_exit()
+	if is_guardian:
+		# K-01：按"这只 Boss 自己的 id"判定，不再用跨关卡共享的全局 victory 位，
+		# 否则第二章及以后的 Boss 会因为第一章 victory 已为 true 而无法触发胜利。
+		var boss_id := _boss_id_for_enemy(enemy)
+		if not _is_boss_defeated(boss_id):
+			if not boss_id.is_empty():
+				run_state.defeated_bosses.append(boss_id)
+			victory = true
+			hud.hide_boss()
+			hud.show_victory()
+			audio.play_cue("victory", -2.0)
+			_save_run("guardian_defeated")
+			# Boss 胜后解封并打开通往下一关出口
+			_open_boss_victory_exit()
 	else:
 		hud.show_message(LocalizationScript.text("EMBER CLAIMED  +%d") % reward, 1.2)
+
+
+## 取当前关卡注册的 Boss id（非 Boss 关返回空串）
+func _current_boss_id() -> String:
+	if campaign_runtime == null:
+		return ""
+	return String(campaign_runtime.get_level_data().get("boss_id", ""))
+
+
+## 某 Boss id 是否已记录在存档 defeated_bosses 中
+func _is_boss_defeated(boss_id: String) -> bool:
+	return not boss_id.is_empty() and boss_id in run_state.defeated_bosses
+
+
+## 从敌人实例解析章节内容 Boss id；缺失章节内容时退回当前关注册 id（兼容旧哨兵 Boss）
+func _boss_id_for_enemy(enemy) -> String:
+	if enemy != null and is_instance_valid(enemy):
+		if "chapter_content" in enemy:
+			var content: Dictionary = enemy.chapter_content
+			var id_from_content := String(content.get("id", ""))
+			if not id_from_content.is_empty():
+				return id_from_content
+		if "content_id" in enemy and not String(enemy.content_id).is_empty():
+			return String(enemy.content_id)
+	return _current_boss_id()
 
 
 func _open_boss_victory_exit() -> void:
@@ -657,6 +836,8 @@ func _on_fate_choice_made(story_flag: StringName, value: String) -> void:
 		run_state.set_choice_flag(story_flag, value)
 	elif run_state != null:
 		run_state.choice_flags[String(story_flag)] = value
+	if String(story_flag) == "ending_state":
+		EndingResolverScript.commit(run_state, StringName(value))
 	_save_run("fate_choice")
 	if _camera_director != null:
 		_camera_director.release()
@@ -672,9 +853,73 @@ func _on_fate_choice_made(story_flag: StringName, value: String) -> void:
 	audio.play_cue("rest", -5.0, 0.9)
 
 
+## Phase3：烬龛旁生成云游道人交互点
+func _spawn_shrine_npc() -> void:
+	if _shrine_npc != null and is_instance_valid(_shrine_npc):
+		return
+	_shrine_npc = ShrineNpcInteractScript.new()
+	_shrine_npc.name = "CloudWandererNpc"
+	_shrine_npc.collision_layer = INTERACTABLE_LAYER
+	_shrine_npc.collision_mask = 0
+	_shrine_npc.monitoring = false
+	_shrine_npc.monitorable = true
+	_shrine_npc.add_to_group("interactable")
+	_shrine_npc.prompt_text = LocalizationScript.text("Speak with Cloud Wanderer")
+	_shrine_npc.npc_id = &"npc_cloud_wanderer"
+	_shrine_npc.world_callback = Callable(self, "_on_shrine_npc_talk")
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 1.4
+	shape.shape = sphere
+	shape.position = Vector3(0.0, 1.0, 0.0)
+	_shrine_npc.add_child(shape)
+	_shrine_npc.position = _checkpoint_position() + Vector3(2.4, 0.0, 1.8)
+	add_child(_shrine_npc)
+	# 简易占位体
+	var mesh := MeshInstance3D.new()
+	var cap := CapsuleMesh.new()
+	cap.radius = 0.28
+	cap.height = 1.4
+	mesh.mesh = cap
+	mesh.position = Vector3(0.0, 0.9, 0.0)
+	_shrine_npc.add_child(mesh)
+
+
+func _on_shrine_npc_talk(_npc: Node, _player: Node) -> void:
+	if _dialogue_overlay == null or _dialogue_overlay.is_open():
+		return
+	var lines := DialogueRunnerScript.resolve_lines(&"npc_cloud_wanderer", run_state)
+	_dialogue_overlay.open_lines(&"npc_cloud_wanderer", lines)
+
+
+func _on_dialogue_finished(dialogue_id: StringName) -> void:
+	DialogueRunnerScript.apply_aftermath(dialogue_id, run_state)
+	_save_run("dialogue_finished")
+	if hud != null:
+		hud.show_message(LocalizationScript.text("WORDS SETTLE"), 1.0)
+
+
 func _on_boss_weak_point_exposed(enemy) -> void:
 	if _camera_director != null:
 		_camera_director.play_shot_id(&"weak_point_expose", enemy)
+
+
+func _on_boss_phase_changed(enemy, new_phase: int) -> void:
+	# G-04：相变抛光（动画混合 / 镜头焦点 / 场地 VFX）
+	on_boss_phase_changed(enemy, new_phase)
+
+
+func on_boss_phase_changed(enemy, new_phase: int) -> void:
+	if _phase_polisher == null or enemy == null or not is_instance_valid(enemy):
+		return
+	if not bool(enemy.get("guardian")):
+		return
+	_phase_polisher.play_transition(enemy, int(new_phase))
+	if hud != null and int(new_phase) >= 2:
+		hud.show_message(
+			LocalizationScript.text("PHASE %d") % int(new_phase),
+			1.2
+		)
 
 
 func _on_boss_grab_started(_target, enemy) -> void:
@@ -748,11 +993,8 @@ func _apply_run_state(state) -> void:
 		shortcut.open_immediately()
 	if run_state.lost_echo_amount > 0:
 		_spawn_lost_echo(run_state.lost_echo_amount, run_state.lost_echo_position)
-	if run_state.guardian_defeated and is_instance_valid(guardian):
-		guardian.queue_free()
-		victory = true
-		run_state.guardian_defeated = true
-		_open_boss_victory_exit()
+	# 多 Boss 存档修复：本关 Boss 若已在 defeated_bosses 中，_load_campaign_level 已按
+	# 该 Boss 自己的 id 释放守卫并打开出口，这里不再重复用全局 victory 位处理。
 	# 有已激活祠堂时，重生点回到 checkpoint marker 而非出生点
 	if not String(run_state.checkpoint_id).is_empty():
 		respawn_position = _resolve_respawn_position(_checkpoint_position() + Vector3(0.0, 1.1, 2.0))
@@ -773,7 +1015,8 @@ func _snapshot_run_state() -> Dictionary:
 		run_state.left_hand = String(hand_loadout.get("left_hand", run_state.left_hand))
 	if player.has_method("get_upgrade_tier"):
 		run_state.upgrade_tier = player.get_upgrade_tier()
-	run_state.guardian_defeated = victory
+	# Ch.1 兼容位：仅当巨阙已被记录进 defeated_bosses 时才为真，defeated_bosses 才是权威来源
+	run_state.guardian_defeated = ("boss_giant_gate" in run_state.defeated_bosses)
 	if shortcut != null and shortcut.is_open:
 		if "ancient_gate" not in run_state.activated_shortcuts:
 			run_state.activated_shortcuts.append("ancient_gate")
@@ -888,6 +1131,8 @@ func _apply_settings() -> void:
 		)
 	if _camera_director != null:
 		_camera_director.set_reduced_motion(game_settings.reduced_motion)
+	if _phase_polisher != null:
+		_phase_polisher.set_reduced_motion(game_settings.reduced_motion)
 	TranslationServer.set_locale(game_settings.locale)
 	if player != null and player.has_method("apply_game_settings"):
 		player.apply_game_settings(game_settings.to_dictionary())
@@ -900,9 +1145,13 @@ func _apply_settings() -> void:
 			0.0001
 		)
 		AudioServer.set_bus_volume_db(master_index, linear_to_db(linear_volume))
-	# NOTE: game_settings.music_volume is stored and ready to wire.
-	# When a Music audio bus is added (via project settings default_bus_layout),
-	# wire it here: AudioServer.set_bus_volume_db(music_index, linear_to_db(game_settings.music_volume))
+	# C-06：Music 总线音量（无总线时静默跳过）
+	var music_index := AudioServer.get_bus_index("Music")
+	if music_index >= 0:
+		AudioServer.set_bus_volume_db(
+			music_index,
+			linear_to_db(maxf(game_settings.music_volume, 0.0001))
+		)
 	if world_environment != null and world_environment.environment != null:
 		var low_quality: bool = game_settings.quality_preset == &"low"
 		world_environment.environment.glow_enabled = not low_quality

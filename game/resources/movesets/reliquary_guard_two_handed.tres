@@ -18,7 +18,9 @@ damage = 28.6
 poise_damage = 20.8
 guard_power = 35.88
 authored_displacement = Vector3(0, 0, 2.0059998)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.135
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_meq5d"]
 script = ExtResource("1_wirty")
@@ -34,7 +36,9 @@ damage = 49.4
 poise_damage = 44.2
 guard_power = 64.87
 authored_displacement = Vector3(0, 0, 3.304)
+poise_modifier_windup = 0.0957
 poise_modifier_active = 0.27337500000000003
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_2r626"]
 script = ExtResource("1_wirty")
@@ -50,7 +54,9 @@ damage = 76.57
 poise_damage = 68.51
 guard_power = 100.54849999999999
 authored_displacement = Vector3(0, 0, 4.2952)
+poise_modifier_windup = 0.1727
 poise_modifier_active = 0.493375
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_mnuip"]
 script = ExtResource("1_wirty")
@@ -66,7 +72,9 @@ damage = 63.232
 poise_damage = 56.57600000000001
 guard_power = 83.0336
 authored_displacement = Vector3(0, 0, 3.7996)
+poise_modifier_windup = 0.1377
 poise_modifier_active = 0.39337500000000003
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_a4n6f"]
 script = ExtResource("2_8ulu7")
@@ -89,7 +97,9 @@ poise_damage = 59.67000000000001
 guard_power = 87.5745
 authored_displacement = Vector3(0, 0, 0.39648)
 launch_velocity_y = -12.0
+poise_modifier_windup = 0.0709
 poise_modifier_active = 0.2025
+poise_modifier_recovery = 0.0
 hitbox_radius = 1.05
 hitbox_height = 2.55
 hitbox_offset = Vector3(0, -0.1, -0.3)
@@ -109,7 +119,9 @@ damage = 31.460000000000004
 poise_damage = 22.880000000000003
 guard_power = 39.468
 authored_displacement = Vector3(0, 0, 0.826)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.135
+poise_modifier_recovery = 0.0
 hitbox_radius = 0.95
 hitbox_height = 1.55
 hitbox_offset = Vector3(0, 1.05, 0)
@@ -129,7 +141,9 @@ damage = 49.4
 poise_damage = 44.2
 guard_power = 64.87
 authored_displacement = Vector3(0, 0, 3.304)
+poise_modifier_windup = 0.0709
 poise_modifier_active = 0.2025
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_k0smw"]
 script = ExtResource("1_wirty")
@@ -145,7 +159,9 @@ damage = 28.6
 poise_damage = 20.8
 guard_power = 35.88
 authored_displacement = Vector3(0, 0, 2.36)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.135
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_75gft"]
 script = ExtResource("1_wirty")
@@ -161,7 +177,9 @@ damage = 30.316000000000003
 poise_damage = 22.048000000000002
 guard_power = 38.0328
 authored_displacement = Vector3(0, 0, 2.9499998)
+poise_modifier_windup = 0.0
 poise_modifier_active = 0.135
+poise_modifier_recovery = 0.0
 
 [sub_resource type="Resource" id="Resource_upxwi"]
 script = ExtResource("1_wirty")
@@ -177,7 +195,9 @@ damage = 32.032000000000004
 poise_damage = 23.296000000000003
 guard_power = 40.18560000000001
 authored_displacement = Vector3(0, 0, 3.6579998)
+poise_modifier_windup = 0.0473
 poise_modifier_active = 0.135
+poise_modifier_recovery = 0.0
 
 [resource]
 script = ExtResource("3_i7osk")

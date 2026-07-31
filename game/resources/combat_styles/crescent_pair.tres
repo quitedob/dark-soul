@@ -32,3 +32,5 @@ leap_velocity_y = 4.8
 wam_light = 0.0
 wam_heavy = 0.0
 wam_leap = 0.0
+trail_color = Color(0.55, 0.85, 1.0, 1)
+hit_vfx_scale = 1.1

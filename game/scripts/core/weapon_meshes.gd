@@ -70,6 +70,7 @@ static func build_enemy_weapon(parent: Node3D, enemy_type: String, material: Sta
 	match enemy_type:
 		"cinder_guardian": _build_greatsword(parent, material)
 		"ash_stalker":     _build_dagger(parent, material)
+		"ember_skirmisher": _build_bow(parent, material)
 		_:                 _build_club(parent, material)
 
 

@@ -48,6 +48,18 @@ Assert-LastExitCode "Godot combat style resource contracts"
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/feedback_contract_test.gd"
 Assert-LastExitCode "Godot feedback contracts"
 
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/weapon_trail_contract_test.gd"
+Assert-LastExitCode "Godot weapon trail contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/enemy_ai_tuning_contract_test.gd"
+Assert-LastExitCode "Godot enemy AI tuning contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/boss_chapter_powers_contract_test.gd"
+Assert-LastExitCode "Godot boss chapter powers contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/enemy_attack_catalog_contract_test.gd"
+Assert-LastExitCode "Godot enemy attack catalog contracts"
+
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/poise_contract_test.gd"
 Assert-LastExitCode "Godot poise contracts"
 
@@ -65,6 +77,9 @@ Assert-LastExitCode "Godot campaign generation contracts"
 
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/chapter1_slice_contract_test.gd"
 Assert-LastExitCode "Godot Chapter 1 vertical slice contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/chapter2_slice_contract_test.gd"
+Assert-LastExitCode "Godot Chapter 2 vertical slice contracts"
 
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/jump_collision_contract_test.gd"
 Assert-LastExitCode "Godot jump/collision contracts"
@@ -86,6 +101,9 @@ Assert-LastExitCode "Godot boss weak-point contracts"
 
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/boss_polish_contract_test.gd"
 Assert-LastExitCode "Godot boss polish contracts"
+
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/g01_macro_bt_contract_test.gd"
+Assert-LastExitCode "Godot G-01 macro BT contracts"
 
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/lock_on_contract_test.gd"
 Assert-LastExitCode "Godot lock-on contracts"
