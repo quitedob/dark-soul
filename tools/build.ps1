@@ -108,6 +108,9 @@ Assert-LastExitCode "Godot G-01 macro BT contracts"
 & $Godot --headless --path $GameRoot --script "res://tests/smoke/lock_on_contract_test.gd"
 Assert-LastExitCode "Godot lock-on contracts"
 
+& $Godot --headless --path $GameRoot --script "res://tests/smoke/real_model_contract_test.gd"
+Assert-LastExitCode "Godot real-model swap contracts"
+
 & $Godot --headless --path $GameRoot -- --smoke-test --new-run
 Assert-LastExitCode "Godot gameplay smoke test"
 

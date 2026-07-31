@@ -1740,6 +1740,9 @@ func _legacy_type_key() -> String:
 
 
 func _apply_palette_colors() -> void:
+	var vis := body_visual_root
+	if vis != null and vis.get_node_or_null("ModelRoot") != null:
+		return
 	if not chapter_content.is_empty():
 		body_material.albedo_color = _color_from_hex(String(chapter_content.get("body_color", "382820")))
 		weapon_material.albedo_color = _color_from_hex(String(chapter_content.get("weapon_color", "5a5040")))

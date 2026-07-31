@@ -12,6 +12,8 @@ const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 
 static func build_into_parent(parent: Node3D, shape_id: String, material: StandardMaterial3D) -> void:
 	_clear_children(parent)
+	if RealModelResolver.try_instance("player/weapon/%s" % shape_id, parent):
+		return
 	match shape_id:
 		"sword":        _build_sword(parent, material)
 		"axe_right":    _build_axe(parent, material, false)
@@ -62,11 +64,15 @@ static func build_into_parent(parent: Node3D, shape_id: String, material: Standa
 
 static func build_shield(parent: Node3D, material: StandardMaterial3D) -> void:
 	_clear_children(parent)
+	if RealModelResolver.try_instance("player/shield", parent):
+		return
 	_build_shield_geo(parent, material)
 
 
 static func build_enemy_weapon(parent: Node3D, enemy_type: String, material: StandardMaterial3D) -> void:
 	_clear_children(parent)
+	if RealModelResolver.try_instance("enemy/weapon/%s" % enemy_type, parent):
+		return
 	match enemy_type:
 		"cinder_guardian": _build_greatsword(parent, material)
 		"ash_stalker":     _build_dagger(parent, material)

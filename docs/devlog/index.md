@@ -8,6 +8,7 @@
 
 ### 2026-07-31
 
+- [**真模型替换管线 M1：Mock → Real（RealModelResolver + GLB 导入 + 工厂回落）**](2026-07-31/12-real-model-swap-pipeline.md)
 - [**全链路 Subagent 编排复盘：P0/P1 接线 + Docs 同步（操作思考与工具规范）**](2026-07-31/11-full-stack-subagent-orchestration.md)
 - [人间事件改编 + 可选 Boss + 模型提示词（Subagent 编排工作流）](2026-07-31/10-quest-optional-boss-subagent-workflow.md)
 - [Completed Audits Archived](2026-07-31/99-completed-audits-archived.md)

@@ -34,6 +34,7 @@ static func build_into_slots(
 
 
 static func _build_body_for_type(parent: Node3D, body_type: String, body_material: StandardMaterial3D) -> void:
+	if RealModelResolver.try_instance("enemy/body/%s" % body_type, parent): return
 	match body_type:
 		"wraith_thin", "armored_medium", "ethereal_flicker", "hulking_molten":
 			Chapter1EnemyFactory.build_body(parent, body_type, body_material)
@@ -65,6 +66,7 @@ static func _build_chapter_weapon(parent: Node3D, weapon_id: String, weapon_mate
 
 
 static func _dispatch_weapon(weapon_pivot: Node3D, weapon_id: String, weapon_material: StandardMaterial3D) -> void:
+	if RealModelResolver.try_instance("enemy/weapon/%s" % weapon_id, weapon_pivot): return
 	match weapon_id:
 		"rusted_blade", "temple_halberd", "glass_shard", "slag_fist":
 			Chapter1EnemyFactory.build_weapon(weapon_pivot, weapon_id, weapon_material)

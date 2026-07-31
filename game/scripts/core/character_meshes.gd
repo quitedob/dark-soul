@@ -10,6 +10,8 @@ extends RefCounted
 
 static func build_player(parent: Node3D, body_mat: StandardMaterial3D, visor_mat: StandardMaterial3D) -> void:
 	_clear_children(parent)
+	if RealModelResolver.try_instance("player/body", parent):
+		return
 	# Core body
 	_build_humanoid(parent, body_mat, {
 		"height": 1.82, "shoulder_width": 0.44, "chest_depth": 0.28,
@@ -37,6 +39,8 @@ static func build_player(parent: Node3D, body_mat: StandardMaterial3D, visor_mat
 
 static func build_enemy(parent: Node3D, enemy_type: String, body_mat: StandardMaterial3D) -> void:
 	_clear_children(parent)
+	if RealModelResolver.try_instance("enemy/body/%s" % enemy_type, parent):
+		return
 	match enemy_type:
 		"cinder_guardian": _build_guardian(parent, body_mat)
 		"ash_stalker":     _build_stalker(parent, body_mat)
