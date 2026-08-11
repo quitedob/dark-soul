@@ -27,6 +27,12 @@
 | [godot/jump-collision.md](godot/jump-collision.md) | 跳跃、坡面、snap、弹体穿透、安全重生 | P0–P1 运行时已接（见 2026-07-30 landing 条目） |
 | [godot/actions-combat.md](godot/actions-combat.md) | 招式数据、AnimationTree、输入队列建议 | 多槽队列 / AnimationBridge / RM **已落地**；真资产仍缺 |
 
+### three.js 管线
+
+| 文档 | 内容 | 现网对照 |
+|------|------|---------|
+| [threejs-pipeline/threejs-gltf-best-practices.md](threejs-pipeline/threejs-gltf-best-practices.md) | 2026-08-11 Perplexity 检索：GLB 压缩/加载/动画/实例化/导出最佳实践 | 85 GLB 未压缩、无动画导出、maxTextureSize 未设上限；见 [devlog 08-11](../devlog/2026-08-11/01-85-glb-into-game-real-model-milestone.md) |
+
 ---
 
 ## 阅读顺序（新人）

@@ -6,6 +6,19 @@
 
 ## 日期索引
 
+### 2026-08-11
+
+- [**85 个 three.js GLB 入游戏 + 真模型动效层（子代理并行）**](2026-08-11/01-85-glb-into-game-real-model-milestone.md)
+- [**会话执行复盘：全部行动 / 难点排查 / 决策 / 记忆**](2026-08-11/02-session-execution-reflection.md)
+
+### 2026-08-03
+
+- [**Boss 战规则层范式提炼：三阶段讨伐战（Kimi）→ SCENE-SPECS**](2026-08-03/05-multi-phase-boss-battle-paradigm.md)
+- [**Boss 动态表现范式提炼：单文件原型（Kimi）→ SCENE-SPECS**](2026-08-03/04-boss-dynamic-prototype-paradigm.md)
+- [**示范场景精雕：level_01_01 苏醒之庭（5 分工 agent）**](2026-08-03/03-demo-scene-detailing.md)
+- [**雕刻工具箱 + 三项研究（穿模 / 真实感 / 多场景串联）**](2026-08-03/02-realism-interpenetration-chaining-research.md)
+- [**模型资产管线（三轮迭代）+ three.js 场景工程 + 技能沉淀**](2026-08-03/01-model-pipeline-scene-engineering.md)
+
 ### 2026-07-31
 
 - [**真模型替换管线 M1：Mock → Real（RealModelResolver + GLB 导入 + 工厂回落）**](2026-07-31/12-real-model-swap-pipeline.md)

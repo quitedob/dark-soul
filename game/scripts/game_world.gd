@@ -1632,14 +1632,15 @@ func _spawn_shrine_npc() -> void:
 		npc.add_child(shape)
 		npc.position = base + preset["offset"]
 		add_child(npc)
-		# 简易占位体
-		var mesh := MeshInstance3D.new()
-		var cap := CapsuleMesh.new()
-		cap.radius = 0.28
-		cap.height = 1.4
-		mesh.mesh = cap
-		mesh.position = Vector3(0.0, 0.9, 0.0)
-		npc.add_child(mesh)
+		# 真实 NPC 模型(npc/<id>)优先;未注册时退回胶囊占位体
+		if not RealModelResolver.try_instance("npc/%s" % String(preset["npc_id"]), npc):
+			var mesh := MeshInstance3D.new()
+			var cap := CapsuleMesh.new()
+			cap.radius = 0.28
+			cap.height = 1.4
+			mesh.mesh = cap
+			mesh.position = Vector3(0.0, 0.9, 0.0)
+			npc.add_child(mesh)
 		_shrine_npcs.append(npc)
 
 
@@ -1661,13 +1662,15 @@ func _spawn_bridge_tea_npc(at: Vector3) -> void:
 	shape.shape = sphere
 	shape.position = Vector3(0.0, 1.0, 0.0)
 	npc.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.28
-	cap.height = 1.4
-	mesh.mesh = cap
-	mesh.position = Vector3(0.0, 0.9, 0.0)
-	npc.add_child(mesh)
+	# 真实 NPC 模型(npc/npc_bridge_tea_soul)优先;未注册时退回胶囊占位体
+	if not RealModelResolver.try_instance("npc/%s" % String(npc.npc_id), npc):
+		var mesh := MeshInstance3D.new()
+		var cap := CapsuleMesh.new()
+		cap.radius = 0.28
+		cap.height = 1.4
+		mesh.mesh = cap
+		mesh.position = Vector3(0.0, 0.9, 0.0)
+		npc.add_child(mesh)
 	npc.position = at
 	add_child(npc)
 

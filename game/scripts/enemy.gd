@@ -40,6 +40,8 @@ const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
 const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
 const ChapterEnemyFactory = preload("res://scripts/combat/enemy_factory.gd")
+const ModelFx = preload("res://scripts/fx/model_fx.gd")
+const ModelMotionProfiles = preload("res://scripts/data/model_motion_profiles.gd")
 const BossCatalog = preload("res://scripts/combat/data/boss_execution_catalog.gd")
 const GrabProfileScript = preload("res://scripts/combat/data/grab_profile.gd")
 const GrabPairedDirectorScript = preload("res://scripts/combat/grab_paired_director.gd")
@@ -178,6 +180,9 @@ var _cached_target_position := Vector3.ZERO
 var _cached_distance_to_target := INF
 var _cached_chase_direction := Vector3.ZERO
 var _visual_frozen := false
+var _model_base_y := 0.0
+var _model_base_y_set := false
+var _vfx_emitted := false
 
 var navigation_agent: NavigationAgent3D
 var body_collision: CollisionShape3D
@@ -355,6 +360,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = minf(velocity.y, 0.0)
 	move_and_slide()
 	_update_telegraph()
+	_real_model_idle_vfx(delta)
 
 
 func reset_enemy() -> void:
@@ -1659,6 +1665,24 @@ func _update_telegraph() -> void:
 	weapon_pivot.rotation.z = lerpf(-0.2, -1.35 if attack_heavy else -0.95, progress)
 
 
+## 真模型特效层:按 ModelMotionProfiles 档案施加专属运动 + 环境粒子。
+func _real_model_idle_vfx(delta: float) -> void:
+	if _visual_frozen or state == State.DEAD:
+		return
+	var model_root := body_visual_root.get_node_or_null("ModelRoot") as Node3D
+	if model_root == null:
+		return
+	if not _model_base_y_set:
+		_model_base_y = model_root.position.y
+		_model_base_y_set = true
+	var profile := ModelMotionProfiles.profile_for("enemy/body/by_id/%s" % String(chapter_content.get("id", "")))
+	var vfx: Dictionary = profile.get("vfx", {})
+	ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
+	ModelFx.ensure_ambient(body_visual_root, vfx.get("ambient", {}))
+	if vfx.has("aura"):
+		ModelFx.ensure_aura(body_visual_root, vfx["aura"])
+
+
 func _update_state_visuals() -> void:
 	if _visual_frozen or state == State.DEAD:
 		return
@@ -1688,6 +1712,15 @@ func _update_state_visuals() -> void:
 			weapon_material.emission_energy_multiplier = 3.5
 		State.GRAB_WINDUP, State.GRAB_ACTIVE:
 			weapon_material.albedo_color = Color(0.95, 0.2, 0.35)
+	# 真模型风起:蓄力时喷发余烬(一次性),颜色按档案;非蓄力复位。
+	if body_visual_root.get_node_or_null("ModelRoot") != null:
+		var _profile := ModelMotionProfiles.profile_for("enemy/body/by_id/%s" % String(chapter_content.get("id", "")))
+		var _ember: Color = Color(_profile.get("vfx", {}).get("windup_ember", Color(1.0, 0.45, 0.1)))
+		if state == State.WINDUP and not _vfx_emitted:
+			ModelFx.spawn_ember_burst(body_visual_root, _ember)
+			_vfx_emitted = true
+		elif state != State.WINDUP:
+			_vfx_emitted = false
 
 
 func set_visual_frozen(frozen: bool) -> void:

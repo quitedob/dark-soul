@@ -13,7 +13,10 @@ static func build_enemy_model(parent: Node3D, enemy_data: Dictionary, body_mater
 	_clear_children(parent)
 	var body_type: String = enemy_data.get("body_type", "humanoid")
 	var weapon_shape: String = enemy_data.get("weapon_shape", "club")
-	_build_body_for_type(parent, body_type, body_material)
+	var enemy_id := String(enemy_data.get("id", ""))
+	# 真模型身体自带武器(剑/戟/锤都烤在 GLB 里)——命中就跳过独立武器槽,避免双武器。
+	if _build_body_for_type(parent, body_type, body_material, enemy_id):
+		return
 	_build_chapter_weapon(parent, weapon_shape, weapon_material)
 
 
@@ -29,12 +32,21 @@ static func build_into_slots(
 	_clear_children(weapon_parent)
 	var body_type: String = enemy_data.get("body_type", "humanoid")
 	var weapon_shape: String = enemy_data.get("weapon_shape", "club")
-	_build_body_for_type(body_parent, body_type, body_material)
+	var enemy_id := String(enemy_data.get("id", ""))
+	# 真模型身体已含武器 → 武器槽留空;只有程序化身体才额外挂武器。
+	if _build_body_for_type(body_parent, body_type, body_material, enemy_id):
+		return
 	_dispatch_weapon(weapon_parent, weapon_shape, weapon_material)
 
 
-static func _build_body_for_type(parent: Node3D, body_type: String, body_material: StandardMaterial3D) -> void:
-	if RealModelResolver.try_instance("enemy/body/%s" % body_type, parent): return
+## Build the body for a content enemy. Returns true when a real GLB was used
+## (the caller then skips the separate weapon). Resolution order:
+##   enemy/body/by_id/<enemy id>  →  enemy/body/<body_type>  →  procedural.
+static func _build_body_for_type(parent: Node3D, body_type: String, body_material: StandardMaterial3D, enemy_id := "") -> bool:
+	if not enemy_id.is_empty() and RealModelResolver.try_instance("enemy/body/by_id/%s" % enemy_id, parent):
+		return true
+	if RealModelResolver.try_instance("enemy/body/%s" % body_type, parent):
+		return true
 	match body_type:
 		"wraith_thin", "armored_medium", "ethereal_flicker", "hulking_molten":
 			Chapter1EnemyFactory.build_body(parent, body_type, body_material)
@@ -53,6 +65,7 @@ static func _build_body_for_type(parent: Node3D, body_type: String, body_materia
 			_build_hanging_bell(parent, body_material)
 		_:
 			_build_default_humanoid(parent, body_material)
+	return false
 
 
 # ── Weapon dispatch ──────────────────────────────────────────────────────

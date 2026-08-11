@@ -175,8 +175,13 @@ func _heal_player() -> void:
 func _build_visual(data: Dictionary) -> void:
 	_visual = MeshInstance3D.new()
 	_visual.name = "SummonBody"
-	var prim: PrimitiveMesh
 	var scale_f := float(data.get("scale", 1.0))
+	_visual.position = Vector3(0.0, 1.0 * scale_f, 0.0)
+	# 真实 GLB 召唤物模型(summon/<kind>)优先;未注册时退回程序化发光体。
+	if RealModelResolver.try_instance("summon/%s" % kind_id, _visual):
+		add_child(_visual)
+		return
+	var prim: PrimitiveMesh
 	match String(data.get("shape", "capsule")):
 		"sphere":
 			var sphere := SphereMesh.new()
