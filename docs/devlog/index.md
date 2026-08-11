@@ -6,6 +6,10 @@
 
 ## 日期索引
 
+### 2026-08-12
+
+- [**会话执行复盘：施法/战技动画 + 命中盒审查修复 + 真动画管线（全部行动 / 难点排查 / 决策 / 记忆）**](2026-08-12/01-cast-hitbox-real-animation-session-reflection.md)
+
 ### 2026-08-11
 
 - [**85 个 three.js GLB 入游戏 + 真模型动效层（子代理并行）**](2026-08-11/01-85-glb-into-game-real-model-milestone.md)
