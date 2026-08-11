@@ -28,6 +28,7 @@ const HitStopManagerScript = preload("res://scripts/combat/hit_stop_manager.gd")
 const TraumaShakeScript = preload("res://scripts/components/trauma_shake.gd")
 const CombatCameraDirectorScript = preload("res://scripts/combat/combat_camera_director.gd")
 const BossPhasePolisherScript = preload("res://scripts/boss/boss_phase_polisher.gd")
+const BossFlowControllerScript = preload("res://scripts/boss/boss_flow_controller.gd")
 const FateChoiceOverlayScript = preload("res://scripts/ui/fate_choice_overlay.gd")
 const FateCatalog = preload("res://scripts/combat/data/boss_fate_catalog.gd")
 const DialogueOverlayScript = preload("res://scripts/ui/dialogue_overlay.gd")
@@ -623,7 +624,7 @@ func _spawn_chapter3_encounters(origin: Vector3, level_id: StringName) -> void:
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), butterfly)
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter_enemy_by_id(roster, "foxfire_lantern"))
 		&"level_03_02":
-			# 记忆回廊：窃忆灵 ×2 + 回声灵 + 精英·噬忆者
+			# 记忆回廊：窃忆灵 ×2 + 回声灵 + 精英·千年树魂
 			var memory_thief := _chapter_enemy_by_id(roster, "memory_thief")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -5.0), memory_thief)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -8.0), memory_thief)
@@ -844,7 +845,24 @@ func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guard
 	_wire_enemy_signals(enemy)
 	add_child(enemy)
 	enemies.append(enemy)
+	_attach_boss_flow(enemy, payload)
 	return enemy
+
+
+## P0-2：把内容 dict 的可选 "flow" 专属流程挂到 boss 上（BossFlowController 主机）。
+## 无 flow 字段 / script 无效时零行为改变，现有 Boss 完全不受影响。
+func _attach_boss_flow(enemy, content: Dictionary) -> void:
+	var raw_flow: Variant = content.get("flow")
+	if not raw_flow is Dictionary:
+		return
+	var flow: Dictionary = raw_flow
+	var script_path := String(flow.get("script", ""))
+	if script_path.is_empty() or not ResourceLoader.exists(script_path):
+		return
+	var controller = BossFlowControllerScript.new()
+	controller.name = "BossFlowController"
+	enemy.add_child(controller)
+	controller.attach(enemy, content)
 
 
 func _wire_enemy_signals(enemy) -> void:
@@ -1454,6 +1472,12 @@ func _open_boss_victory_exit() -> void:
 	hud.show_message(LocalizationScript.text("THE SEAL OPENS\nPath to the next ruin"), 2.5)
 
 
+func on_boss_escaped() -> void:
+	# 玄霄逃出（90s 未击杀）：boss 未发 defeated → 无胜利/战利品；
+	# 但解封竞技场 + 开放出口，避免玩家被困崩塌竞技场（软锁）。
+	_open_boss_victory_exit()
+
+
 func _boss_display_name(enemy) -> String:
 	# 优先章节内容中文名
 	if enemy != null and is_instance_valid(enemy) and "chapter_content" in enemy:
@@ -2023,6 +2047,12 @@ func _apply_run_state(state) -> void:
 		player.set_combat_style(run_state.combat_style)
 	elif not player.has_method("set_hand_loadout"):
 		player.set_combat_style(run_state.combat_style)
+	# L-18：混合职业身体模型覆盖 → 玩家运行时。player_visuals._resolve_body_class 在重建时
+	# 优先读 run_state.body_class_override（存档权威），装载后触发一次幂等重建使覆盖体观生效。
+	if run_state.has_method("get_body_class_override"):
+		var body_override = run_state.get_body_class_override()
+		if not body_override.is_empty() and player.has_method("apply_body_class_override"):
+			player.apply_body_class_override()
 	if player.has_method("set_upgrade_tier"):
 		player.set_upgrade_tier(run_state.upgrade_tier)
 	if player.has_method("set_forge_level"):
