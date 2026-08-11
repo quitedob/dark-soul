@@ -11,6 +11,8 @@
 - [**85 个 three.js GLB 入游戏 + 真模型动效层（子代理并行）**](2026-08-11/01-85-glb-into-game-real-model-milestone.md)
 - [**真模型真正入游戏：职业身体 + 12 武器 GLB + 召唤物/NPC 动效层（G1/G2/G3/G4 闭环）**](2026-08-11/02-real-models-really-in-game-action-movement.md)
 - [**会话执行复盘：全部行动 / 难点排查 / 决策 / 记忆**](2026-08-11/02-session-execution-reflection.md)
+- [**全缺口修复编排复盘：14 子代理 · 3 Wave · 4 轮 fix-back（行动/难点/决策/记忆）**](2026-08-11/03-all-gaps-fix-orchestration-reflection.md)
+- [**风险修复：玄霄逃出解封 + 动画 clip 管线**](2026-08-11/04-risk-fixes-validation.md)
 
 ### 2026-08-03
 
