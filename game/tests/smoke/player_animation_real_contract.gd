@@ -128,7 +128,9 @@ func _test_root_only_clip_stays_fallback() -> void:
 
 
 ## 4) 真实 mannyquin 绑位姿：REAL_IDLE_FALLBACK 名字已对齐（下划线导入名），
-##    但内容太薄（3 轨 0.04s）→ 被守卫 → 不驱动 idle，程序化回退。
+##    且内容太薄（3 轨 0.04s）→ 被守卫 → 不会驱动 idle。
+##    Step 2 起默认真库已含真实 idle（OAL 重定向 batch）→ idle 解析到真 clip（非绑位姿回退）；
+##    绑位姿守卫仍在（无真实 idle 时绝不回退到薄 clip），此处验证该层不被薄 clip 顶替。
 func _test_mannyquin_bind_pose_guarded() -> void:
 	var body := CharacterBody3D.new()
 	root.add_child(body)
@@ -147,16 +149,17 @@ func _test_mannyquin_bind_pose_guarded() -> void:
 	_expect(bridge.real_layer_active, "bind-pose: real layer injected (library present).")
 	_expect(bool(bridge._real_library.has_animation(String(bridge.REAL_IDLE_FALLBACK))),
 		"bind-pose: REAL_IDLE_FALLBACK must match imported lib key (underscore).")
-	_expect(bridge.real_clip_for(&"idle").is_empty(),
-		"bind-pose: bind-pose clip must NOT drive idle (guarded).")
-	# 默认真库现含 strafe_back（匹配状态键）→ has_real_animations 为真；idle 仍不受绑位姿驱动。
+	# Step 2：默认库现含真实 idle（OAL batch）→ idle 精确解析到真 clip，而非绑位姿薄 clip。
+	_expect(not bridge.real_clip_for(&"idle").is_empty(),
+		"bind-pose: idle must resolve to a real clip (Step-2 batch), got empty.")
+	# has_real_animations 为真（真实 idle/strafe_back 匹配状态键）。
 	_expect(bridge.has_real_animations(),
-		"bind-pose: strafe_back now matches a state key -> has_real_animations true.")
+		"bind-pose: real state-key clips present -> has_real_animations true.")
 	var sm := bridge.anim_tree.tree_root as AnimationNodeStateMachine
 	var idle_node := sm.get_node("Idle") as AnimationNodeAnimation
 	if idle_node != null:
-		_expect(idle_node.animation == "combat/idle",
-			"bind-pose: Idle must stay 'combat/idle', got '%s'." % idle_node.animation)
+		_expect(idle_node.animation == "real/idle",
+			"bind-pose: Idle must use 'real/idle' (Step-2 batch), got '%s'." % idle_node.animation)
 	body.queue_free()
 
 
