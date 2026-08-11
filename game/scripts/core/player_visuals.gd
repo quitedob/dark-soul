@@ -9,6 +9,8 @@ const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 const HandEquipmentScript = preload("res://scripts/data/hand_equipment.gd")
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const WeaponTrailProfileScript = preload("res://scripts/fx/weapon_trail_profile.gd")
+const ModelFx = preload("res://scripts/fx/model_fx.gd")
+const ModelMotionProfiles = preload("res://scripts/data/model_motion_profiles.gd")
 
 const MAX_TRAIL_POINTS := 12
 
@@ -16,6 +18,14 @@ var _player: Node3D
 var _trail_surface_tool: SurfaceTool = null
 var _trail_array_mesh: ArrayMesh = null
 var _trail_profile: Dictionary = {}
+## 当前已构建的职业身体 id（守卫者/无职业 = ""）—— 幂等重建守卫。
+var _active_class_id := ""
+var _visor_material: StandardMaterial3D = null
+## 真模型 BodyRoot 的运动基准高度（apply_movement 需要捕捉一次）。
+var _body_model_base_y := 0.0
+var _body_model_base_y_set := false
+## 身体网格分组标记：rebuild_body 借此精确移除旧身体而不误伤 weapon_pivot 等。
+const BODY_GROUP := "_player_body_group"
 
 
 func setup(player_node: Node3D) -> void:
@@ -25,7 +35,7 @@ func setup(player_node: Node3D) -> void:
 # -- public API ------------------------------------------------------------
 
 
-func build_nodes() -> void:
+func build_nodes(class_id := "") -> void:
 	_player.collision_layer = 2
 	_player.collision_mask = 1
 	# 显式 CharacterBody3D 参数，避免引擎升级改变隐式默认值
@@ -67,17 +77,11 @@ func build_nodes() -> void:
 	visor_material.emission_enabled = true
 	visor_material.emission = Color("f13c15")
 	visor_material.emission_energy_multiplier = 2.2
-	CharacterMeshFactory.build_player(_player.visual_root, _player.body_material, visor_material)
-	# Keep references for death / state visuals — find them by node path
-	_player.body_mesh = _player.visual_root.get_node_or_null("BodyRoot") as MeshInstance3D
-	if _player.body_mesh == null:
-		_player.body_mesh = _player.visual_root.find_child("*", true, false) as MeshInstance3D
-	if _player.body_mesh == null:
-		_player.body_mesh = MeshInstance3D.new()
-		_player.body_mesh.name = "BodyRoot"
-		_player.visual_root.add_child(_player.body_mesh)
-	_player.cloak_mesh = _player.body_mesh
-	_player.head_mesh = _player.body_mesh
+	_visor_material = visor_material
+	_active_class_id = class_id
+	CharacterMeshFactory.build_player(_player.visual_root, _player.body_material, visor_material, class_id)
+	_refresh_body_references()
+	_tag_body_children()
 
 	_player.weapon_pivot = Node3D.new()
 	_player.weapon_pivot.name = "WeaponPivot"
@@ -154,6 +158,92 @@ func build_nodes() -> void:
 	_player.camera.fov = 68.0
 	_player.spring_arm.add_child(_player.camera)
 	update_weapon_visuals()
+
+
+## 仅替换身体模型（BodyRoot / 程序化身体网格），不触碰 weapon_pivot /
+## offhand_pivot / shield / weapon_trail / combat_area / camera。同类调用幂等返回。
+func rebuild_body(class_id: String) -> void:
+	if _player == null or _player.visual_root == null or _visor_material == null:
+		return
+	if class_id == _active_class_id and _has_body():
+		return
+	# 移除旧身体（真模型 BodyRoot 或程序化身体网格），保留其余 visual_root 子节点
+	for child in _player.visual_root.get_children():
+		if child.is_in_group(BODY_GROUP):
+			_player.visual_root.remove_child(child)
+			child.queue_free()
+	# 清除旧职业的常驻粒子/光环，避免色值残留
+	_clear_model_vfx()
+	# 新身体构建到临时父节点再移植，避免 build_player 的 _clear_children 清空 pivot/camera
+	var temp := Node3D.new()
+	CharacterMeshFactory.build_player(temp, _player.body_material, _visor_material, class_id)
+	var index := 0
+	for child in temp.get_children():
+		temp.remove_child(child)
+		_player.visual_root.add_child(child)
+		_player.visual_root.move_child(child, index)
+		child.add_to_group(BODY_GROUP)
+		index += 1
+	temp.free()
+	_active_class_id = class_id
+	_body_model_base_y_set = false
+	_refresh_body_references()
+
+
+## 身体引用修复：BodyRoot → 首个 MeshInstance3D → 兜底空 BodyRoot。
+func _refresh_body_references() -> void:
+	_player.body_mesh = _player.visual_root.get_node_or_null("BodyRoot") as MeshInstance3D
+	if _player.body_mesh == null:
+		_player.body_mesh = _player.visual_root.find_child("*", true, false) as MeshInstance3D
+	if _player.body_mesh == null:
+		_player.body_mesh = MeshInstance3D.new()
+		_player.body_mesh.name = "BodyRoot"
+		_player.visual_root.add_child(_player.body_mesh)
+		_player.body_mesh.add_to_group(BODY_GROUP)
+	_player.cloak_mesh = _player.body_mesh
+	_player.head_mesh = _player.body_mesh
+
+
+func _has_body() -> bool:
+	for child in _player.visual_root.get_children():
+		if child.is_in_group(BODY_GROUP):
+			return true
+	return false
+
+
+## 记录当前 visual_root 的直接身体子节点（调用点：build_player 之后、pivot 之前）。
+func _tag_body_children() -> void:
+	for child in _player.visual_root.get_children():
+		child.add_to_group(BODY_GROUP)
+
+
+## 清除职业常驻 VFX（ModelAmbient / ModelAura），供重建身体时替换色值。
+func _clear_model_vfx() -> void:
+	for name in ["ModelAmbient", "ModelAura"]:
+		var fx: Node = _player.visual_root.get_node_or_null(name)
+		if fx != null:
+			_player.visual_root.remove_child(fx)
+			fx.free()
+
+
+## 真模型身体运动层：按职业档案施加 bob + 环境粒子 + 光环。无 BodyRoot（程序化
+## 身体）时为安全 no-op。调用方已按状态门控（attack/leap/dodge/冻结/死亡跳过）。
+func update_real_body_motion(delta: float, class_id: String) -> void:
+	if _player == null or _player.visual_root == null:
+		return
+	var model_root := _player.visual_root.get_node_or_null("BodyRoot") as Node3D
+	if model_root == null:
+		return
+	if not _body_model_base_y_set:
+		_body_model_base_y = model_root.position.y
+		_body_model_base_y_set = true
+	var resolver_id := "player/body/class_%s" % class_id if not class_id.is_empty() else "player/body"
+	var profile := ModelMotionProfiles.profile_for(resolver_id)
+	var vfx: Dictionary = profile.get("vfx", {})
+	ModelFx.apply_movement(model_root, _body_model_base_y, profile.get("movement", {}), delta)
+	ModelFx.ensure_ambient(_player.visual_root, vfx.get("ambient", {}))
+	if vfx.has("aura"):
+		ModelFx.ensure_aura(_player.visual_root, vfx["aura"])
 
 
 func update_weapon_visuals() -> void:

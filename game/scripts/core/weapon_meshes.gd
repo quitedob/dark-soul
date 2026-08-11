@@ -8,10 +8,30 @@ extends RefCounted
 const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 
 
+# -- themed real-model mapping ----------------------------------------------
+# shape_id -> REGISTRY key for the confident themed GLB. Checked BEFORE the
+# player/weapon/<shape> template fallback so equipped weapons become real.
+# Axes map to the re-pointed per-hand sub-node entries (weapon/02 twin axes).
+const _THEMED_SHAPE_WEAPON := {
+	"sword":        "weapon/08-XuanXiao-Falling-Star",
+	"bow":          "weapon/01-WindHunter-Bow",
+	"axe_right":    "player/weapon/axe_right",
+	"axe_left":     "player/weapon/axe_left",
+	"staff_seal":   "weapon/03-Mystic-Gate-Seal",
+	"prayer_beads": "weapon/04-Sandalwood-Beads-Talisman",
+}
+
+
 # -- public API ------------------------------------------------------------
 
 static func build_into_parent(parent: Node3D, shape_id: String, material: StandardMaterial3D) -> void:
 	_clear_children(parent)
+	var themed_key := String(_THEMED_SHAPE_WEAPON.get(shape_id, ""))
+	if themed_key != "" and RealModelResolver.try_instance(themed_key, parent):
+		return
+	# Bow fallback: WindHunter-Bow is primary; Sun-Falling-Bow is the back-up bow.
+	if shape_id == "bow" and RealModelResolver.try_instance("weapon/05-Sun-Falling-Bow", parent):
+		return
 	if RealModelResolver.try_instance("player/weapon/%s" % shape_id, parent):
 		return
 	match shape_id:

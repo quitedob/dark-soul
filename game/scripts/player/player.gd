@@ -149,6 +149,9 @@ var _poise_delay_timer := 0.0
 ## 当前阶段动作护甲倍率（AttackData 三阶段，非二值霸体）
 var _wam_active := 0.0
 var combat_style: CombatStyle = CombatStyle.RELIQUARY_GUARD
+## 混合职业显式覆盖（virtual style 5..8 选中后记录其职业 id）。
+## get_active_class_id() 优先返回它；切回基础风格时清空回落到 combat_style 派生。
+var _class_override := ""
 var right_hand_item := "guardian_sword"
 var left_hand_item := "reliquary_shield"
 var guard_active := false
@@ -377,7 +380,7 @@ func _ready() -> void:
 	# K-02：已由 setup() 初始化则不再重建 _spells/_visuals
 	_ensure_combat_subsystems(world_node)
 	if _visuals != null:
-		_visuals.build_nodes()
+		_visuals.build_nodes(get_active_class_id())
 	_connect_combat_area_hit()  # L-07：链续命中门闩
 	_configure_spring_arm_collision()  # F-01：关卡几何层 mask 校验与固化
 	_refresh_weight_class()
@@ -534,6 +537,7 @@ func _physics_process(delta: float) -> void:
 		_check_void_recovery()
 	_flush_stats(delta)
 	_update_visual_pose()
+	_update_real_body_motion(delta)
 	# L-01：命运增益计时器到期复位
 	if _fate_damage_boost_until > 0.0:
 		_fate_damage_boost_until -= delta
@@ -1002,18 +1006,43 @@ func get_summon_reserve_bonus() -> int:
 ## L-09：按战斗 style 切职业。0..4 = 既有 5 风格自由切换；
 ## 5..8 = 混合虚拟 style，未解锁则拒绝并提示；越界返回 false。
 func try_switch_class(style_id: int) -> bool:
+	var previous_class_id := get_active_class_id()
 	if style_id < CombatStyle.size():
+		_class_override = ""
 		set_combat_style(style_id)
-		return true
-	var cls := TalentDataScript.class_for_style(style_id)
-	if cls.is_empty():
-		return false
-	if not TalentSystemScript.unlocks_for(StringName(cls["id"]), _points_by_class()):
-		_show_message(LocalizationScript.text("CLASS LOCKED"), 0.9)
-		return false
-	set_combat_style(int(cls["base_style"]))
-	_show_message(LocalizationScript.text(String(cls["name"])), 1.0)
+	else:
+		var cls := TalentDataScript.class_for_style(style_id)
+		if cls.is_empty():
+			return false
+		if not TalentSystemScript.unlocks_for(StringName(cls["id"]), _points_by_class()):
+			_show_message(LocalizationScript.text("CLASS LOCKED"), 0.9)
+			return false
+		# 混合职业：先记录职业覆盖，再落基础风格。set_combat_style(keep_override=true)
+		# 保留覆盖，其内部重建按 get_active_class_id()（优先覆盖）判定 →
+		# 不会先重建基础职业再重建混合职业，一次切换只触发一次 GLB 重建。
+		_class_override = String(cls["id"])
+		set_combat_style(int(cls["base_style"]), true)
+		_show_message(LocalizationScript.text(String(cls["name"])), 1.0)
+	var new_class_id := get_active_class_id()
+	if new_class_id != previous_class_id:
+		_rebuild_player_body(new_class_id)
 	return true
+
+
+## 当前生效职业 id：优先混合职业显式覆盖，否则按 combat_style 派生；守卫者/未知返回 ""。
+func get_active_class_id() -> String:
+	if not _class_override.is_empty():
+		return _class_override
+	var cls := TalentDataScript.class_for_style(int(combat_style))
+	if cls.is_empty():
+		return ""
+	return String(cls["id"])
+
+
+## 类切换后只重建身体模型（不重跑全量 build_nodes，避免清空 pivot/camera）。
+func _rebuild_player_body(class_id: String) -> void:
+	if _visuals != null and visual_root != null:
+		_visuals.rebuild_body(class_id)
 
 
 ## L-09：幂等重算天赋派生数值并落地到扁平变量（talent_spent 驱动，重复调用安全）
@@ -2297,6 +2326,7 @@ func set_hand_loadout(right_hand_id: String, left_hand_id: String) -> bool:
 		return false
 	if not HandEquipmentScript.is_valid_for_hand(left_hand_id, "left"):
 		return false
+	var previous_class_id := get_active_class_id()
 	right_hand_item = right_hand_id
 	left_hand_item = left_hand_id
 	combat_style = HandEquipmentScript.get_style_for_loadout(right_hand_item, left_hand_item) as CombatStyle
@@ -2308,6 +2338,10 @@ func set_hand_loadout(right_hand_id: String, left_hand_id: String) -> bool:
 	combat_style_changed.emit(combat_style, display_name)
 	hands_changed.emit(right_hand_item, left_hand_item, get_hand_action_labels())
 	grip_changed.emit(int(grip_mode), _grip_display_name())
+	# 载入/换装改变了战斗风格派生职业时，同步重建身体（仅当有效职业真正变化）
+	var new_class_id := get_active_class_id()
+	if new_class_id != previous_class_id:
+		_rebuild_player_body(new_class_id)
 	return true
 
 
@@ -2319,8 +2353,11 @@ func get_hand_action_labels() -> Dictionary:
 	return HandEquipmentScript.get_action_labels(right_hand_item, left_hand_item)
 
 
-func set_combat_style(style_id: int) -> void:
+## keep_override=true 时保留混合职业覆盖（try_switch_class 混合路径落地基础风格时用），
+## 使本次重建按 get_active_class_id()（优先覆盖）判定，避免先重建基础职业再重建混合职业。
+func set_combat_style(style_id: int, keep_override := false) -> void:
 	var normalized_style := clampi(style_id, 0, CombatStyle.size() - 1)
+	var previous_class_id := get_active_class_id()
 	var loadout: Dictionary = HandEquipmentScript.get_style_loadout(normalized_style)
 	var changed := (
 		int(combat_style) != normalized_style
@@ -2329,8 +2366,13 @@ func set_combat_style(style_id: int) -> void:
 	)
 	if not changed:
 		return
+	if not keep_override:
+		_class_override = ""  # 直接设基础风格 = 回落到 base 派生职业
 	set_hand_loadout(String(loadout["right_hand"]), String(loadout["left_hand"]))
 	_show_message(_style_display_name(), 1.0)
+	var new_class_id := get_active_class_id()
+	if new_class_id != previous_class_id:
+		_rebuild_player_body(new_class_id)
 
 
 func _style_display_name() -> String:
@@ -3237,6 +3279,20 @@ func _update_visual_pose() -> void:
 	_visuals.update_visual_pose()
 
 
+## 真模型身体运动层：按职业档案施加 bob + 环境粒子 + 光环。只在空闲/移动时驱动，
+## 攻击/跃击/闪避/冻结/死亡一律跳过，绝不与 pose 系统抢攻。
+func _update_real_body_motion(delta: float) -> void:
+	if _visual_frozen or state == State.DEAD:
+		return
+	if state in [
+		State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.ATTACK_RECOVERY,
+		State.LEAP_WINDUP, State.LEAP_ACTIVE, State.DODGE,
+	]:
+		return
+	if _visuals != null:
+		_visuals.update_real_body_motion(delta, get_active_class_id())
+
+
 func set_visual_frozen(frozen: bool) -> void:
 	_visual_frozen = frozen
 
@@ -3250,7 +3306,7 @@ func _build_trail_ribbon(points: Array[Vector3]) -> void:
 
 
 func _build_nodes() -> void:
-	_visuals.build_nodes()
+	_visuals.build_nodes(get_active_class_id())
 	_configure_spring_arm_collision()
 
 

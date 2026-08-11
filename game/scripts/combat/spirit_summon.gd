@@ -31,6 +31,9 @@ var _target: Node3D = null
 var _dead := false
 var _visual: MeshInstance3D = null
 var _floating_base_y := 0.9
+# 真模型特效层:ModelRoot 接地 base_y 只捕获一次,逐帧只绕其振荡(避免漂移累积)。
+var _model_base_y := 0.0
+var _model_base_y_set := false
 
 const KIND_DATA := {
 	"dharma_child": {
@@ -106,6 +109,7 @@ func _tick_behavior(delta: float) -> void:
 			_heal_timer = 0.0
 			_heal_player()
 		_visual.rotation.y += delta * 0.8
+		_drive_model_motion(delta)
 		return
 	_update_movement(delta)
 	_update_target()
@@ -115,7 +119,7 @@ func _tick_behavior(delta: float) -> void:
 	if _attack_timer <= 0.0 and _target != null and is_instance_valid(_target):
 		_attack_timer = attack_interval
 		_perform_attack(_target)
-	_flicker_visual(delta)
+	_drive_model_motion(delta)
 
 
 func _update_movement(delta: float) -> void:
@@ -208,6 +212,28 @@ func _build_visual(data: Dictionary) -> void:
 	_visual.mesh = prim
 	_visual.position = Vector3(0.0, 1.0 * scale_f, 0.0)
 	add_child(_visual)
+
+
+## 真模型特效层:按 summon/<kind> 档案施加专属运动 + 环境粒子/光环。
+## 决策(避免双重运动):真模型时只驱动 ModelRoot(绕捕获的 base_y),不再写
+## _visual.position.y,因此 _flicker_visual 仅对无 ModelRoot 的程序化占位体生效;
+## 程序化占位体保留原有发光体 bob,真模型用档案运动 + 环境粒子。
+func _drive_model_motion(delta: float) -> void:
+	if _visual == null:
+		return
+	var model_root := _visual.get_node_or_null("ModelRoot") as Node3D
+	if model_root == null:
+		_flicker_visual(delta)
+		return
+	if not _model_base_y_set:
+		_model_base_y = model_root.position.y
+		_model_base_y_set = true
+	var profile := ModelMotionProfiles.profile_for("summon/%s" % String(kind_id))
+	var vfx: Dictionary = profile.get("vfx", {})
+	ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
+	ModelFx.ensure_ambient(_visual, vfx.get("ambient", {}))
+	if vfx.has("aura"):
+		ModelFx.ensure_aura(_visual, vfx["aura"])
 
 
 func _flicker_visual(delta: float) -> void:

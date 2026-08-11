@@ -35,6 +35,7 @@ const _SUB := "res://assets/models/bosses/sub-bosses/"
 const _PC := "res://assets/models/characters/player-classes/"
 const _NPC := "res://assets/models/characters/npcs/"
 const _SUMMON := "res://assets/models/characters/summons/"
+const _WP := "res://assets/models/weapons/"
 
 const REGISTRY := {
 	# ── Player ──
@@ -51,21 +52,37 @@ const REGISTRY := {
 		"yaw_deg": 180.0,
 	},
 	"player/weapon/axe_right": {
-		"path": "res://assets/models/weapons/templateweapons.glb",
-		"sub_node": "Ax",
-		"scale": 0.8,
+		"path": "res://assets/models/weapons/02-XingTian-Twin-Axes.glb",
+		"sub_node": "axe_right",
+		"scale": 0.6,
 	},
 	"player/weapon/axe_left": {
-		"path": "res://assets/models/weapons/templateweapons.glb",
-		"sub_node": "Ax",
-		"scale": 0.8,
-		"scale_x": -1.0,
+		"path": "res://assets/models/weapons/02-XingTian-Twin-Axes.glb",
+		"sub_node": "axe_left",
+		"scale": 0.6,
 	},
 	"player/shield": {
 		"path": "res://assets/models/weapons/templateweapons.glb",
 		"sub_node": "Shield",
 		"scale": 1.0,
 	},
+	# ── Themed weapon GLBs ×12 — keys are motion-profile aligned (weapon/<NN>-<name>) ──
+	# Grip nodes are authored at/near the model origin (dump-verified), so whole-model
+	# instancing with a uniform hand scale keeps the grip on the pivot. Uniform scale 0.6:
+	# the raw GLBs are ~1.5-2 m long; 0.6 brings hand-held weapons into the 0.6-1.1 m
+	# readable range while the player pivot sits at ~y1.25 in the hand.
+	"weapon/01-WindHunter-Bow":            {"path": _WP + "01-WindHunter-Bow.glb", "scale": 0.6},
+	"weapon/02-XingTian-Twin-Axes":        {"path": _WP + "02-XingTian-Twin-Axes.glb", "scale": 0.6},
+	"weapon/03-Mystic-Gate-Seal":          {"path": _WP + "03-Mystic-Gate-Seal.glb", "scale": 0.6},
+	"weapon/04-Sandalwood-Beads-Talisman": {"path": _WP + "04-Sandalwood-Beads-Talisman.glb", "scale": 0.6},
+	"weapon/05-Sun-Falling-Bow":           {"path": _WP + "05-Sun-Falling-Bow.glb", "scale": 0.6},
+	"weapon/06-Five-Elements-Seal":        {"path": _WP + "06-Five-Elements-Seal.glb", "scale": 0.6},
+	"weapon/07-XingTian-Indomitable":      {"path": _WP + "07-XingTian-Indomitable.glb", "scale": 0.6},
+	"weapon/08-XuanXiao-Falling-Star":     {"path": _WP + "08-XuanXiao-Falling-Star.glb", "scale": 0.6},
+	"weapon/09-ZhuYin-The-End":            {"path": _WP + "09-ZhuYin-The-End.glb", "scale": 0.6},
+	"weapon/10-JuQue-Gatekeeper":          {"path": _WP + "10-JuQue-Gatekeeper.glb", "scale": 0.6},
+	"weapon/11-NineTails-Illusion-Moon":   {"path": _WP + "11-NineTails-Illusion-Moon.glb", "scale": 0.6},
+	"weapon/12-Weapon-Types":              {"path": _WP + "12-Weapon-Types.glb", "scale": 0.6},
 	# ── Player classes (8) — build_player() threads the class id ──
 	"player/body/class_barbarian":      {"path": _PC + "02-Frenzied-Warrior.glb", "root_name": "BodyRoot", "align_ground": true},
 	"player/body/class_marksman":       {"path": _PC + "01-Divine-Marksman.glb", "root_name": "BodyRoot", "align_ground": true},

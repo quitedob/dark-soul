@@ -5,8 +5,8 @@
 
 - **流水线研究:** 见 [docs/research-llm-mcp-3d-godot.md](../research-llm-mcp-3d-godot.md)(TRELLIS / Hunyuan3D / Blender-MCP / Godot MCP)
 - **目标引擎:** Godot 4.7.1,资产导出 **GLB**,导入到 `game/assets/models/`
-- **当前状态:** 游戏内全部为程序化占位几何体(`character_meshes.gd` / `weapon_meshes.gd` / `enemy_factory.gd`),
-  本目录为正式资产生产清单,按优先级逐步替换。
+- **当前状态:** 玩家职业身体/武器、敌人/首领/召唤物/NPC 已接入 `real_model_resolver.gd` 真 GLB;未注册 key 仍回落
+  程序化几何体(`character_meshes.gd` / `weapon_meshes.gd` / `enemy_factory.gd`),本目录为正式资产生产清单,按优先级逐步替换剩余(道具/装备/环境等)。
 
 ---
 

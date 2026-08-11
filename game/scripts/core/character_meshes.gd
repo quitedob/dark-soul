@@ -8,8 +8,11 @@ extends RefCounted
 
 # -- public API ------------------------------------------------------------
 
-static func build_player(parent: Node3D, body_mat: StandardMaterial3D, visor_mat: StandardMaterial3D) -> void:
+static func build_player(parent: Node3D, body_mat: StandardMaterial3D, visor_mat: StandardMaterial3D, class_id: String = "") -> void:
 	_clear_children(parent)
+	# 职业真模型优先：player/body/class_<id>；失败回退基础 player/body；再走程序化。
+	if not class_id.is_empty() and RealModelResolver.try_instance("player/body/class_%s" % class_id, parent):
+		return
 	if RealModelResolver.try_instance("player/body", parent):
 		return
 	# Core body
