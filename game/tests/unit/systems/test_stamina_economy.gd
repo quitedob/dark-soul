@@ -47,22 +47,49 @@ func test_spend_delay_counts_down_only_in_locomotion() -> void:
 	assert_almost_eq(player.stamina_delay, 0.5, 0.001)
 
 
+## 目标风格精力消耗：中性攻击精力 = 风格资源（blessed `combat_contract_test.gd#_test_stamina_matrix`）。
+## 单手握持（grip stamina 倍率 1.0）下攻击实际扣费与资源值一致：TWIN 重击 65、CRESCENT 轻击 16。
 func test_target_style_costs_and_insufficient_block() -> void:
+	await _stand_player_on_floor()
 	player.set_combat_style(player.CombatStyle.TWIN_COLOSSI)
+	player.grip_mode = player.GripMode.ONE_HANDED
+	player._refresh_moveset_cache()
 	player.stamina = 100.0
 	player._try_attack(true)
-	assert_almost_eq(player.stamina, 35.0, 0.001)
+	assert_almost_eq(player.stamina, 35.0, 0.001)  # 100 - blessed stamina_heavy(65)
 	player._change_state(player.State.LOCOMOTION)
 	player.set_combat_style(player.CombatStyle.CRESCENT_PAIR)
+	player.grip_mode = player.GripMode.ONE_HANDED
+	player._refresh_moveset_cache()
 	player.stamina = 100.0
 	player._try_attack(false)
-	assert_almost_eq(player.stamina, 84.0, 0.001)
+	assert_almost_eq(player.stamina, 84.0, 0.001)  # 100 - blessed stamina_light(16)
 	player._change_state(player.State.LOCOMOTION)
 	player.set_combat_style(player.CombatStyle.TWIN_COLOSSI)
+	player.grip_mode = player.GripMode.ONE_HANDED
+	player._refresh_moveset_cache()
 	player.stamina = 64.0
 	player._try_attack(true)
 	assert_eq(player.state, player.State.LOCOMOTION)
 	assert_eq(player.stamina, 64.0)
+
+
+## 单位测试无关卡地板：放置地板并等待物理帧，使 `is_on_floor()` 为真，
+## 这样 `_try_attack` 才会解析为中立轻/重击（否则落空时解析为空中跳劈/下落攻击）。
+func _stand_player_on_floor() -> void:
+	# 玩家 collision_mask=1（仅 Layer1 静态世界），地板必须落在 Layer1 才能被踩到。
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	floor_body.collision_mask = 0
+	var collision := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(30.0, 2.0, 30.0)
+	collision.shape = box
+	floor_body.add_child(collision)
+	floor_body.position = Vector3(0.0, -1.1, 0.0)  # 顶面 y=-0.1，位于玩家脚底
+	add_child_autofree(floor_body)
+	for i in 24:
+		await get_tree().physics_frame
 
 
 func test_respawn_restores_stamina_and_clears_delay() -> void:

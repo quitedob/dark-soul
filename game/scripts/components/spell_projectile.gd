@@ -200,9 +200,19 @@ func _sweep_motion(motion: Vector3) -> Dictionary:
 	if safe_fraction >= 1.0:
 		return {}
 	var travel := motion * safe_fraction
+	# cast_motion 的 safe_fraction 是球体"首次接触"的边界位置（零穿透相切），
+	# 而 intersect_shape 需要严格重叠（穿透 > 0）；恰在相切边界上查询会返回空，
+	# 回退射线又只覆盖单帧位移，小型目标易整颗穿透。故把查询球沿运动方向前推
+	# 一小段 nudge（仅用于重叠查询，不改变实际落点 global_position+travel），
+	# 使其越过边界进入严格重叠，从而可靠取回第一个接触到的碰撞体。
+	var nudge := (
+		motion.normalized() * maxf(_collision_radius * 0.2, 0.015)
+		if motion.length() > 0.001
+		else Vector3.ZERO
+	)
 	var rest := PhysicsShapeQueryParameters3D.new()
 	rest.shape = shape
-	rest.transform = Transform3D(global_transform.basis, global_position + travel)
+	rest.transform = Transform3D(global_transform.basis, global_position + travel + nudge)
 	rest.collision_mask = QUERY_MASK
 	rest.exclude = exclude
 	rest.collide_with_areas = false

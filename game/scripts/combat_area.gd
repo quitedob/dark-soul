@@ -140,7 +140,9 @@ func apply_hitbox_profile(radius: float, height: float, offset: Vector3) -> void
 func _sync_socket_follow() -> void:
 	if not _use_socket_follow or _follow_socket == null or not is_instance_valid(_follow_socket):
 		return
-	global_position = _follow_socket.to_global(_socket_local_offset)
+	# 跟随挂点的朝向与位置：basis 完整继承挂点旋转；offset 在挂点局部坐标系内应用
+	# （translated_local 用挂点 basis 旋转 offset 后再加到 origin），返回 Transform3D 无分配。
+	global_transform = _follow_socket.global_transform.translated_local(_socket_local_offset)
 
 
 func _apply_capsule(radius: float, height: float) -> void:

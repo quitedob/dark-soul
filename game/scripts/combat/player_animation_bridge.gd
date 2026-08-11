@@ -22,6 +22,9 @@ const STRAFE_RIGHT := &"strafe_right"
 const LEAP_ANIM := &"colossal_leap"
 const RIPOSTE_ANIM := &"riposte"
 const BACKSTAB_ANIM := &"backstab"
+## 战技/施法占位 pose：程序化回退（真 body pose 由真 clip 提供）
+const CAST_ANIM := &"cast"
+const SKILL_ANIM := &"skill_pose"
 
 ## Twin Colossi leap 根运动总前冲（米，本地 -Z）
 const LEAP_ROOT_FORWARD := 2.4
@@ -56,6 +59,9 @@ var anim_tree: AnimationTree
 var _playback: AnimationNodeStateMachinePlayback
 var enabled := false
 var _strafe_active := false
+## Cast/Skill 状态机节点引用；真库重建状态机后由 _make_state_machine 重新获取
+var _cast_node: AnimationNodeAnimation = null
+var _skill_node: AnimationNodeAnimation = null
 ## 当前动画是否声明了命中窗 method track（有则可选驱动状态机）
 var has_timing_method_tracks := false
 
@@ -154,11 +160,11 @@ func travel_light_attack() -> void:
 
 
 func travel_leap(curved: bool = false) -> void:
-	# Twin Colossi 直线 leap 走根运动；曲刃 leap 仍可走同轨占位
+	# Twin Colossi 直线 leap 走根运动；curved 仅作兼容入参（无独立程序化占位）
 	if not enabled or _playback == null:
 		return
 	_strafe_active = false
-	_playback.travel("ColossalLeap" if not curved else "ColossalLeap")
+	_playback.travel("ColossalLeap")
 
 
 func travel_execution(kind: StringName) -> void:
@@ -169,6 +175,24 @@ func travel_execution(kind: StringName) -> void:
 		_playback.travel("Backstab")
 	else:
 		_playback.travel("Riposte")
+
+
+## 施法 body 动画：stance 有真 clip 用真姿态，否则程序化 cast pose。
+func travel_cast(stance: StringName = &"") -> void:
+	if not enabled or _playback == null or _cast_node == null:
+		return
+	_strafe_active = false
+	_cast_node.animation = _resolve_pose_path(stance, CAST_ANIM)
+	_playback.travel("Cast")
+
+
+## 战技 body 动画：stance 有真 clip 用真姿态，否则程序化 skill pose。
+func travel_skill(stance: StringName = &"") -> void:
+	if not enabled or _playback == null or _skill_node == null:
+		return
+	_strafe_active = false
+	_skill_node.animation = _resolve_pose_path(stance, SKILL_ANIM)
+	_playback.travel("Skill")
 
 
 func consume_root_motion() -> Vector3:
@@ -345,6 +369,12 @@ func _ingest_real_library(lib: AnimationLibrary) -> void:
 		if anim_player.has_animation_library(REAL_LIBRARY_NAME):
 			anim_player.remove_animation_library(REAL_LIBRARY_NAME)
 		anim_player.add_animation_library(REAL_LIBRARY_NAME, out)
+	# 真骨架存在时，给 cast/skill 程序化 pose 补种前臂抬起轨（幂等）。
+	# combat 库在 setup 阶段已建立（_build_animations），此处直接重取并修改 pose 动画对象，
+	# 使真骨架下回退占位也带前臂姿态，而非纯根位移。
+	if anim_player != null and anim_player.has_animation_library("combat"):
+		_stamp_pose_arm_tracks(anim_player.get_animation("combat/%s" % CAST_ANIM))
+		_stamp_pose_arm_tracks(anim_player.get_animation("combat/%s" % SKILL_ANIM))
 
 
 ## 重映射 clip：骨骼姿态轨路径改指向目标骨架；根运动骨轨剔除。
@@ -433,6 +463,54 @@ func _real_clip_for(state_key: StringName) -> StringName:
 	return &""
 
 
+## 任意 stance 键 → 播放路径：有真 clip 用 "real/<clip>"，否则回退程序化占位。
+## 不用 _clip_path(stance)：任意 stance 键没有对应的 "combat/<stance>" 程序化 clip。
+func _resolve_pose_path(stance: StringName, fallback_anim: StringName) -> String:
+	if real_layer_active:
+		var real := _real_clip_for(stance)
+		if not real.is_empty():
+			return "real/%s" % real
+	return "combat/%s" % fallback_anim
+
+
+## 寻找可驱动的前臂骨（Mixamo DEF-* 风格优先，通用 Forearm 名回退）。
+## 找不到任何臂骨返回 ""——调用方保持仅根位移占位，不做任何骨架假定。
+func _find_pose_arm_bone() -> String:
+	if _real_skeleton == null:
+		return ""
+	for name in [
+		"DEF-forearm.R", "DEF-forearm.L",
+		"Forearm.R", "Forearm.L",
+		"mixamorig:RightForeArm", "mixamorig:LeftForeArm",
+		"RightForeArm", "LeftForeArm",
+	]:
+		if _real_skeleton.find_bone(name) >= 0:
+			return name
+	return ""
+
+
+## 真骨架存在时给 cast/skill 程序化 pose 补种前臂抬起轨。
+## 轨路径与 _remap_real_clip 一致（<玩家→骨架相对路径>:<骨名>，相对 AnimationPlayer 根=玩家）。
+## 幂等：同一轨路径已存在则跳过（configure 可能多次 ingest）。找不到臂骨 / 未配置真骨架
+## 则保持仅根位移——只对 find_bone 确认存在的骨写轨，绝不假定任意骨架。
+func _stamp_pose_arm_tracks(anim: Animation) -> void:
+	if anim == null or _real_skeleton == null or _player == null:
+		return
+	var arm := _find_pose_arm_bone()
+	if arm.is_empty():
+		return
+	var skeleton_path: NodePath = _player.get_path_to(_real_skeleton)
+	var target := NodePath("%s:%s" % [skeleton_path, arm])
+	for t in range(anim.get_track_count()):
+		if anim.track_get_path(t) == target:
+			return  # 已补种过
+	var track := anim.add_track(Animation.TYPE_ROTATION_3D)
+	anim.track_set_path(track, target)
+	anim.rotation_track_insert_key(track, 0.0, Quaternion.IDENTITY)
+	anim.rotation_track_insert_key(track, anim.length * 0.35, Quaternion(Vector3(0, 0, 1), -0.55))
+	anim.rotation_track_insert_key(track, anim.length, Quaternion.IDENTITY)
+
+
 ## configure_real_animations 命中后重建状态机，让节点指向真 clip。
 func _rebuild_tree_for_real() -> void:
 	if anim_tree != null and is_instance_valid(anim_tree):
@@ -469,6 +547,8 @@ func _build_animations() -> void:
 	lib.add_animation(String(LEAP_ANIM), _make_colossal_leap())
 	lib.add_animation(String(RIPOSTE_ANIM), _make_execution_pose(0.95, -0.12))
 	lib.add_animation(String(BACKSTAB_ANIM), _make_execution_pose(1.05, -0.18))
+	lib.add_animation(String(CAST_ANIM), _make_cast_pose())
+	lib.add_animation(String(SKILL_ANIM), _make_skill_pose())
 	anim_player.add_animation_library("combat", lib)
 
 
@@ -492,6 +572,30 @@ func _make_pose_anim(length: float, loop: bool, z_end: float) -> Animation:
 	var track := _root_pos_track(anim)
 	anim.position_track_insert_key(track, 0.0, Vector3.ZERO)
 	anim.position_track_insert_key(track, length, Vector3(0, 0, z_end))
+	return anim
+
+
+## 施法占位：短促前倾后回位，仅根位移（真 body pose 由真 clip 提供）
+func _make_cast_pose() -> Animation:
+	var anim := Animation.new()
+	anim.length = 0.5
+	anim.loop_mode = Animation.LOOP_NONE
+	var track := _root_pos_track(anim)
+	anim.position_track_insert_key(track, 0.0, Vector3.ZERO)
+	anim.position_track_insert_key(track, 0.22, Vector3(0, 0, -0.12))
+	anim.position_track_insert_key(track, 0.5, Vector3.ZERO)
+	return anim
+
+
+## 战技占位：略长，前+下 "commit" 后恢复，仅根位移
+func _make_skill_pose() -> Animation:
+	var anim := Animation.new()
+	anim.length = 0.6
+	anim.loop_mode = Animation.LOOP_NONE
+	var track := _root_pos_track(anim)
+	anim.position_track_insert_key(track, 0.0, Vector3.ZERO)
+	anim.position_track_insert_key(track, 0.25, Vector3(0, -0.05, -0.18))
+	anim.position_track_insert_key(track, 0.6, Vector3.ZERO)
 	return anim
 
 
@@ -605,6 +709,11 @@ func _make_state_machine() -> AnimationNodeStateMachine:
 	sm.add_node("ColossalLeap", _anim_node(_clip_path(LEAP_ANIM)), Vector2(250, 140))
 	sm.add_node("Riposte", _anim_node(_clip_path(RIPOSTE_ANIM)), Vector2(90, 260))
 	sm.add_node("Backstab", _anim_node(_clip_path(BACKSTAB_ANIM)), Vector2(250, 260))
+	# Cast / Skill body 动画状态（真库重建后此处重取节点引用）
+	_cast_node = _anim_node(_clip_path(CAST_ANIM))
+	sm.add_node("Cast", _cast_node, Vector2(90, 380))
+	_skill_node = _anim_node(_clip_path(SKILL_ANIM))
+	sm.add_node("Skill", _skill_node, Vector2(250, 380))
 	# 移动互转
 	_link(sm, "Idle", "Walk")
 	_link(sm, "Walk", "Idle")
@@ -622,6 +731,12 @@ func _make_state_machine() -> AnimationNodeStateMachine:
 	_link(sm, "ColossalLeap", "Idle")
 	_link(sm, "Riposte", "Idle")
 	_link(sm, "Backstab", "Idle")
+	# Cast / Skill：从全部状态可达，且可回 Idle
+	for from_name in ["Idle", "Walk", "Strafe", "LightAttack", "ColossalLeap", "Riposte", "Backstab"]:
+		_link(sm, from_name, "Cast")
+		_link(sm, from_name, "Skill")
+	_link(sm, "Cast", "Idle")
+	_link(sm, "Skill", "Idle")
 	return sm
 
 

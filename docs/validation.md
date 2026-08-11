@@ -1,6 +1,6 @@
 # Validation
 
-Validated on **2026-07-31** using Godot 4.7.1. Project root for all `--path` arguments is `game/` (this repository: `e:/godot/darksoul/game`).
+Validated on **2026-08-11** using Godot 4.7.1. Project root for all `--path` arguments is `game/` (this repository: `e:/godot/darksoul/game`).
 
 ## Engine
 
@@ -104,6 +104,18 @@ I-07 death loop covers ember drop, LostEcho spawn/recover, enemy `reset_enemy`, 
 ```
 
 Expected: `ASHEN_WEAPON_TRAIL_CONTRACTS_OK`, `ASHEN_ENEMY_AI_TUNING_CONTRACTS_OK`, `ASHEN_BOSS_CHAPTER_POWERS_OK`.
+
+### Hitbox timing contract (D-08 / cast-hitbox review)
+
+```bash
+"E:/godot/Godot_v4.7.1-stable_win64_console.exe" \
+  --headless --path "e:/godot/darksoul/game" \
+  --script tests/smoke/light_attack_hitbox_contract.gd
+```
+
+Expected: `ASHEN_LIGHT_HITBOX_CONTRACTS_OK`.
+
+Verifies light/heavy/root-motion leap hitboxes open on state timing (`ATTACK_ACTIVE` / `LEAP_ACTIVE` entry → `_begin_melee_swing`), not animation-track defer — regression guard for the 0-damage melee/leap fix (see `docs/devlog/2026-08-11/05-cast-hitbox-review.md`).
 
 ### Enemy AttackData catalog (G-08)
 

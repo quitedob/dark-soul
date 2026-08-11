@@ -39,10 +39,16 @@ func test_bridge_hooks_emit_signals() -> void:
 
 
 func test_player_forwards_anim_events_without_state_change() -> void:
+	# D-08 修复后无闩锁；转发契约改为：桥信号被发出、状态机不被改变
+	assert_not_null(player._anim_bridge, "player 应已连接动画桥")
+	var hit_fired := [false]
+	var off_fired := [false]
+	player._anim_bridge.hitbox_activated.connect(func(): hit_fired[0] = true)
+	player._anim_bridge.hitbox_deactivated.connect(func(): off_fired[0] = true)
 	player.state = player.State.ATTACK_WINDUP
 	player.state_time = 0.5
 	player.anim_event_hitbox_on()
-	assert_true(player._anim_hitbox_latched, "转发应置位闩锁")
+	assert_true(hit_fired[0], "anim_event_hitbox_on 应转发到桥 hitbox_activated 信号")
 	assert_eq(player.state, player.State.ATTACK_WINDUP, "无启用时不得改状态机")
 	player.anim_event_hitbox_off()
-	assert_false(player._anim_hitbox_latched)
+	assert_true(off_fired[0], "anim_event_hitbox_off 应转发到桥 hitbox_deactivated 信号")

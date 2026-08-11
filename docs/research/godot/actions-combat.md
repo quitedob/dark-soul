@@ -1,6 +1,8 @@
 # Godot 4.7 动作与战斗招式实现指南
 
 > **RESEARCH ARCHIVE（结论需对照现网）.** 多槽队列 / AnimationTree 钩子 / RM 已落地；详见 [devlog](../../devlog/index.md) / [调研汇总](../index.md)。下文「核心结论」中第 2–3 条（无 AnimationTree、单槽缓冲）**已过时**。
+>
+> **2026-08-11 更新（命中盒 / 施法战技动画修复）.** 轻击/重击/跃击命中盒改为 **state 计时权威**（进入 `ATTACK_ACTIVE` / `LEAP_ACTIVE` 即 `_begin_melee_swing` 开盒），不再 defer 到动画轨 —— 下方「中等置信度」第 3 条（method-track 不能成为唯一命中窗口权威）已**落地并被遵守**；socket-follow 命中盒现跟随完整 `global_transform`（旋转 + 偏移）；`stance_animation`（`weapon_art_data.gd`）由 `travel_cast` / `travel_skill` 消费。详见 [devlog](../../devlog/2026-08-11/05-cast-hitbox-review.md)。
 
 **调研日期：** 2026-07-30  
 **Status:** `ARCHIVED`  
@@ -22,7 +24,7 @@
 
 1. 加入招式级连段窗口后，小型时间戳或物理帧编号动作队列会比单字符串缓存更合适；但数据契约和边界测试比具体存储形式更重要。
 2. `AnimationTree` 根运动适合部分攻击动作。相比一次性迁移移动、翻滚、重力、击退及所有攻击，混合控制器更安全。
-3. 动画方法轨道可用于发送语义事件，但在混合、跳转、循环、中断、命中停顿和丢帧下的行为必须由项目测试确认，不能直接成为唯一的命中窗口权威。
+3. 动画方法轨道可用于发送语义事件，但在混合、跳转、循环、中断、命中停顿和丢帧下的行为必须由项目测试确认，不能直接成为唯一的命中窗口权威。（**2026-08-11 已遵守**：命中盒由 state 计时权威开启，method-track 不再承担命中窗口权威。）
 
 ### 尚未确认
 
@@ -66,7 +68,7 @@
 
 - `CombatArea` 动态创建胶囊体，在攻击期间开启监测，标准化命中元数据，并对目标去重。
 - 它直接检测角色物理体，没有专用受击箱或身体区域协议。
-- 攻击区域固定在角色前方，没有附着在武器插槽上。
+- 攻击区域固定在角色前方，没有附着在武器插槽上。（**2026-08-11 已改为 socket-follow 跟随完整 `global_transform`，含旋转与偏移**；`weapon_art_data.stance_animation` 亦已被 `travel_cast` / `travel_skill` 消费。）
 - `maximum_hits_per_target` 和 `repeat_hit_interval_seconds` 尚未被使用。
 - 玩家视觉完全由程序化姿势驱动；`AttackData.animation_name` 尚未使用。
 - `authored_displacement.z` 当前实际上按速度使用，名称却表达总位移，导致攻击距离会受主动阶段时长影响。

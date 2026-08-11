@@ -13,6 +13,7 @@
 - [**会话执行复盘：全部行动 / 难点排查 / 决策 / 记忆**](2026-08-11/02-session-execution-reflection.md)
 - [**全缺口修复编排复盘：14 子代理 · 3 Wave · 4 轮 fix-back（行动/难点/决策/记忆）**](2026-08-11/03-all-gaps-fix-orchestration-reflection.md)
 - [**风险修复：玄霄逃出解封 + 动画 clip 管线**](2026-08-11/04-risk-fixes-validation.md)
+- [**施法/战技动画 + 命中盒审查修复（D-08：state 计时权威退役动画 defer）**](2026-08-11/05-cast-hitbox-review.md)
 
 ### 2026-08-03
 

@@ -118,6 +118,9 @@ var move_speed := 5.2
 var sprint_speed := 7.4
 var acceleration := MOVE_ACCELERATION
 var gravity := DEFAULT_GRAVITY
+## 烛阴 P3 零重力覆盖：<0 = 使用默认 gravity；>=0 = 覆盖每帧下坠加速度（置 0 太空漂浮）。
+## 默认 -1.0，任何非 P3 战斗路径下行为逐字节不变。
+var gravity_override := -1.0
 var mouse_sensitivity := 0.0024
 var camera_sensitivity_scale := 1.0
 var invert_camera_y := false
@@ -167,16 +170,22 @@ var _execution_kind: StringName = &""
 var _execution_director = null  # ExecutionPairedDirector
 var _anim_bridge = null  # PlayerAnimationBridge
 var _movement_mode: int = MovementMode.HYBRID
-## D-08：动画回调闩锁；有 method track 时接管 hitbox 开闭
-var _anim_hitbox_latched := false
-var _anim_combo_latched := false
-## 本招是否 defer hitbox 到动画轨（轻击/跃击有 timing 轨时）
+## 本招是否 defer hitbox 到动画轨（root-motion 跃击有 timing 轨时）
 var _hitbox_anim_deferred := false
 var attack_hand := "right"
 var attack_action_id := "sword_light"
 var _leap_is_curved := false
 var _leap_second_hit := false
 var _leap_uses_root_motion := false
+## A3：root-motion 跃击风蓄期（LEAP_WINDUP）根运动前移缩比。
+## colossal_leap 根位移在 windup 结束点累计 ~1.15m（Twin Colossi leap_windup=0.38，
+## clip key 0.38 -> -1.15）；全量应用会让命中盒在 LEAP_ACTIVE 打开前就把贴脸目标
+## 冲过头。0.35 × 1.15 ≈ 0.40m，与曲刃 leap 代码驱动入场小垫步（leap_lunge*0.65*windup
+## ≈ 5.8*0.65*0.22 ≈ 0.83m，量级相当）接近；同时仍每物理帧消费根运动，进入
+## LEAP_ACTIVE 前位置连续，不会突跳。
+const LEAP_WINDUP_ROOT_MOTION_SCALE := 0.35
+## 当前兵器诀 stance_animation（cast/skill/曲刃 leap 播放入口，接入桥 travel_cast/travel_skill）
+var _current_art_stance: StringName = &""
 var _pending_cast := &""
 var _cast_resolved := false
 var dodge_direction := Vector3.FORWARD
@@ -398,6 +407,17 @@ func _ready() -> void:
 	hands_changed.emit(right_hand_item, left_hand_item, get_hand_action_labels())
 
 
+## 烛阴 P3 零重力覆盖 API。置零使玩家漂浮（太空弹幕）；仅供 boss 专属流程在 P3 期间调用，
+## 战斗外/非 P3 不残留。负值无意义（等同默认重力），故此处夹取到 0 以杜绝负重力。
+func set_gravity_override(v: float) -> void:
+	gravity_override = maxf(v, 0.0)
+
+
+## 恢复默认重力（P3 结束 / 剧情抉择 / 死亡 / 脱战 / 换关）。
+func clear_gravity_override() -> void:
+	gravity_override = -1.0
+
+
 ## D-08：连接动画桥信号；默认不改 state_time 权威
 func _connect_animation_bridge() -> void:
 	if _anim_bridge == null:
@@ -406,10 +426,6 @@ func _connect_animation_bridge() -> void:
 		_anim_bridge.hitbox_activated.connect(_on_anim_hitbox_activated)
 	if not _anim_bridge.hitbox_deactivated.is_connected(_on_anim_hitbox_deactivated):
 		_anim_bridge.hitbox_deactivated.connect(_on_anim_hitbox_deactivated)
-	if not _anim_bridge.combo_window_opened.is_connected(_on_anim_combo_opened):
-		_anim_bridge.combo_window_opened.connect(_on_anim_combo_opened)
-	if not _anim_bridge.combo_window_closed.is_connected(_on_anim_combo_closed):
-		_anim_bridge.combo_window_closed.connect(_on_anim_combo_closed)
 	if not _anim_bridge.forward_impulse_requested.is_connected(_on_anim_forward_impulse):
 		_anim_bridge.forward_impulse_requested.connect(_on_anim_forward_impulse)
 
@@ -454,24 +470,15 @@ func anim_event_push_forward(amount: float = 0.0) -> void:
 
 
 func _on_anim_hitbox_activated() -> void:
-	_anim_hitbox_latched = true
-	# 动画轨权威：仅在 defer 模式下由回调开启命中盒
+	# D-08 修复后 defer 恒 false（全量 state 计时），此回调为保留的守卫，不再触发开盒
 	if _hitbox_anim_deferred and state in [State.ATTACK_ACTIVE, State.LEAP_ACTIVE, State.GUARD_THRUST]:
 		_begin_melee_swing()
 
 
 func _on_anim_hitbox_deactivated() -> void:
-	_anim_hitbox_latched = false
+	# 同上：defer 恒 false，收盒由 _change_state 离开攻击态时 combat_area.end_swing() 负责
 	if _hitbox_anim_deferred and combat_area != null:
 		combat_area.end_swing()
-
-
-func _on_anim_combo_opened() -> void:
-	_anim_combo_latched = true
-
-
-func _on_anim_combo_closed() -> void:
-	_anim_combo_latched = false
 
 
 func _on_anim_forward_impulse(amount: float) -> void:
@@ -525,7 +532,8 @@ func _physics_process(delta: float) -> void:
 		# B-11：下落加倍重力；G-06 局部时间膨胀只乘本实体
 		if not is_on_floor():
 			var grav_mult := 2.0 if velocity.y < 0.0 else 1.0
-			velocity.y -= gravity * grav_mult * dilation * delta
+			var g := gravity_override if gravity_override >= 0.0 else gravity
+			velocity.y -= g * grav_mult * dilation * delta
 		elif velocity.y <= 0.0:
 			velocity.y = 0.0
 		# 冻结时清水平意图，避免攻击位移继续滑行
@@ -1045,6 +1053,13 @@ func _rebuild_player_body(class_id: String) -> void:
 		_visuals.rebuild_body(class_id)
 
 
+## L-18：存档装载时应用混合职业身体覆盖。player_visuals._resolve_body_class 会在重建时
+## 优先读 run_state.body_class_override（见该函数注释），此处仅触发一次幂等重建使覆盖体观
+## 生效（rebuild_body 对同职业自带短路）。空覆盖调用无副作用。
+func apply_body_class_override() -> void:
+	_rebuild_player_body(get_active_class_id())
+
+
 ## L-09：幂等重算天赋派生数值并落地到扁平变量（talent_spent 驱动，重复调用安全）
 func _apply_talent_stats() -> void:
 	var b := TalentSystemScript.compute_bonuses(talent_spent)
@@ -1442,7 +1457,10 @@ func _update_state(delta: float) -> void:
 				_change_state(State.ATTACK_RECOVERY, 0.34)
 		State.LEAP_WINDUP:
 			_face_lock_target(delta)
-			if _leap_uses_root_motion and _apply_anim_root_motion(delta):
+			# A3：风蓄期根运动以 LEAP_WINDUP_ROOT_MOTION_SCALE 缩比应用 —— 仍每帧消费
+			# （避免 LEAP_ACTIVE 开始瞬间位置突跳），但把前移收窄为入场小垫步，
+			# 命中盒在 LEAP_ACTIVE 打开时玩家仍在贴脸目标前方，不再冲出目标。
+			if _leap_uses_root_motion and _apply_anim_root_motion(delta, LEAP_WINDUP_ROOT_MOTION_SCALE):
 				pass
 			else:
 				var leap_forward := -global_transform.basis.z
@@ -2172,7 +2190,10 @@ func _update_attack_active_motion(delta: float) -> void:
 	velocity.z = forward.z * lunge
 
 
-func _apply_anim_root_motion(delta: float) -> bool:
+## D-02：提取 position/rotation 根运动并写入 CharacterBody3D。
+## scale 乘在水平根运动速度上：默认 1.0 使全部既有调用逐字节不变；LEAP_WINDUP
+## 传 LEAP_WINDUP_ROOT_MOTION_SCALE 收窄风蓄期前移（见该常量注释）。根旋转不受 scale。
+func _apply_anim_root_motion(delta: float, scale: float = 1.0) -> bool:
 	# D-02：提取 position/rotation 根运动并写入 CharacterBody3D
 	if _anim_bridge == null or not _anim_bridge.enabled:
 		return false
@@ -2181,8 +2202,8 @@ func _apply_anim_root_motion(delta: float) -> bool:
 	var applied := false
 	if rm.length_squared() > 0.00001:
 		var world_rm := global_transform.basis * rm
-		velocity.x = world_rm.x / maxf(delta, 0.0001)
-		velocity.z = world_rm.z / maxf(delta, 0.0001)
+		velocity.x = (world_rm.x * scale) / maxf(delta, 0.0001)
+		velocity.z = (world_rm.z * scale) / maxf(delta, 0.0001)
 		applied = true
 	if rr != Quaternion.IDENTITY and rr.length_squared() > 0.0:
 		var yaw := rr.get_euler().y
@@ -2637,6 +2658,7 @@ func _try_style_skill() -> void:
 func _execute_weapon_art(art: WeaponArtData) -> void:
 	if art == null:
 		return
+	_current_art_stance = art.stance_animation if not art.stance_animation.is_empty() else &""
 	match art.art_kind:
 		&"pierce_thrust":
 			_try_pierce_thrust()
@@ -2825,6 +2847,17 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 	state = new_state
 	state_time = duration
 	state_duration = duration
+	# D-08：cast/skill/曲刃 leap 播放入口。travel_cast/travel_skill 由动画 Worker
+	# 在桥上实现（存在性在集成期保证），此处 null 兜底使缺方法时玩家仍可玩。
+	if new_state == State.CAST:
+		if _anim_bridge != null:
+			_anim_bridge.travel_cast(_pending_cast)
+	if new_state == State.GUARD_THRUST:
+		if _anim_bridge != null:
+			_anim_bridge.travel_skill(_current_art_stance)
+	if new_state == State.LEAP_WINDUP and _leap_is_curved:
+		if _anim_bridge != null:
+			_anim_bridge.travel_skill(_current_art_stance)
 	# D-02：按状态切换位移模式（闪避保持代码驱动）
 	_movement_mode = _movement_mode_for_state(new_state)
 	# 按状态阶段刷新动作护甲（windup/active/recovery）— E-02 相位 WAM
@@ -2870,16 +2903,14 @@ func _movement_mode_for_state(s: State) -> int:
 			return MovementMode.HYBRID
 
 
-## 有 method-track timing 时由动画开闭 hitbox（重击仍用 state 计时）
-func _should_defer_hitbox_to_anim(s: State) -> bool:
-	if _anim_bridge == null or not _anim_bridge.enabled:
-		return false
-	if not _anim_bridge.has_timing_method_tracks:
-		return false
-	if s == State.ATTACK_ACTIVE and not attack_heavy:
-		return true
-	if s == State.LEAP_ACTIVE and _leap_uses_root_motion:
-		return true
+## 有 method-track timing 时由动画开闭 hitbox。D-08 修复后全量退役：轻/重/跃击
+## 一律用 state 计时开盒（_change_state 进入 ATTACK_ACTIVE / LEAP_ACTIVE 时
+## _begin_melee_swing）。原因：method-track 触发时刻（轻击 0.18 / 跃击 0.28）与
+## AttackData windup（轻 0.30 / 跃 0.30~0.45）两套独立作者化从未对齐，windup
+## 更长时命中盒永不开启 → 0 伤害；空中轻击也因 travel_light_attack 的
+## is_on_floor 门而受影响。统一 state 计时后这些时序依赖全部消除。
+## 恒返回 false：仅保留签名与调用点，避免其它路径假设 defer 存在。
+func _should_defer_hitbox_to_anim(_s: State) -> bool:
 	return false
 
 
