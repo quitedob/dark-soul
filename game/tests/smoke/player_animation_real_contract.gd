@@ -70,7 +70,8 @@ func _test_real_library_loads_and_drives() -> void:
 
 	var bridge = AnimBridge.new()
 	bridge.setup(body)
-	_expect(not bridge.real_layer_active, "real-lib: real layer off before configure (default lib absent).")
+	# 默认真库现已含真实 strafe_back（DEF-head 轨可在本骨架存活）→ 层在 configure 前即激活。
+	_expect(bridge.real_layer_active, "real-lib: default lib now drives real strafe_back -> layer active before configure.")
 	var ok := bridge.configure_real_animations(TMP_HEAD_PATH, skel)
 	_expect(ok, "real-lib: configure_real_animations must succeed with matching skeleton.")
 	_expect(bridge.real_layer_active, "real-lib: real layer must activate after configure.")
@@ -148,8 +149,9 @@ func _test_mannyquin_bind_pose_guarded() -> void:
 		"bind-pose: REAL_IDLE_FALLBACK must match imported lib key (underscore).")
 	_expect(bridge.real_clip_for(&"idle").is_empty(),
 		"bind-pose: bind-pose clip must NOT drive idle (guarded).")
-	_expect(not bridge.has_real_animations(),
-		"bind-pose: has_real_animations must be false (no state driven).")
+	# 默认真库现含 strafe_back（匹配状态键）→ has_real_animations 为真；idle 仍不受绑位姿驱动。
+	_expect(bridge.has_real_animations(),
+		"bind-pose: strafe_back now matches a state key -> has_real_animations true.")
 	var sm := bridge.anim_tree.tree_root as AnimationNodeStateMachine
 	var idle_node := sm.get_node("Idle") as AnimationNodeAnimation
 	if idle_node != null:
