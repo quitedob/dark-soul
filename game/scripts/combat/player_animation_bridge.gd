@@ -51,6 +51,10 @@ const REAL_STATE_KEYS: Array[StringName] = [
 ## 整身根运动骨：从真骨骼层剔除（根位移/旋转仍走现有 RootMotionSkeleton 的
 ## "Root" 轨，保持 physics root-motion 契约不变；躯干/四肢骨姿态允许驱动）。
 const REAL_ROOT_MOTION_BONES := ["root", "Root"]
+## 真根运动键：这些状态键的真 clip 若源带根位移，remap 时保留为
+## RootMotionSkeleton:Root position 轨（字符级位移，非 DEF 骨姿态）。
+## 与 retarget_oal_to_mannyquin.gd 的 ROOT_MOTION_KEYS 一致。
+const REAL_ROOT_MOTION_KEYS: Array[StringName] = [&"colossal_leap"]
 
 var _player: CharacterBody3D
 var skeleton: Skeleton3D
@@ -70,6 +74,10 @@ var real_layer_active := false
 var _real_library: AnimationLibrary = null
 var _real_skeleton: Skeleton3D = null
 var _real_loaded_count := 0
+## 注入校验：本次 ingest 实际注入成功的 clip 名（remap 存活者）集合。
+## _real_clip_for 只在此集合内解析，杜绝"源库有名但 remap 后 0 轨被剔除"
+## 的悬空 real/<clip> —— 名存实亡的 clip 永不驱动任何状态。
+var _real_surviving: Dictionary = {}
 
 
 func setup(player_node: CharacterBody3D) -> void:
@@ -269,6 +277,39 @@ func real_clip_for(state_key: StringName) -> StringName:
 	return _real_clip_for(state_key)
 
 
+## 真 clip 是否携带 RootMotionSkeleton:Root position 轨（真根运动键专用）。
+## 只查注入后的 real/<clip>（在存活集合内），退化/剔除返回 false。
+func real_root_motion_active(state_key: StringName) -> bool:
+	if not real_layer_active or anim_player == null:
+		return false
+	var real := _real_clip_for(state_key)
+	if real.is_empty():
+		return false
+	var anim := anim_player.get_animation("real/%s" % real)
+	if anim == null:
+		return false
+	return anim.find_track(NodePath("RootMotionSkeleton:Root"), Animation.TYPE_POSITION_3D) >= 0
+
+
+## 真 clip 根轨的净前向位移（本地 -Z，正=向前）。用末键-首键，而非绝对末值：
+## 源 Hips 绝对位置带站立高度偏移，只有相对位移才是字符级前进量。
+## 无轨 / 缺失返回 0。
+func real_root_motion_forward(state_key: StringName) -> float:
+	if not real_root_motion_active(state_key):
+		return 0.0
+	var real := _real_clip_for(state_key)
+	var anim := anim_player.get_animation("real/%s" % real)
+	var track := anim.find_track(NodePath("RootMotionSkeleton:Root"), Animation.TYPE_POSITION_3D)
+	if track < 0:
+		return 0.0
+	var key_count := anim.track_get_key_count(track)
+	if key_count < 1:
+		return 0.0
+	var start: Vector3 = anim.track_get_key_value(track, 0)
+	var end: Vector3 = anim.track_get_key_value(track, key_count - 1)
+	return -(end.z - start.z)
+
+
 ## 显式注入真库（供 smoke 测试/热加载）。`library` 可以是 res:// 路径或现成
 ## AnimationLibrary。成功返回 true 并重建状态机使真 clip 生效。
 func configure_real_animations(library: Variant, skeleton: Skeleton3D = null) -> bool:
@@ -345,6 +386,8 @@ func _first_skeleton(node: Node) -> Skeleton3D:
 func _ingest_real_library(lib: AnimationLibrary) -> void:
 	if _real_skeleton == null:
 		return
+	# 重建时清空存活集合，避免累积陈旧名字（多次 ingest/热加载）。
+	_real_surviving.clear()
 	# track 路径相对 AnimationPlayer 的 root_node（".." = 玩家）解析，
 	# 因此节点部分用 玩家→骨架 的相对路径。
 	var skeleton_path: NodePath = _player.get_path_to(_real_skeleton)
@@ -354,10 +397,11 @@ func _ingest_real_library(lib: AnimationLibrary) -> void:
 		var src := lib.get_animation(anim_name)
 		if src == null:
 			continue
-		var remapped := _remap_real_clip(src, skeleton_path)
+		var remapped := _remap_real_clip(src, skeleton_path, anim_name)
 		if remapped == null or remapped.get_track_count() < 1:
 			continue  # 全被剔除（如 mannyquin 的 root+hips 绑位层）→ 不注入
 		out.add_animation(anim_name, remapped)
+		_real_surviving[anim_name] = true
 		_real_loaded_count += 1
 		# 轻击/跃击真 clip 无 method 轨 → 补种现有程序化 timing 轨，
 		# 保住 D-08 hitbox/combo 计时契约（真 clip 驱动时也能开窗）。
@@ -378,7 +422,10 @@ func _ingest_real_library(lib: AnimationLibrary) -> void:
 
 
 ## 重映射 clip：骨骼姿态轨路径改指向目标骨架；根运动骨轨剔除。
-func _remap_real_clip(src: Animation, skeleton_path: NodePath) -> Animation:
+## state_key 用于真根运动白名单：REAL_ROOT_MOTION_KEYS 内保留 RootMotionSkeleton 轨。
+## 默认 &""（非白名单）保持既有剔除行为；旧 2 参调用方（如 real_strafe_back_contract）
+## 不传状态键时行为不变。
+func _remap_real_clip(src: Animation, skeleton_path: NodePath, state_key: StringName = &"") -> Animation:
 	var out := Animation.new()
 	out.length = src.length
 	out.loop_mode = src.loop_mode
@@ -390,6 +437,22 @@ func _remap_real_clip(src: Animation, skeleton_path: NodePath) -> Animation:
 		var ttype := src.track_get_type(t)
 		if ttype == Animation.TYPE_METHOD:
 			continue  # method 轨由 _stamp_method_tracks_from 按需重种
+		var node := _node_from_track_path(tpath)
+		# 真根运动轨：仅白名单状态键保留。路径保持 RootMotionSkeleton:Root 原样（字符级
+		# 位移，非 DEF 骨姿态）；骨名 "Root" 不能走常规剔除路径——它既在
+		# REAL_ROOT_MOTION_BONES 中也不是 DEF 骨。非白名单仍照旧剔除。
+		if state_key in REAL_ROOT_MOTION_KEYS and node == "RootMotionSkeleton" \
+				and ttype == Animation.TYPE_POSITION_3D:
+			var rt := out.add_track(ttype)
+			out.track_set_path(rt, NodePath("RootMotionSkeleton:Root"))
+			out.track_set_interpolation_type(rt, src.track_get_interpolation_type(t))
+			for k in range(src.track_get_key_count(t)):
+				out.track_insert_key(
+					rt,
+					src.track_get_key_time(t, k),
+					src.track_get_key_value(t, k)
+				)
+			continue
 		var bone := _bone_from_track_path(tpath)
 		if bone.is_empty() or not real_bones.has(bone):
 			continue
@@ -417,6 +480,15 @@ func _bone_from_track_path(p: NodePath) -> String:
 	if i < 0:
 		return ""
 	return s.substr(i + 1)
+
+
+## 从轨路径提取节点名："<node>:<bone>" → "<node>"（无冒号返回整体）。
+func _node_from_track_path(p: NodePath) -> String:
+	var s := String(p)
+	var i := s.find(":")
+	if i < 0:
+		return s
+	return s.substr(0, i)
 
 
 ## 把程序化 clip 的 method 轨复制到真 clip（路径相对 AnimationPlayer 根 = 玩家）。
@@ -448,15 +520,20 @@ func _clip_path(state_key: StringName) -> String:
 	return "combat/%s" % state_key
 
 
-## 状态 → 真 clip 名：优先精确同名；idle 缺省时回退 mannyquin rig 绑位层
-## （仅当该 clip 有实质内容，避免 1 帧绑位姿冻结玩家）。
+## 状态 → 真 clip 名：优先精确同名；idle 缺省时回退 mannyquin rig 绑位层。
+## 解析只指向"实际可播放"的 real clip —— 存活集合（ingest 注入的）或 anim_player
+## "real" 库中确实存在的同名 clip。绝不回退源库 _real_library：那里可能有 remap 后
+## 0 轨被剔除的 clip（remap 存活者才会注入 anim_player 的 real 库），杜绝 _clip_path
+## 指向不存在的 real/<clip>（注入时校验）。
+## idle 绑位回退守卫施加在注入后的 clip（real/<name>）上（避免 1 帧绑位姿冻结玩家）。
 func _real_clip_for(state_key: StringName) -> StringName:
-	if _real_library == null:
+	if not real_layer_active or anim_player == null:
 		return &""
-	if _real_library.has_animation(String(state_key)):
+	if state_key in _real_surviving or anim_player.has_animation("real/%s" % state_key):
 		return state_key
-	if state_key == IDLE_ANIM and _real_library.has_animation(String(REAL_IDLE_FALLBACK)):
-		var fb := _real_library.get_animation(String(REAL_IDLE_FALLBACK))
+	if state_key == IDLE_ANIM and (REAL_IDLE_FALLBACK in _real_surviving \
+			or anim_player.has_animation("real/%s" % REAL_IDLE_FALLBACK)):
+		var fb := anim_player.get_animation("real/%s" % REAL_IDLE_FALLBACK)
 		if fb != null and fb.get_track_count() >= MIN_FALLBACK_TRACKS \
 				and fb.length >= MIN_FALLBACK_LENGTH:
 			return REAL_IDLE_FALLBACK
@@ -692,7 +769,11 @@ func _build_tree() -> void:
 	anim_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	_player.add_child(anim_tree)
 	anim_tree.anim_player = NodePath("../AnimationPlayer")
-	anim_tree.root_motion_track = NodePath("../RootMotionSkeleton:Root")
+	# D-02 根运动：root_motion_track 必须与动画轨路径精确一致（Godot 用 NodePath 字符串比较）。
+	# 程序化/真 clip 的根位移轨均为 "RootMotionSkeleton:Root"（相对 AnimationPlayer 根=玩家）；
+	# 写成 "../RootMotionSkeleton:Root"（相对 AnimationTree 子节点）是两条不同 NodePath →
+	# consume_root_motion() 恒 0，根运动从未流过树（leap/轻击一直静默回退代码驱动）。
+	anim_tree.root_motion_track = NodePath("RootMotionSkeleton:Root")
 	anim_tree.active = true
 	_playback = anim_tree.get("parameters/playback") as AnimationNodeStateMachinePlayback
 	if _playback != null:

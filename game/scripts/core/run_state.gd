@@ -41,6 +41,10 @@ var completed_puzzles: Array[String] = []
 var collected_loot: Array[String] = []
 var choice_flags: Dictionary = {}
 var progression_values: Dictionary = {}
+## L-18：混合职业身体模型覆盖。默认空串 = 用基础职业（combat_style 派生）。
+## 底层存储为 progression_values["body_class_override"]（to_dictionary 序列化前由
+## _sync_compatibility_fields 写入；from_dictionary 读取回本字段）。不升 schema_version。
+var body_class_override := ""
 
 
 func to_dictionary() -> Dictionary:
@@ -226,6 +230,9 @@ static func from_dictionary(data: Dictionary):
 		_append_unique(state.defeated_bosses, GUARDIAN_BOSS_ID)
 	if GUARDIAN_BOSS_ID in state.defeated_bosses:
 		state.guardian_defeated = true
+	# L-18：从 progression_values 读回混合职业身体覆盖。旧档无该键 = 空串（回落基础职业）。
+	var raw_override: Variant = state.progression_values.get("body_class_override", "")
+	state.body_class_override = String(raw_override).strip_edges() if raw_override is String else ""
 	return state
 
 
@@ -247,6 +254,11 @@ func _sync_compatibility_fields() -> void:
 		_append_unique(defeated_bosses, GUARDIAN_BOSS_ID)
 	if GUARDIAN_BOSS_ID in defeated_bosses:
 		guardian_defeated = true
+	# L-18：混合职业身体覆盖持久化到底层 progression_values（to_dictionary/bridge 前写入）。
+	if body_class_override.strip_edges().is_empty():
+		progression_values.erase("body_class_override")
+	else:
+		progression_values["body_class_override"] = body_class_override.strip_edges()
 
 
 func _lost_echo_dictionary() -> Dictionary:
@@ -288,7 +300,7 @@ static func _read_v2_fields(data: Dictionary, state, nested: bool) -> bool:
 	state.inventory = raw_inventory.duplicate(true)
 	state.choice_flags = raw_choice_flags.duplicate(true)
 	state.progression_values = raw_progression_values.duplicate(true)
-	if not _is_non_negative_int_map(state.inventory) or not _is_choice_flags_map(state.choice_flags) or not _is_non_negative_int_map(state.progression_values):
+	if not _is_non_negative_int_map(state.inventory) or not _is_choice_flags_map(state.choice_flags) or not _is_progression_values_map(state.progression_values):
 		return false
 
 	var fields := [
@@ -337,7 +349,7 @@ static func _read_nested_v2_fields(data: Dictionary, state) -> bool:
 	state.inventory = raw_inventory.duplicate(true)
 	state.choice_flags = raw_flags.duplicate(true)
 	state.progression_values = raw_values.duplicate(true)
-	if not _is_non_negative_int_map(state.inventory) or not _is_choice_flags_map(state.choice_flags) or not _is_non_negative_int_map(state.progression_values):
+	if not _is_non_negative_int_map(state.inventory) or not _is_choice_flags_map(state.choice_flags) or not _is_progression_values_map(state.progression_values):
 		return false
 
 	var fields := [
@@ -404,6 +416,21 @@ static func _is_non_negative_int_map(value: Dictionary) -> bool:
 	return true
 
 
+## progression_values 校验：数值键仍须为非负整数（经脉等级/legacyCombatStyle 等），
+## 额外允许非空 String 值（L-18 body_class_override）。避免字符串覆盖导致整档被拒。
+static func _is_progression_values_map(value: Dictionary) -> bool:
+	for key in value:
+		if not key is String or String(key).strip_edges().is_empty():
+			return false
+		var v = value[key]
+		if v is String:
+			if String(v).strip_edges().is_empty():
+				return false
+		elif not _is_integer(v) or int(v) < 0:
+			return false
+	return true
+
+
 func set_choice_flag(flag: StringName, value: Variant) -> void:
 	# 允许 bool（旧档）或 String（命运旗标）
 	var key := String(flag).strip_edges()
@@ -417,6 +444,25 @@ func set_choice_flag(flag: StringName, value: Variant) -> void:
 
 func get_choice_flag(flag: StringName, default_value: Variant = null) -> Variant:
 	return choice_flags.get(String(flag), default_value)
+
+
+## L-18：混合职业身体覆盖读取。空串 = 用基础职业（get_active_class_id 派生）。
+func get_body_class_override() -> String:
+	return body_class_override
+
+
+## L-18：混合职业身体覆盖写入。清空传 ""（回落基础职业）。存底层 progression_values，
+## 下次 to_dictionary 序列化时由 _sync_compatibility_fields 落盘。
+func set_body_class_override(v: String) -> void:
+	body_class_override = String(v).strip_edges()
+
+
+## L-18：只读静态访问（供 player_visuals.rebuild_body / 烛阴 wave2 接线使用，不改
+## player.gd 的 get_active_class_id）。传入 null 或非 AshenRunState 实例时安全回落 ""。
+static func static_body_class_override(state) -> String:
+	if state == null or not state is AshenRunState:
+		return ""
+	return state.get_body_class_override()
 
 
 static func _is_bool_map(value: Dictionary) -> bool:

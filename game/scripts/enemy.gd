@@ -65,6 +65,10 @@ const GRAB_CHANCE := 0.22
 const HUMAN_GRAB_CHANCE := 0.10
 ## L-10：状态 tick 累积间隔
 const STATUS_TICK_INTERVAL := 0.5
+## L-20：遗留硬编码弱点锚名（与 profile.weak_point_anchor / weak_point_bone_name 并列识别）
+const WEAK_POINT_ANCHORS: Array[StringName] = [
+	&"furnace_core", &"chest_eye", &"tail_root", &"fusion_core", &"star_core", &"bell_mouth",
+]
 ## L-10：按 body_type 推断敌方自带的攻击状态（狐火/出血/迷心/中毒）
 const STATUS_INFLICT_BY_BODY := {
 	"hound_spectral": {"bleed": {"stacks": 18.0, "chance": 0.8}},
@@ -183,6 +187,8 @@ var _visual_frozen := false
 var _model_base_y := 0.0
 var _model_base_y_set := false
 var _vfx_emitted := false
+## L-20：视觉树 Skeleton3D 缓存（骨锚解析用；模型重建后按 is_inside_tree 失效）
+var _enemy_skeleton_cache: Skeleton3D = null
 
 var navigation_agent: NavigationAgent3D
 var body_collision: CollisionShape3D
@@ -619,11 +625,13 @@ func apply_execution_damage(amount: float, allow_lethal: bool = true) -> void:
 		_change_state(State.STAGGER, 0.85)
 
 
+## L-20：弱点锚点。能解析到真骨锚（Skeleton3D 骨 / 静态 GLB 语义命名节点）就用骨锚，
+## 否则回退 profile.weak_point_offset 虚拟偏移。非 Boss 走默认 back / 前向偏移，行为不变。
 func get_execution_anchor(anchor: StringName) -> Vector3:
-	if boss_break_profile != null and (
-		anchor == boss_break_profile.weak_point_anchor
-		or anchor in [&"furnace_core", &"chest_eye", &"tail_root", &"fusion_core", &"star_core"]
-	):
+	if boss_break_profile != null and _is_weak_point_anchor(anchor):
+		var bone_anchor: Variant = _resolve_weak_point_bone_anchor()
+		if bone_anchor is Vector3:
+			return bone_anchor
 		var local: Vector3 = boss_break_profile.weak_point_offset
 		return global_position + global_transform.basis * local
 	match anchor:
@@ -631,6 +639,59 @@ func get_execution_anchor(anchor: StringName) -> Vector3:
 			return global_position - (-global_transform.basis.z) * 0.55 + Vector3.UP * 1.05
 		_:
 			return global_position + (-global_transform.basis.z) * 0.35 + Vector3.UP * 1.15
+
+
+## L-20：是否弱点锚请求（profile 锚名 / profile 骨名 / 遗留硬编码名任一命中）。
+func _is_weak_point_anchor(anchor: StringName) -> bool:
+	if boss_break_profile == null:
+		return false
+	if anchor == boss_break_profile.weak_point_anchor:
+		return true
+	if boss_break_profile.weak_point_bone_name != &"" and anchor == boss_break_profile.weak_point_bone_name:
+		return true
+	return anchor in WEAK_POINT_ANCHORS
+
+
+## L-20：解析弱点骨锚。返回 Variant：Vector3 已解析；null 无可解析锚（走 offset 回退）。
+## 优先 Skeleton3D 真骨（get_bone_global_pose + to_global 换算，防御非有限 pose）；
+## 其次静态 GLB 的语义命名节点（boss 模型无皮肤/骨架，命名节点即"骨锚"）。
+func _resolve_weak_point_bone_anchor() -> Variant:
+	if boss_break_profile == null or body_visual_root == null:
+		return null
+	var bone_name: StringName = boss_break_profile.weak_point_bone_name
+	if bone_name == &"":
+		return null
+	var skel := _get_enemy_skeleton()
+	if skel != null:
+		var bone_idx := skel.find_bone(bone_name)
+		if bone_idx >= 0:
+			var bone_global: Transform3D = skel.get_bone_global_pose(bone_idx)
+			if bone_global.origin.is_finite():
+				return skel.to_global(bone_global.origin)
+	var part := body_visual_root.find_child(String(bone_name), true, false) as Node3D
+	if part != null and part.is_inside_tree():
+		return part.global_position
+	return null
+
+
+## L-20：定位视觉树 Skeleton3D。优先复用已持缓存引用（仍在树内），否则递归找第一个并缓存。
+func _get_enemy_skeleton() -> Skeleton3D:
+	if body_visual_root == null:
+		return null
+	if _enemy_skeleton_cache != null and is_instance_valid(_enemy_skeleton_cache) and _enemy_skeleton_cache.is_inside_tree():
+		return _enemy_skeleton_cache
+	_enemy_skeleton_cache = _find_first_skeleton(body_visual_root)
+	return _enemy_skeleton_cache
+
+
+func _find_first_skeleton(node: Node) -> Skeleton3D:
+	if node is Skeleton3D:
+		return node
+	for child in node.get_children():
+		var hit := _find_first_skeleton(child)
+		if hit != null:
+			return hit
+	return null
 
 
 func _release_execution_claim() -> void:
@@ -1738,6 +1799,7 @@ func _ensure_visual_palette() -> void:
 		_apply_palette_colors()
 		return
 	_visuals_built_key = build_key
+	_enemy_skeleton_cache = null  # L-20：模型重建后旧骨架引用失效
 	_apply_palette_colors()
 	if not chapter_content.is_empty() and chapter_content.has("body_type"):
 		ChapterEnemyFactory.build_into_slots(

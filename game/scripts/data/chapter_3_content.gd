@@ -121,7 +121,7 @@ static func elites() -> Array[Dictionary]:
 	return [
 		{
 			"id": "elite_memory_eater",
-			"display_name": "Memory Eater / 噬忆者",
+			"display_name": "Thousand-Year Tree Spirit / 千年树魂",
 			"max_health": 190.0, "move_speed": 4.5, "aggro_range": 14.0,
 			"attack_range": 2.4, "poise_limit": 42.0, "reward": 135,
 			"special_ability": "memory_steal",
@@ -130,16 +130,16 @@ static func elites() -> Array[Dictionary]:
 		},
 		{
 			"id": "elite_fox_bride",
-			"display_name": "Fox Bride / 狐嫁娘",
+			"display_name": "Maze Poet / 迷宫诗人",
 			"max_health": 170.0, "move_speed": 5.2, "aggro_range": 13.0,
 			"attack_range": 3.0, "poise_limit": 35.0, "reward": 145,
 			"special_ability": "seduction_charm",
-			"appears_in": "level_03_03", "body_color": "cc2244",
+			"appears_in": "level_03_05", "body_color": "cc2244",
 			"weapon_shape": "bridal_veil", "body_type": "floating_dress_elite",
 		},
 		{
 			"id": "elite_reflection_lord",
-			"display_name": "Reflection Lord / 镜像主",
+			"display_name": "Mirror Lake Dream-Weaver / 镜湖织梦者",
 			"max_health": 210.0, "move_speed": 3.8, "aggro_range": 15.0,
 			"attack_range": 2.8, "poise_limit": 50.0, "reward": 155,
 			"special_ability": "create_clone",
@@ -208,6 +208,11 @@ static func boss() -> Dictionary:
 			"hit": "jade_sparkles",
 			"arena": "reflection_pool_ripples",
 			"ground_effect": "cherry_blossom_petals",
+		},
+		# P0-2 九尾记忆凝视：50% 血量打断剧情（BossFlowController 主机挂载；无 flow 时零行为改变）
+		"flow": {
+			"script": "res://scripts/boss/flow/nine_tails_flow.gd",
+			"config": {"memory_gaze_threshold": 0.5},
 		},
 	}
 

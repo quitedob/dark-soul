@@ -3,7 +3,7 @@
 **Game Title:** 烬渊 (Jìn Yuān) — *Ember Abyss*  
 **Genre:** Chinese Dark Fantasy Soulslike Action RPG  
 **Engine:** Godot 4.7.1  
-**Updated:** 2026-07-31
+**Updated:** 2026-08-12
 
 ---
 
@@ -33,16 +33,19 @@
 | 路径 | 说明 |
 |------|------|
 | [devlog/index.md](devlog/index.md) | **唯一交付日志**（按日期文件夹） |
+| [devlog/2026-08-12/](devlog/2026-08-12/) | 2026-08-12 会话（施法/战技动画 + 命中盒 + 真动画管线） |
 | [planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md) | **类魂缺口权威** |
 | [tasks-master.md](tasks-master.md) | 仍开放项 + 已完成维度摘要 |
 | [tasks/combat-expansion-roadmap.md](tasks/combat-expansion-roadmap.md) | 战斗里程碑对照 |
-| [tasks/content-gap-backlog.md](tasks/content-gap-backlog.md) | **内容/功能缺口 backlog（L-01…L-24）** |
+| [tasks/content-gap-backlog.md](tasks/content-gap-backlog.md) | **内容/功能缺口 backlog（L-01…L-24，已全闭环）** |
+| [tasks/elite-name-alignment.md](tasks/elite-name-alignment.md) | 精英怪命名对齐清单（L-22）✅ |
 
 ### 调研
 
 | 路径 | 说明 |
 |------|------|
 | [research/index.md](research/index.md) | **调研汇总**（现网对照表） |
+| [research-real-animation-pipeline.md](research-real-animation-pipeline.md) | **真动画资产管线**（clip 覆盖 / 根运动决策 / 许可） |
 | [research/soulslike/](research/soulslike/) | 魂系设计 / 武器 / 帧与韧性 |
 | [research/godot/](research/godot/) | 生态 / 跳跃碰撞 / 招式管线 / 早期基线 |
 
@@ -75,8 +78,8 @@
 ## 当前实现边界
 
 - **已设计：** 五章因果、29 关、Boss/选择/NPC/结局规格。
-- **已进代码：** 战役壳、Ch.1–2 遭遇 + Ch.3–5 接线、处决/抓投/镜头、命运旗标、云游叙事竖切；P1 系统全落地——连段/9 类 moveset、职业天赋经脉、状态与背包、法术 39、快速旅行、兵器诀、锻造道行魂器、抓投扩展、重力倒悬、20 谜题模块族；战斗/AI/测试见 [devlog](devlog/index.md)。
-- **仍开放：** 真蒙皮动画、LimboAI 真插件、Ch.3–5 专属 Boss 流程 / P2 真资产与 .tres 作者化。权威：[planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md)。
+- **已进代码：** 战役壳、Ch.1–2 遭遇 + Ch.3–5 接线、处决/抓投/镜头、命运旗标、云游叙事竖切；P1 系统全落地——连段/9 类 moveset、职业天赋经脉、状态与背包、法术 39、快速旅行、兵器诀、锻造道行魂器、抓投扩展、重力倒悬、20 谜题模块族；真动画 20 clip（19 状态键 + bind 回退）、真根运动接通、Boss 攻击 type / 弱点锚点 / .tres 作者化 / 精英对齐（L-18…L-24）；战斗/AI/测试见 [devlog](devlog/index.md)。
+- **仍开放（内容债）：** 真动画观感 QA（实机）、施法/战技身体 clip 与个别 stance 仍程序化、OAL 分发书面许可待取、Ch.3–5 专属 Boss 流程、跨章叙事填充。权威：[planning/soulslike-gap-analysis.md](planning/soulslike-gap-analysis.md)。
 
 ---
 

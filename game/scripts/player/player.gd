@@ -184,6 +184,10 @@ var _leap_uses_root_motion := false
 ## ≈ 5.8*0.65*0.22 ≈ 0.83m，量级相当）接近；同时仍每物理帧消费根运动，进入
 ## LEAP_ACTIVE 前位置连续，不会突跳。
 const LEAP_WINDUP_ROOT_MOTION_SCALE := 0.35
+## 真 colossal_leap 根位移可用阈值（米，前向）。authored 前冲 LEAP_ROOT_FORWARD=2.4m；
+## 真 clip 根轨净前向不足该值视为退化——回落代码驱动 authored，避免 OAL HeavyJumpAttack
+## 仅 ~0.04m 的根位移顶替 2.4m 前冲（实测值 0.0431m ≪ 0.5m → 当前恒回退 authored）。
+const LEAP_REAL_ROOT_MIN_FORWARD := 0.5
 ## 当前兵器诀 stance_animation（cast/skill/曲刃 leap 播放入口，接入桥 travel_cast/travel_skill）
 var _current_art_stance: StringName = &""
 var _pending_cast := &""
@@ -2739,10 +2743,21 @@ func _try_leap_attack(curved_pair: bool) -> void:
 	_spend_stamina(cost, 0.9)
 	if is_on_floor():
 		velocity.y = _current_attack.launch_velocity_y
-	# D-05：Twin Colossi 直线 leap 走 AnimationTree 根运动前冲
+	# D-05：Twin Colossi 直线 leap 走 AnimationTree 根运动前冲。
+	# 直线 leap 恒播 colossal_leap 动画（曲刃 leap 走 _change_state 的 travel_skill），
+	# 与根运动模式解耦；_leap_uses_root_motion 只决定位移来源。
+	# 真层驱动且真 colossal_leap 实际解析到真 clip 时，仅当其带可用前向根位移
+	# （净前向 ≥ LEAP_REAL_ROOT_MIN_FORWARD）才走真根运动（consume_root_motion 真位移）；
+	# 退化根位移 → 回落代码驱动 authored（LEAP_ACTIVE/WINDUP 的 leap_lunge 分支）。
+	# 真 clip 被剔除时状态节点回退 combat/colossal_leap（程序化 LEAP_ROOT_FORWARD 根轨），
+	# 本 if 不命中 → 保持既有程序化根运动路径，行为不变。
 	_leap_uses_root_motion = not curved_pair and _anim_bridge != null and _anim_bridge.enabled
-	if _leap_uses_root_motion:
+	if not curved_pair and _anim_bridge != null and _anim_bridge.enabled:
 		_anim_bridge.travel_leap(false)
+	if _leap_uses_root_motion and _anim_bridge.real_layer_active \
+			and not _anim_bridge.real_clip_for(&"colossal_leap").is_empty():
+		_leap_uses_root_motion = _anim_bridge.real_root_motion_forward(&"colossal_leap") \
+			>= LEAP_REAL_ROOT_MIN_FORWARD
 	_show_combat_tip(
 		LocalizationScript.text("CRESCENT LEAP" if curved_pair else "COLOSSAL LEAP"),
 		0.65

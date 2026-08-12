@@ -1,5 +1,5 @@
 extends RefCounted
-## 模型动效档案(占位)——由子代理逐条填写。
+## Ch.5 敌人模型动效档案(已填写)——5 个 Ch.5 敌人模型专属 movement + VFX 档案。
 ## Schema:
 ## { "movement": { "type": "none|bob|sway|float|rock|drift", "amplitude": 米, "speed": Hz },
 ##   "vfx": { "windup_ember": Color, "ambient": { "type": "embers|motes|dust|none", "color": Color, "count": int }, "aura": Color } }

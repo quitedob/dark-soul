@@ -49,6 +49,19 @@ const STATE_KEY_MAP := {
 	&"strafe_left": ["MeleeLib.res", "LightStrafeL"],
 	&"strafe_right": ["MeleeLib.res", "LightStrafeR"],
 	&"sword_light_1": ["MeleeLib.res", "Slash1"],
+	# ── W1：execution/leap 状态 + weapon-art stance 键（均 headless 枚举确认存在）──
+	&"colossal_leap": ["MeleeLib.res", "HeavyJumpAttack"],        # Twin Colossi 前冲跃斩
+	&"greatsword_leap": ["MeleeLib.res", "HeavyJumpAttack"],      # 大剑跃斩战技
+	&"hammer_slam": ["MeleeLib.res", "HeavyJumpAttack"],          # 战锤跃砸战技
+	&"ultra_slam": ["MeleeLib.res", "HeavyJumpAttack"],           # 巨剑跃砸战技
+	&"riposte": ["MeleeLib.res", "Stab1"],                        # 刺击处决
+	&"backstab": ["ShooterLib.res", "cqb-KO-attacker-back"],      # 背刺/背后处决
+	&"spear_charge_stance": ["MeleeLib.res", "Stab1"],            # 长枪突刺蓄力
+	&"sword_guard_stance": ["MeleeLib.res", "Guarding"],          # 剑格挡架势
+	&"shield_counter_stance": ["MeleeLib.res", "Guarding"],       # 盾格挡架势
+	&"fist_deflect_stance": ["MeleeLib.res", "GuardParry"],       # 拳招架架势
+	&"curved_spin": ["MeleeLib.res", "HeavySpin"],                # 曲剑旋斩
+	&"dagger_backstep_stance": ["MeleeLib.res", "Retreat"],       # 匕首后撤架势
 }
 
 ## SkeletonProfileHumanoid -> DEF 骨名映射（58 骨 DEF 骨架）。
@@ -114,6 +127,10 @@ const BONE_MAP := {
 ## 整身根运动骨（剔除）与根运动 position 源骨（Hips/Root 上的 position_3d 轨剔除）。
 const ROOT_MOTION_BONES := ["root", "Root"]
 const ROOT_MOTION_POS_BONES := ["Hips", "Root", "root"]
+## 真根运动键：这些状态键烘焙时把源根位移保留为 RootMotionSkeleton:Root position 轨
+## （字符级位移，非 DEF 骨姿态），供游戏 consume_root_motion() 消费。其余状态键仍剔除。
+## 与 bridge REAL_ROOT_MOTION_KEYS 一致。机制支持后续扩展更多键。
+const ROOT_MOTION_KEYS: Array[StringName] = [&"colossal_leap"]
 ## 目标骨架不存在的残留骨（剔除）。
 const DROP_EXTRA_BONES := ["Weapon", "Shield", "DEF-breast.L", "DEF-breast.R"]
 
@@ -287,8 +304,31 @@ func _bake_clip(src: Animation, name: String, source: Dictionary, target: Dictio
 		var def_bone: String = BONE_MAP[bone]
 		if not (target["rest"] as Dictionary).has(def_bone):
 			continue  # 目标骨架无此骨
-		# 根运动 position 轨（Hips/Root/root 上的 position_3d）剔除。
+		# 根运动 position 轨（Hips/Root/root 上的 position_3d）。
 		if ttype == Animation.TYPE_POSITION_3D and bone in ROOT_MOTION_POS_BONES:
+			if StringName(name) in ROOT_MOTION_KEYS:
+				# 真根运动：把源根位移烘焙成 RootMotionSkeleton:Root 轨（字符级位移，
+				# 不做 DEF 骨 remap）。源 OAL 前向（HeavyJumpAttack 的 Hips z 0.0034→-0.0397）
+				# 与游戏前向 -Z 一致，无需翻转 Z。烘焙为相对位移（首 key 归零）：源 Hips
+				# 绝对位置含站立高度 ~0.8m，直接复制会让首帧根运动突跳；x/z 净位移不受影响。
+				var rkey := "RootMotionSkeleton|%d" % ttype
+				var rt: int
+				if added.has(rkey):
+					rt = added[rkey]
+				else:
+					rt = out.add_track(ttype)
+					out.track_set_path(rt, NodePath("RootMotionSkeleton:Root"))
+					out.track_set_interpolation_type(rt, src.track_get_interpolation_type(t))
+					added[rkey] = rt
+				var base: Vector3 = src.track_get_key_value(t, 0)
+				for k in range(src.track_get_key_count(t)):
+					var v: Vector3 = src.track_get_key_value(t, k)
+					out.track_insert_key(
+						rt,
+						src.track_get_key_time(t, k),
+						Vector3(v.x - base.x, v.y - base.y, v.z - base.z)
+					)
+				continue
 			continue
 		var key := "%s|%d" % [def_bone, ttype]
 		var nt: int

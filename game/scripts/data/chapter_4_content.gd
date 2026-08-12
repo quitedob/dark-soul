@@ -97,7 +97,7 @@ static func elites() -> Array[Dictionary]:
 	return [
 		{
 			"id": "elite_celestial_swordsman",
-			"display_name": "Celestial Swordsman / 天剑士",
+			"display_name": "Cloud Bridge Guardian / 云桥守将",
 			"max_health": 230.0, "move_speed": 4.5, "aggro_range": 15.0,
 			"attack_range": 2.6, "poise_limit": 52.0, "reward": 160,
 			"special_ability": "sword_rain",
@@ -106,7 +106,7 @@ static func elites() -> Array[Dictionary]:
 		},
 		{
 			"id": "elite_alchemy_master",
-			"display_name": "Alchemy Master / 炼丹宗师",
+			"display_name": "Falling Sky Artisan / 坠天工匠",
 			"max_health": 195.0, "move_speed": 3.2, "aggro_range": 14.0,
 			"attack_range": 8.0, "poise_limit": 38.0, "reward": 145,
 			"special_ability": "elixir_explosion",
@@ -115,7 +115,7 @@ static func elites() -> Array[Dictionary]:
 		},
 		{
 			"id": "elite_scripture_keeper",
-			"display_name": "Scripture Keeper / 藏经主",
+			"display_name": "Scripture Guardian / 经文守卫",
 			"max_health": 210.0, "move_speed": 2.8, "aggro_range": 16.0,
 			"attack_range": 5.0, "poise_limit": 60.0, "reward": 150,
 			"special_ability": "gravity_inversion",
@@ -130,7 +130,7 @@ static func bosses() -> Array[Dictionary]:
 		{
 			"id": "boss_xuan_xiao_wrath",
 			"display_name": "玄霄·嗔念 / Xuan Xiao · Wrath Fragment",
-			"max_health": 280.0, "reward": 200, "arena": "flaming_wrath_platform",
+			"max_health": 120.0, "reward": 200, "arena": "flaming_wrath_platform",
 			"chapter": 4, "chinese_name": "嗔念",
 			"phases": {
 				"1": {
@@ -160,7 +160,7 @@ static func bosses() -> Array[Dictionary]:
 		{
 			"id": "boss_xuan_xiao_obsession",
 			"display_name": "玄霄·执念 / Xuan Xiao · Obsession Fragment",
-			"max_health": 250.0, "reward": 200, "arena": "frozen_ritual_platform",
+			"max_health": 140.0, "reward": 200, "arena": "frozen_ritual_platform",
 			"chapter": 4, "chinese_name": "执念",
 			"phases": {
 				"1": {
@@ -229,6 +229,10 @@ static func bosses() -> Array[Dictionary]:
 				},
 			},
 			"vfx_unique": {"intro": "immortal_descent", "death": "celestial_implosion", "arena": "collapsing_floating_platforms", "ground_effect": "falling_star_debris"},
+			"flow": {
+				"script": "res://scripts/boss/flow/xuanxiao_escape_flow.gd",
+				"config": {"escape_after_seconds": 90.0},
+			},
 		},
 	]
 

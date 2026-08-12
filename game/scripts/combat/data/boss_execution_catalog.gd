@@ -38,6 +38,7 @@ static func make_giant_gate() -> Resource:
 	p.story_floor_ratio = 0.10
 	p.weak_point_anchor = &"furnace_core"
 	p.weak_point_offset = Vector3(0.0, 1.85, 0.55)
+	p.weak_point_bone_name = &"furnace_core"  # GLB 01-Furnace-Keeper-JuQue: 胸口熔炉门核心
 	p.interaction_distance = 3.4
 	p.critical_multiplier = 2.3
 	p.allow_lethal_on_execution = false
@@ -54,6 +55,7 @@ static func make_xing_tian() -> Resource:
 	p.story_floor_ratio = 0.10
 	p.weak_point_anchor = &"chest_eye"
 	p.weak_point_offset = Vector3(0.0, 2.2, 0.7)
+	p.weak_point_bone_name = &"chest_eye"  # GLB 02-Blood-General-XingTian: 胸口眼(胸甲裂缝眼)
 	p.interaction_distance = 3.6
 	p.critical_multiplier = 2.4
 	p.allow_lethal_on_execution = false
@@ -70,6 +72,7 @@ static func make_nine_tails() -> Resource:
 	p.story_floor_ratio = 0.30  # 救赎线 30% 停战
 	p.weak_point_anchor = &"tail_root"
 	p.weak_point_offset = Vector3(0.0, 1.4, -0.9)
+	p.weak_point_bone_name = &"tail_root_1"  # GLB 03-Jade-Faced-Fox-NineTails: 9 条同构尾根,取第 1 条
 	p.interaction_distance = 3.0
 	p.critical_multiplier = 2.5
 	p.allow_lethal_on_execution = false
@@ -86,6 +89,7 @@ static func make_xuan_xiao() -> Resource:
 	p.story_floor_ratio = 0.10
 	p.weak_point_anchor = &"fusion_core"
 	p.weak_point_offset = Vector3(0.0, 1.7, 0.35)
+	p.weak_point_bone_name = &"fused_core"  # GLB 04-Fallen-Immortal-XuanXiao: 节点名为 fused_core
 	p.interaction_distance = 3.2
 	p.critical_multiplier = 2.35
 	p.allow_lethal_on_execution = false
@@ -102,6 +106,7 @@ static func make_zhu_yin() -> Resource:
 	p.story_floor_ratio = 0.10
 	p.weak_point_anchor = &"star_core"
 	p.weak_point_offset = Vector3(0.0, 2.6, 0.8)
+	p.weak_point_bone_name = &"star_core"  # GLB 05-Lord-of-the-Ember-Abyss-ZhuYin: 胸口星核
 	p.interaction_distance = 4.0
 	p.critical_multiplier = 2.6
 	p.allow_lethal_on_execution = false
@@ -119,6 +124,7 @@ static func make_blind_bell() -> Resource:
 	p.story_floor_ratio = 0.0
 	p.weak_point_anchor = &"bell_mouth"
 	p.weak_point_offset = Vector3(0.0, 1.05, 0.0)
+	p.weak_point_bone_name = &"bell_mouth"  # GLB 06-Blind-Bell-Hearer: 钟口弱点(悬垂钟口下方)
 	p.interaction_distance = 2.5
 	p.critical_multiplier = 3.0
 	p.allow_lethal_on_execution = true

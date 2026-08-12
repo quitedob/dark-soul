@@ -10,6 +10,9 @@ class_name BossExecutionBreakProfile
 @export_range(0.0, 0.5, 0.01) var story_floor_ratio := 0.10  # 处决后 HP 不低于此比例
 @export var weak_point_anchor: StringName = &"furnace_core"
 @export var weak_point_offset := Vector3(0.0, 1.8, 0.4)
+## L-20：真骨锚。优先解析为 Skeleton3D 骨名；否则视为静态 GLB 的语义命名节点。
+## 为空时 get_execution_anchor 回退 weak_point_offset 虚拟偏移。
+@export var weak_point_bone_name: StringName = &""
 @export_range(1.0, 6.0, 0.05) var interaction_distance := 3.2
 @export_range(1.0, 180.0, 1.0) var interaction_angle_degrees := 70.0
 @export_range(1.0, 8.0, 0.05) var critical_multiplier := 2.2

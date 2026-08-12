@@ -85,16 +85,16 @@ static func elites() -> Array[Dictionary]:
 	return [
 		{
 			"id": "elite_siege_commander",
-			"display_name": "Siege Commander / 攻城校尉",
+			"display_name": "Gluttonous Quartermaster / 贪噬军需官",
 			"max_health": 220.0, "move_speed": 3.8, "aggro_range": 16.0,
 			"attack_range": 2.8, "poise_limit": 55.0, "reward": 140,
 			"special_ability": "rally_troops",
-			"appears_in": "level_02_02", "body_color": "3a2020",
+			"appears_in": "level_02_05", "body_color": "3a2020",
 			"weapon_shape": "commander_sword", "body_type": "armored_heavy",
 		},
 		{
 			"id": "elite_torture_master",
-			"display_name": "Torture Master / 刑讯官",
+			"display_name": "Forge-Rage Engine / 炉暴刑具",
 			"max_health": 180.0, "move_speed": 4.2, "aggro_range": 13.0,
 			"attack_range": 2.2, "poise_limit": 38.0, "reward": 130,
 			"special_ability": "bleed_chain",
@@ -103,7 +103,7 @@ static func elites() -> Array[Dictionary]:
 		},
 		{
 			"id": "elite_beacon_lord",
-			"display_name": "Beacon Lord / 烽火将",
+			"display_name": "Twin Beacon Generals / 双生烽火守将",
 			"max_health": 260.0, "move_speed": 2.0, "aggro_range": 18.0,
 			"attack_range": 10.0, "poise_limit": 65.0, "reward": 160,
 			"special_ability": "fire_rain",

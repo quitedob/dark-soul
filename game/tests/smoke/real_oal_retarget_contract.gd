@@ -17,11 +17,16 @@ const REAL_LIB_PATH := "res://resources/animations/mannyquin_lib.tres"
 const BIND_FALLBACK := "Armature|mixamo_com|Layer0_godot_rig"
 const MANNYQUIN_SKEL_PATH := "res://assets/models/player/mannyquin.glb"
 
-## 本批次重定向的状态键（与 retarget_oal_to_mannyquin.gd 的 STATE_KEY_MAP 一致）。
+## 本批次重定向的状态键（与 retarget_oal_to_mannyquin.gd 的 STATE_KEY_MAP 一致，
+## W1 扩展至 19 键）。
 const BATCH_KEYS: Array[StringName] = [
 	&"idle", &"walk",
 	&"strafe_fwd", &"strafe_back", &"strafe_left", &"strafe_right",
 	&"sword_light_1",
+	&"colossal_leap", &"riposte", &"backstab",
+	&"greatsword_leap", &"hammer_slam", &"ultra_slam",
+	&"spear_charge_stance", &"sword_guard_stance", &"shield_counter_stance",
+	&"fist_deflect_stance", &"curved_spin", &"dagger_backstep_stance",
 ]
 
 const SUCCESS_MARKER := "ASHEN_REAL_OAL_RETARGET_CONTRACTS_OK"
@@ -112,7 +117,7 @@ func _test_batch_drives_bridge_on_real_skel() -> void:
 		var raw: Animation = bridge._real_library.get_animation(String(key))
 		_expect(raw != null, "bridge: raw lib must expose '%s'." % key)
 		if raw != null:
-			var remapped := bridge._remap_real_clip(raw, skeleton_path)
+			var remapped := bridge._remap_real_clip(raw, skeleton_path, key)
 			_expect(remapped != null and remapped.get_track_count() > 0,
 				"bridge: _remap_real_clip must retain DEF tracks for '%s' (tracks>0)." % key)
 		var injected: Animation = bridge.anim_player.get_animation("real/%s" % key) as Animation

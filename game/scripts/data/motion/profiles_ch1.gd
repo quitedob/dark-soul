@@ -1,5 +1,5 @@
 extends RefCounted
-## Ch.1 敌人模型动效档案(占位)——由子代理逐条填写。
+## Ch.1 敌人模型动效档案(已填写)——5 个 Ch.1 敌人模型专属 movement + VFX 档案。
 ## Schema(每条 = 一个 resolver id):
 ## {
 ##   "movement": { "type": "none|bob|sway|float|rock|drift", "amplitude": 米, "speed": Hz },

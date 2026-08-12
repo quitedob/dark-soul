@@ -56,7 +56,7 @@ var checkpoint
 var shortcut
 var shortcut_gate
 var enemies: Array = []
-var respawn_position := Vector3(0.0, 1.1, 8.0)
+var respawn_position := Vector3(0.0, 1.1, 0.0)
 var lost_echo
 var guardian
 var victory := false
@@ -521,7 +521,7 @@ func _spawn_chapter2_encounters(origin: Vector3, level_id: StringName) -> void:
 			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -9.0), soldier)
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), soldier)
 		&"level_02_02":
-			# 铁啸关外墙：2× 残兵 + 2× 战犬亡灵 + 精英·攻城校尉
+			# 铁啸关外墙：2× 残兵 + 2× 战犬亡灵
 			var soldier_02 := _chapter2_enemy_by_id(roster, "battle_worn_soldier")
 			var war_dog := _chapter2_enemy_by_id(roster, "war_dog_wraith")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -5.0), soldier_02)
@@ -532,7 +532,7 @@ func _spawn_chapter2_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_02.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_02)
 		&"level_02_03":
-			# 俘虏营：2× 营守亡灵 + 刑具精魄 + 精英·刑讯官
+			# 俘虏营：2× 营守亡灵 + 刑具精魄 + 精英·炉暴刑具
 			var camp_guard := _chapter2_enemy_by_id(roster, "camp_guard_wraith")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), camp_guard)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), camp_guard)
@@ -541,7 +541,7 @@ func _spawn_chapter2_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_03.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_03)
 		&"level_02_04":
-			# 烽火台：2× 烽火守望者 + 残兵 + 精英·烽火将
+			# 烽火台：2× 烽火守望者 + 残兵 + 精英·双生烽火守将
 			var beacon := _chapter2_enemy_by_id(roster, "beacon_keeper_wraith")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), beacon)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), beacon)
@@ -550,11 +550,14 @@ func _spawn_chapter2_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_04.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_04)
 		&"level_02_05":
-			# 将军营帐：3× 将军亲卫
+			# 将军营帐：3× 将军亲卫 + 精英·贪噬军需官
 			var personal_guard := _chapter2_enemy_by_id(roster, "generals_personal_guard")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), personal_guard)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), personal_guard)
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), personal_guard)
+			var elite_05 := _chapter2_elite_for(level_id)
+			if not elite_05.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_05)
 		&"level_02_06":
 			# 刑天斗场：仅 Boss 血将军·刑天
 			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter2ContentScript.boss(), true)
@@ -633,7 +636,7 @@ func _spawn_chapter3_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_02.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_02)
 		&"level_03_03":
-			# 狐嫁道：嫁衣女鬼 + 水月灵 + 狐火灯 + 精英·狐嫁娘
+			# 狐嫁道：嫁衣女鬼 + 水月灵 + 狐火灯
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), _chapter_enemy_by_id(roster, "wedding_gown_ghost"))
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), _chapter_enemy_by_id(roster, "water_moon_spirit"))
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter_enemy_by_id(roster, "foxfire_lantern"))
@@ -641,7 +644,7 @@ func _spawn_chapter3_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_03.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_03)
 		&"level_03_04":
-			# 镜花水月亭：镜花精 ×2 + 回声灵 + 精英·镜像主 + 支线·贪烬鬼/供茶/茶魂
+			# 镜花水月亭：镜花精 ×2 + 回声灵 + 精英·镜湖织梦者 + 支线·贪烬鬼/供茶/茶魂
 			var mirror_flower := _chapter_enemy_by_id(roster, "mirror_flower_spirit")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), mirror_flower)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), mirror_flower)
@@ -658,11 +661,14 @@ func _spawn_chapter3_encounters(origin: Vector3, level_id: StringName) -> void:
 			# 可选 Boss 隐藏入口：桥头侧道通往无目钟塔
 			_spawn_bell_tower_entrance(origin + Vector3(5.5, 1.1, -17.0))
 		&"level_03_05":
-			# 九尾迷宫：迷宫守卫 + 迷心狐妖 ×2
+			# 九尾迷宫：迷宫守卫 + 迷心狐妖 ×2 + 精英·迷宫诗人
 			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -6.0), _chapter_enemy_by_id(roster, "maze_guardian"))
 			var fox_demon := _chapter_enemy_by_id(roster, "mind_lost_fox_demon")
 			_spawn_content_enemy(origin + Vector3(3.0, 0.95, -10.0), fox_demon)
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -14.0), fox_demon)
+			var elite_05 := _chapter_elite_for(Chapter3ContentScript, level_id)
+			if not elite_05.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_05)
 		&"level_03_06":
 			# 月华台：仅 Boss 玉面狐·九尾
 			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter3ContentScript.boss(), true)
@@ -678,7 +684,7 @@ func _spawn_chapter4_encounters(origin: Vector3, level_id: StringName) -> void:
 		return
 	match level_id:
 		&"level_04_01":
-			# 登天梯：天梯守灵 ×2 + 云天鹰 + 精英·天剑士
+			# 登天梯：天梯守灵 ×2 + 云天鹰 + 精英·云桥守将
 			var stair_guard := _chapter_enemy_by_id(roster, "stairway_guard_wraith")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), stair_guard)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), stair_guard)
@@ -687,14 +693,14 @@ func _spawn_chapter4_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_01.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_01)
 		&"level_04_02":
-			# 炼丹云台：丹炉精 + 丹堕仙 + 精英·炼丹宗师
+			# 炼丹云台：丹炉精 + 丹堕仙 + 精英·坠天工匠
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), _chapter_enemy_by_id(roster, "elixir_furnace_spirit"))
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), _chapter_enemy_by_id(roster, "alchemy_fallen_immortal"))
 			var elite_02 := _chapter_elite_for(Chapter4ContentScript, level_id)
 			if not elite_02.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -13.0), elite_02)
 		&"level_04_03":
-			# 藏经阁：书精 ×2 + 藏书守护灵 + 精英·藏经主
+			# 藏经阁：书精 ×2 + 藏书守护灵 + 精英·经文守卫
 			var book_spirit := _chapter_enemy_by_id(roster, "book_spirit")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), book_spirit)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), book_spirit)
@@ -731,7 +737,7 @@ func _spawn_chapter5_encounters(origin: Vector3, level_id: StringName) -> void:
 		return
 	match level_id:
 		&"level_05_01":
-			# 烬海之岸：烬岸浮游灵 ×2 + 烬蝠 ×2 + 精英·虚空守卫
+			# 烬海之岸：烬岸浮游灵 ×2 + 烬蝠 ×2
 			var drifter := _chapter_enemy_by_id(roster, "ember_shore_drifter")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), drifter)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), drifter)
@@ -743,7 +749,7 @@ func _spawn_chapter5_encounters(origin: Vector3, level_id: StringName) -> void:
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_01)
 			_spawn_furnace_memory(origin + Vector3(-2.5, 1.1, -8.0), "furnace_memory_1")
 		&"level_05_02":
-			# 倒悬殿：倒悬卫士 ×2 + 精英·重力扭曲者
+			# 倒悬殿：倒悬卫士 ×2 + 精英·逆熵化身
 			var inverted := _chapter_enemy_by_id(roster, "inverted_guardian")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), inverted)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), inverted)
@@ -752,14 +758,17 @@ func _spawn_chapter5_encounters(origin: Vector3, level_id: StringName) -> void:
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -13.0), elite_02)
 			_spawn_furnace_memory(origin + Vector3(3.0, 1.1, -10.0), "furnace_memory_2")
 		&"level_05_03":
-			# 轮回歧路：歧路影 ×2 + 可能性之影
+			# 轮回歧路：歧路影 ×2 + 可能性之影 + 精英·可能性之海
 			var shade := _chapter_enemy_by_id(roster, "forked_path_shade")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), shade)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), shade)
 			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -13.0), _chapter_enemy_by_id(roster, "shadow_of_possibility"))
+			var elite_03 := _chapter_elite_for(Chapter5ContentScript, level_id)
+			if not elite_03.is_empty():
+				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_03)
 			_spawn_furnace_memory(origin + Vector3(0.0, 1.1, -9.0), "furnace_memory_3")
 		&"level_05_04":
-			# 九铸魂者之墓：铸魂者残影 ×2 + 精英·铸魂者回响
+			# 九铸魂者之墓：铸魂者残影 ×2 + 精英·最后的烛阴侍者
 			var remnant := _chapter_enemy_by_id(roster, "soul_forger_remnant")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), remnant)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), remnant)

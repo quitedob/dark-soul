@@ -128,6 +128,13 @@ func _connect_web_host() -> void:
 	_window = _js_bridge.call("get_interface", "window")
 	if _window == null:
 		return
+	# 独立浏览器构建未注入 AshenHollowHost 宿主时静默跳过，
+	# 避免对不存在的接口调用 get_interface 触发引擎报错。
+	var has_host_text := String(
+		_js_bridge.call("eval", "typeof window.AshenHollowHost !== 'undefined'", true)
+	).strip_edges().to_lower()
+	if has_host_text != "true":
+		return
 	_host = _js_bridge.call("get_interface", "AshenHollowHost")
 	_receive_callback = _js_bridge.call("create_callback", _on_js_message)
 	_js_bridge.call(

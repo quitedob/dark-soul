@@ -31,9 +31,9 @@ func _expect(cond: bool, msg: String) -> void:
 
 
 func _test_limbo_path_docs() -> void:
-	# 无插件时应走兼容宏层
-	_expect(not LimboPathScript.is_installed(), "LimboAI not expected in addons yet.")
-	_expect(LimboPathScript.backend_id() == &"compat_macro", "Backend should be compat_macro.")
+	# 已装插件时后端标记为 limboai（未装时回退 compat_macro）
+	_expect(LimboPathScript.is_installed(), "LimboAI plugin should be present in addons.")
+	_expect(LimboPathScript.backend_id() == &"limboai", "Backend should be limboai when plugin installed.")
 	var notes := LimboPathScript.install_instructions()
 	_expect(notes.contains("game/addons/limboai"), "Install notes must name addon path.")
 	_expect(notes.contains("github.com/limbonaut/limboai"), "Install notes must cite repo.")
@@ -109,7 +109,7 @@ func _test_phase_brackets() -> void:
 
 func _test_controller_and_enemy_hook() -> void:
 	var ctrl = ControllerScript.new()
-	_expect(ctrl.backend == &"compat_macro", "Controller backend mismatch.")
+	_expect(ctrl.backend == &"limboai", "Controller backend mismatch.")
 	ctrl.blackboard.has_valid_target = true
 	ctrl.blackboard.engaged = true
 	ctrl.blackboard.target_distance = 2.0

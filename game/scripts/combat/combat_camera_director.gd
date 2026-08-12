@@ -139,7 +139,7 @@ func _resolve_look_point() -> Vector3:
 	match mode:
 		&"weak_point":
 			if _subject.has_method("get_execution_anchor"):
-				return _subject.get_execution_anchor(&"furnace_core")
+				return _subject.get_execution_anchor(_resolve_weak_point_anchor_name())
 			return _subject.global_position + Vector3.UP * 1.8
 		&"grab_hold":
 			if _subject.has_method("get_target_point"):
@@ -149,3 +149,18 @@ func _resolve_look_point() -> Vector3:
 			if _subject.has_method("get_target_point"):
 				return _subject.get_target_point()
 			return _subject.global_position + Vector3.UP * 1.4
+
+
+## L-20：弱点镜头锚名从 Boss profile 读取（骨名优先，其次锚名），不再硬编码 furnace_core。
+func _resolve_weak_point_anchor_name() -> StringName:
+	var anchor: StringName = &"furnace_core"
+	if _subject == null or not _subject.has_method("get_boss_break_profile"):
+		return anchor
+	var bp = _subject.get_boss_break_profile()
+	if bp == null:
+		return anchor
+	if bp.weak_point_bone_name != &"":
+		return bp.weak_point_bone_name
+	if bp.weak_point_anchor != &"":
+		return bp.weak_point_anchor
+	return anchor

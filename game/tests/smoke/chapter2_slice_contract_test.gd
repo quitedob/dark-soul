@@ -80,7 +80,7 @@ func _test_encounters_and_boss() -> void:
 	_expect(String(enemies[0].get("id", "")) == "battle_worn_soldier", "First Ch.2 enemy should be battle_worn_soldier.")
 	var elites := Chapter2Content.elites()
 	_expect(elites.size() >= 3, "Chapter 2 elites missing.")
-	_expect(String(elites[0].get("appears_in", "")) == "level_02_02", "Siege Commander elite level mismatch.")
+	_expect(String(elites[0].get("appears_in", "")) == "level_02_05", "Siege Commander elite level mismatch.")
 	_expect(String(elites[1].get("appears_in", "")) == "level_02_03", "Torture Master elite level mismatch.")
 	_expect(String(elites[2].get("appears_in", "")) == "level_02_04", "Beacon Lord elite level mismatch.")
 	var boss := Chapter2Content.boss()

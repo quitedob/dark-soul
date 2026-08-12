@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/data/attack_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+action_id = &"guardian_mid_light_p2"
+display_name_key = &"guardian_mid_light_p2"
+animation_name = &"guardian_mid_light_p2"
+windup_seconds = 0.58
+active_seconds = 0.18
+recovery_seconds = 0.56
+damage = 28.0
+poise_damage = 34.0
+guard_power = 39.9
+stamina_cost = 0.0
+focus_cost = 0.0
+tags = Array[StringName]([&"enemy", &"light"])
+authored_displacement = Vector3(0, 0, 1.9)
+poise_modifier_windup = 0.0
+poise_modifier_active = 0.0
+poise_modifier_recovery = 0.0
+blockable = true
+parryable = true
+hitbox_radius = 1.35
+hitbox_height = 1.55
+hitbox_offset = Vector3(0, 1, -0.9)
+maximum_hits_per_target = 1

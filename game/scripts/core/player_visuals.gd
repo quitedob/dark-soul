@@ -5,6 +5,7 @@ extends RefCounted
 
 const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
 const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
+const RunStateScript = preload("res://scripts/core/run_state.gd")
 const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 const HandEquipmentScript = preload("res://scripts/data/hand_equipment.gd")
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
@@ -162,10 +163,13 @@ func build_nodes(class_id := "") -> void:
 
 ## 仅替换身体模型（BodyRoot / 程序化身体网格），不触碰 weapon_pivot /
 ## offhand_pivot / shield / weapon_trail / combat_area / camera。同类调用幂等返回。
+## L-18：职业 id 解析优先 run_state 的 body_class_override（混合职业覆盖的存档权威），
+## 无覆盖时回落调用方传入的 class_id。见 _resolve_body_class。
 func rebuild_body(class_id: String) -> void:
 	if _player == null or _player.visual_root == null or _visor_material == null:
 		return
-	if class_id == _active_class_id and _has_body():
+	var resolved_class := _resolve_body_class(class_id)
+	if resolved_class == _active_class_id and _has_body():
 		return
 	# 移除旧身体（真模型 BodyRoot 或程序化身体网格），保留其余 visual_root 子节点
 	for child in _player.visual_root.get_children():
@@ -176,7 +180,7 @@ func rebuild_body(class_id: String) -> void:
 	_clear_model_vfx()
 	# 新身体构建到临时父节点再移植，避免 build_player 的 _clear_children 清空 pivot/camera
 	var temp := Node3D.new()
-	CharacterMeshFactory.build_player(temp, _player.body_material, _visor_material, class_id)
+	CharacterMeshFactory.build_player(temp, _player.body_material, _visor_material, resolved_class)
 	var index := 0
 	for child in temp.get_children():
 		temp.remove_child(child)
@@ -185,9 +189,32 @@ func rebuild_body(class_id: String) -> void:
 		child.add_to_group(BODY_GROUP)
 		index += 1
 	temp.free()
-	_active_class_id = class_id
+	_active_class_id = resolved_class
 	_body_model_base_y_set = false
 	_refresh_body_references()
+
+
+## L-18：解析身体职业 id。若 run_state 存在非空 body_class_override 则优先（混合职业
+## 覆盖的存档权威），否则回落调用方传入的 class_id。只读，不修改 player.gd 的
+## get_active_class_id —— 玩家侧运行覆盖仍由 get_active_class_id() 提供；此覆盖仅在
+## run_state 已持久化 body_class_override 时接管身体外观。
+func _resolve_body_class(class_id: String) -> String:
+	var state = _current_run_state()
+	var override := RunStateScript.static_body_class_override(state)
+	if not override.is_empty():
+		return override
+	return class_id
+
+
+## 定位当前 run_state（只读）。run_state 由 game_world 持有，player.world_node 指向
+## game_world；隔离构建/测试无 world 上下文时返回 null → 回落调用方 class_id。
+func _current_run_state():
+	if _player == null:
+		return null
+	var world: Variant = _player.get("world_node")
+	if not world is Object or world == null:
+		return null
+	return world.get("run_state")
 
 
 ## 身体引用修复：BodyRoot → 首个 MeshInstance3D → 兜底空 BodyRoot。

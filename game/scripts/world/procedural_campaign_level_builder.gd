@@ -23,6 +23,7 @@ static func build(level_data: Dictionary) -> Node3D:
 	root.add_child(geometry)
 	for index in cells.size():
 		_add_tile(geometry, cells[index], theme, index, _seed_for(level_data))
+	_add_boundary_walls(geometry, cells, level_data["topology"])
 	_add_height_ramps(geometry, cells, theme)
 	_add_modules(root, level_data, cells, theme)
 	_add_shortcut_fold(root, level_data, cells, theme)
@@ -107,6 +108,50 @@ static func _add_tile(parent: Node3D, cell: Vector3i, theme: Dictionary, index: 
 	parent.add_child(tile)
 	if (index * 7 + seed) % 5 == 0:
 		_add_pillar(parent, tile.position + Vector3(TILE_SIZE * 0.38, 1.8, 0.0), theme)
+
+
+## 封闭竞技场族（courtyard / multi_angle_hall / fortified_hub）沿瓷砖外沿加隐形
+## 边界墙，防止玩家走出 3×5 小竞技场掉入虚空（出生点距 +z 边缘仅 1m）。
+## 纯碰撞无网格；仅对这类闭合格栅拓扑生效，不触碰塔/浮空/环形等本意开放的拓扑。
+static func _add_boundary_walls(parent: Node3D, cells: Array[Vector3i], topology: StringName) -> void:
+	if not (topology == &"courtyard" or topology == &"multi_angle_hall" or topology == &"fortified_hub"):
+		return
+	var min_x := cells[0].x
+	var max_x := cells[0].x
+	var min_z := cells[0].z
+	var max_z := cells[0].z
+	for cell in cells:
+		min_x = mini(min_x, cell.x)
+		max_x = maxi(max_x, cell.x)
+		min_z = mini(min_z, cell.z)
+		max_z = maxi(max_z, cell.z)
+	var half := TILE_SIZE * 0.5
+	var wall_height := 4.0
+	var wall_thick := 0.6
+	var y_center := wall_height * 0.5 - FLOOR_HEIGHT * 0.5
+	# 左/右墙：x = min/max 瓷砖外沿，沿 z 轴延伸整条 x 跨度。
+	var z_span := (max_z - min_z + 1) * TILE_SIZE
+	var z_mid := -(min_z + max_z) * 0.5 * TILE_SIZE
+	_add_wall_box(parent, Vector3(min_x * TILE_SIZE - half, y_center, z_mid), Vector3(wall_thick, wall_height, z_span))
+	_add_wall_box(parent, Vector3(max_x * TILE_SIZE + half, y_center, z_mid), Vector3(wall_thick, wall_height, z_span))
+	# 前/后墙：z = 对应 cell.z 两端外沿（z 轴 = -cell.z * TILE），沿 x 轴延伸。
+	var x_span := (max_x - min_x + 1) * TILE_SIZE
+	var x_mid := (min_x + max_x) * 0.5 * TILE_SIZE
+	_add_wall_box(parent, Vector3(x_mid, y_center, -min_z * TILE_SIZE + half), Vector3(x_span, wall_height, wall_thick))
+	_add_wall_box(parent, Vector3(x_mid, y_center, -max_z * TILE_SIZE - half), Vector3(x_span, wall_height, wall_thick))
+
+
+static func _add_wall_box(parent: Node3D, center: Vector3, size: Vector3) -> void:
+	var wall := StaticBody3D.new()
+	wall.name = "BoundaryWall"
+	wall.position = center
+	wall.collision_layer = 1
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	collision.shape = shape
+	wall.add_child(collision)
+	parent.add_child(wall)
 
 
 static func _add_pillar(parent: Node3D, position: Vector3, theme: Dictionary) -> void:

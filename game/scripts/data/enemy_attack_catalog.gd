@@ -8,9 +8,27 @@ const EnemyTuningData = preload("res://scripts/data/enemy_tuning.gd")
 ## action_id → AttackData 缓存，避免每帧 new
 static var _cache: Dictionary = {}
 
-## 原型敌人磁盘 AttackData（有则覆盖 dict 构建）
+## 磁盘 AttackData（有则覆盖 dict 构建）。
+## 原型敌人按 enemy_key 键；guardian 表按 action_id 键（guardian_*，resolve_guardian 内查）。
 const DISK_ATTACK_PATHS := {
 	"hollow_sentinel": "res://resources/enemies/hollow_sentinel/basic_strike.tres",
+	"ash_stalker": "res://resources/enemies/ash_stalker/basic_strike.tres",
+	"ember_skirmisher": "res://resources/enemies/ember_skirmisher/basic_strike.tres",
+	# guardian：close/mid/long × phase × heavy/light（close_heavy 无 p1，回退 close light p1）
+	"guardian_close_p1": "res://resources/enemies/cinder_guardian/guardian_close_p1.tres",
+	"guardian_close_p2": "res://resources/enemies/cinder_guardian/guardian_close_p2.tres",
+	"guardian_close_p3": "res://resources/enemies/cinder_guardian/guardian_close_p3.tres",
+	"guardian_close_heavy_p2": "res://resources/enemies/cinder_guardian/guardian_close_heavy_p2.tres",
+	"guardian_close_heavy_p3": "res://resources/enemies/cinder_guardian/guardian_close_heavy_p3.tres",
+	"guardian_mid_light_p1": "res://resources/enemies/cinder_guardian/guardian_mid_light_p1.tres",
+	"guardian_mid_light_p2": "res://resources/enemies/cinder_guardian/guardian_mid_light_p2.tres",
+	"guardian_mid_light_p3": "res://resources/enemies/cinder_guardian/guardian_mid_light_p3.tres",
+	"guardian_mid_heavy_p1": "res://resources/enemies/cinder_guardian/guardian_mid_heavy_p1.tres",
+	"guardian_mid_heavy_p2": "res://resources/enemies/cinder_guardian/guardian_mid_heavy_p2.tres",
+	"guardian_mid_heavy_p3": "res://resources/enemies/cinder_guardian/guardian_mid_heavy_p3.tres",
+	"guardian_long_p1": "res://resources/enemies/cinder_guardian/guardian_long_p1.tres",
+	"guardian_long_p2": "res://resources/enemies/cinder_guardian/guardian_long_p2.tres",
+	"guardian_long_p3": "res://resources/enemies/cinder_guardian/guardian_long_p3.tres",
 }
 
 
@@ -69,6 +87,10 @@ static func resolve_guardian(range_bucket: StringName, phase: int, heavy: bool) 
 		id_prefix = "guardian_close"
 	var profile: Dictionary = table.get(clamped_phase, table.get(1, {}))
 	var action_id := StringName("%s_p%d" % [id_prefix, clamped_phase])
+	# L-21：磁盘 .tres 优先（作者化调参）；dict 回退保持
+	var disk := _try_load_disk(String(action_id))
+	if disk != null:
+		return disk
 	return _cached(action_id, profile)
 
 

@@ -16,6 +16,9 @@ var _wired: Array[Node] = []
 var _exit_cooldown := 0.0
 var _projectile_lanes: Array[Dictionary] = []
 var _moving_platforms: Array[Dictionary] = []
+# H-04 行为抛光：脉冲危险区 / 软重力漂移区（逐帧结算）
+var _pulse_zones: Array[Dictionary] = []
+var _drift_zones: Array[Dictionary] = []
 
 
 func bind(player: Node3D, hud: Node, audio: Node) -> void:
@@ -42,7 +45,9 @@ func activate(level_root: Node3D) -> void:
 					_wire_fragile_floor(module as Node3D)
 				&"gate_exit":
 					_wire_gate_exit(module as Node3D)
-				&"poison_fire_zone", &"hazard":
+				&"poison_fire_zone":
+					_wire_poison_fire_zone(module as Node3D)
+				&"hazard":
 					_wire_damage_zone(module as Node3D)
 				&"arena_seal":
 					_wire_arena_seal(module as Node3D)
@@ -88,6 +93,8 @@ func clear() -> void:
 	_wired.clear()
 	_projectile_lanes.clear()
 	_moving_platforms.clear()
+	_pulse_zones.clear()
+	_drift_zones.clear()
 	_level_root = null
 
 
@@ -96,6 +103,8 @@ func _process(delta: float) -> void:
 		_exit_cooldown = maxf(_exit_cooldown - delta, 0.0)
 	_tick_projectile_lanes(delta)
 	_tick_moving_platforms(delta)
+	_tick_pulse_zones(delta)
+	_tick_drift_zones(delta)
 
 
 func _wire_fragile_floor(module: Node3D) -> void:
@@ -188,7 +197,7 @@ func _on_exit_interact(_interactable: Node, _player: Node) -> void:
 
 
 func _wire_damage_zone(module: Node3D) -> void:
-	# 伤害区：玩家进入持续扣血
+	# 伤害区（hazard）：玩家进入持续扣血 —— 恒定灼烧场（Ch.1 已抛光行为）
 	var area: Area3D = null
 	for child in module.get_children():
 		if child is Area3D:
@@ -202,6 +211,80 @@ func _wire_damage_zone(module: Node3D) -> void:
 	area.set_meta("hazard_dps", dps)
 	area.set_meta("hazard_active", true)
 	_wired.append(area)
+
+
+func _wire_poison_fire_zone(module: Node3D) -> void:
+	# 毒雾毒焰区：脉冲式危险（active/quiet 交替 + 预兆闪烁）。
+	# 与 hazard 的恒定场形成危险模式差异：留出安全窗口供玩家穿越。
+	var area := module.get_node_or_null("DamageZone") as Area3D
+	if area == null:
+		return
+	area.monitoring = true
+	area.collision_mask = 2
+	area.set_meta("hazard_dps", float(module.get_meta("damage_per_second", 8.0)))
+	area.set_meta("hazard_active", false)
+	_wired.append(area)
+	_pulse_zones.append({
+		"area": area,
+		"on": maxf(float(module.get_meta("pulse_on", 1.0)), 0.2),
+		"off": maxf(float(module.get_meta("pulse_off", 0.7)), 0.1),
+		"phase": 0.0,
+		"state": "telegraph",  # telegraph(闪烁预兆) -> active(喷发) -> quiet(熄灭)
+		"telegraph": 0.0,
+	})
+
+
+func _tick_pulse_zones(delta: float) -> void:
+	# 脉冲危险区状态机：每 0.35s 预兆闪烁后进入 active 窗口，quiet 时关闭伤害
+	for entry in _pulse_zones:
+		var area: Area3D = entry.get("area")
+		if area == null or not is_instance_valid(area):
+			continue
+		var state := String(entry["state"])
+		match state:
+			"telegraph":
+				entry["telegraph"] = float(entry["telegraph"]) + delta
+				_set_zone_visible(area, int(entry["telegraph"] * 12.0) % 2 == 0)
+				if float(entry["telegraph"]) >= 0.35:
+					entry["state"] = "active"
+					entry["phase"] = float(entry["on"])
+					area.set_meta("hazard_active", true)
+					_set_zone_visible(area, true)
+					entry["telegraph"] = 0.0
+			"active":
+				entry["phase"] = float(entry["phase"]) - delta
+				if float(entry["phase"]) <= 0.0:
+					entry["state"] = "quiet"
+					entry["phase"] = float(entry["off"])
+					area.set_meta("hazard_active", false)
+					_set_zone_visible(area, true)
+			"quiet":
+				entry["phase"] = float(entry["phase"]) - delta
+				if float(entry["phase"]) <= 0.0:
+					entry["state"] = "telegraph"
+					entry["telegraph"] = 0.0
+
+
+func _set_zone_visible(area: Area3D, visible_value: bool) -> void:
+	for child in area.get_children():
+		if child is MeshInstance3D:
+			(child as MeshInstance3D).visible = visible_value
+
+
+func _tick_drift_zones(delta: float) -> void:
+	# 软重力漂移：区内持续上推，营造浮空漂流感（gravity_visual_zone 专属）
+	if _player == null or not is_instance_valid(_player):
+		return
+	for entry in _drift_zones:
+		var area: Area3D = entry.get("area")
+		if area == null or not is_instance_valid(area):
+			continue
+		if not area.get_overlapping_bodies().has(_player):
+			continue
+		if _player is CharacterBody3D:
+			var body := _player as CharacterBody3D
+			var direction: Vector3 = entry.get("direction", Vector3.DOWN)
+			body.velocity += direction.normalized() * float(entry.get("push", 2.4)) * delta
 
 
 func _wire_arena_seal(module: Node3D) -> void:
@@ -280,19 +363,30 @@ func _wire_switch_offering(module: Node3D) -> void:
 
 
 func _wire_moving_platform(module: Node3D) -> void:
-	# 往返平台：在原点与 TravelEnd 间振荡
+	# 往返平台：在原点与 TravelEnd 间振荡；motion_profile 决定不同巡逻路径。
+	# auto：横向为主→渡台(ferry，两端停顿)；纯纵向→升降(lift，正弦)；斜向→弧线(arc)。
 	var platform := module.get_node_or_null("Platform") as AnimatableBody3D
 	var end_marker := module.get_node_or_null("TravelEnd") as Marker3D
 	if platform == null:
 		return
 	var travel := end_marker.position if end_marker != null else Vector3(0.0, 3.0, 0.0)
 	var duration := maxf(float(module.get_meta("travel_time", 3.0)), 0.4)
+	var profile := StringName(module.get_meta("motion_profile", &"auto"))
+	if profile == &"auto":
+		if absf(travel.y) <= 0.01 and (absf(travel.x) > 0.01 or absf(travel.z) > 0.01):
+			profile = &"ferry"
+		elif absf(travel.y) > 0.01 and absf(travel.x) <= 0.01 and absf(travel.z) <= 0.01:
+			profile = &"lift"
+		else:
+			profile = &"arc"
 	_moving_platforms.append({
 		"platform": platform,
 		"origin": platform.position,
 		"travel": travel,
 		"duration": duration,
 		"elapsed": 0.0,
+		"profile": profile,
+		"arc_height": float(module.get_meta("arc_height", 1.6)),
 	})
 
 
@@ -309,6 +403,7 @@ func _wire_projectile_lane(module: Node3D) -> void:
 		"damage": float(module.get_meta("damage", 12.0)),
 		"accum": 0.0,
 		"module": module,
+		"telegraph": bool(module.get_meta("telegraph", false)),
 	})
 
 
@@ -339,7 +434,7 @@ func _wire_illusion_marker(module: Node3D) -> void:
 
 
 func _wire_gravity_visual_zone(module: Node3D) -> void:
-	# 重力操作区（L-16）：进入真正倒置玩家重力（取反号），离开恢复；速度偏置保留为次级效果
+	# 重力操作区（L-16）：软重力漂移（drift）—— 进入倒置重力 + 区内持续上推营造浮空感
 	var area := module.get_node_or_null("GravityVisualZone") as Area3D
 	if area == null:
 		return
@@ -348,15 +443,18 @@ func _wire_gravity_visual_zone(module: Node3D) -> void:
 	var direction: Vector3 = module.get_meta("visual_direction", Vector3.UP)
 	if typeof(direction) != TYPE_VECTOR3:
 		direction = Vector3.UP
+	_drift_zones.append({
+		"area": area,
+		"direction": direction,
+		"push": float(module.get_meta("drift_push", 2.4)),
+	})
 	area.body_entered.connect(func(body: Node3D) -> void:
 		if body != _player:
 			return
 		_notify(LocalizationScript.text("GRAVITY SHIFTS"), 1.2)
 		_play("rest", -8.0, 0.55)
 		if body is CharacterBody3D:
-			var cb := body as CharacterBody3D
-			cb.velocity += direction.normalized() * 2.4
-			_set_gravity_inverted(cb, true, module)
+			_set_gravity_inverted(body as CharacterBody3D, true, module)
 	)
 	area.body_exited.connect(func(body: Node3D) -> void:
 		if body != _player:
@@ -367,17 +465,20 @@ func _wire_gravity_visual_zone(module: Node3D) -> void:
 
 
 func _wire_gravity_inversion(module: Node3D) -> void:
-	# L-16 专属重力倒置区：纯翻转，不含速度偏置
+	# L-16 专属重力倒置区：硬翻转（hard）—— 瞬时取反 + 天花板面（倒转后可站立）
 	var area := module.get_node_or_null("InvertZone") as Area3D
 	if area == null:
 		return
 	area.monitoring = true
 	area.collision_mask = 2
+	var ceiling := _make_ceiling_surface(module, area)
 	area.body_entered.connect(func(body: Node3D) -> void:
 		if body != _player:
 			return
 		if body is CharacterBody3D:
 			_set_gravity_inverted(body as CharacterBody3D, true, module)
+			if ceiling != null:
+				_set_static_colliders_enabled(ceiling, true)
 			_notify(LocalizationScript.text("GRAVITY INVERTED"), 1.3)
 			_play("rest", -7.0, 0.9)
 	)
@@ -386,7 +487,36 @@ func _wire_gravity_inversion(module: Node3D) -> void:
 			return
 		if body is CharacterBody3D:
 			_set_gravity_inverted(body as CharacterBody3D, false, module)
+		if ceiling != null:
+			_set_static_colliders_enabled(ceiling, false)
 	)
+
+
+func _make_ceiling_surface(module: Node3D, zone: Area3D) -> StaticBody3D:
+	# 倒置区顶部薄平台：玩家重力取反后落在天花板。随模块回收，clear() 释放。
+	var ceiling := StaticBody3D.new()
+	ceiling.name = "CeilingSurface"
+	ceiling.collision_layer = 1
+	var size := Vector3(6.0, 4.0, 6.0)
+	for child in zone.get_children():
+		if child is CollisionShape3D and child.shape is BoxShape3D:
+			size = (child.shape as BoxShape3D).size
+			break
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(size.x * 0.92, 0.3, size.z * 0.92)
+	shape.shape = box
+	ceiling.position.y = maxf(size.y - 0.2, 0.5)
+	ceiling.add_child(shape)
+	var mesh := MeshInstance3D.new()
+	var bmesh := BoxMesh.new()
+	bmesh.size = box.size
+	mesh.mesh = bmesh
+	ceiling.add_child(mesh)
+	module.add_child(ceiling)
+	_wired.append(ceiling)
+	_set_static_colliders_enabled(ceiling, false)
+	return ceiling
 
 
 func _set_gravity_inverted(player: CharacterBody3D, inverted: bool, module: Node3D) -> void:
@@ -511,13 +641,15 @@ func _wire_valve_shutoff(module: Node3D) -> void:
 
 
 func _wire_celestial_dial(module: Node3D) -> void:
-	# 天仪谜题：转动天仪至星位对齐，解开对应星门
+	# 天仪谜题：转动天仪至星位对齐，随后需站在星带充能锁定（机关响应差异）。
+	# 与 alchemy 的“房间内采集”形成对照 —— 天仪是顺序对齐 + 持续锁定。
 	var dial := module.get_node_or_null("DialBody") as StaticBody3D
 	var gate := module.get_node_or_null("CelestialGate") as StaticBody3D
 	if dial == null:
 		return
 	var required := maxi(int(module.get_meta("required_turns", 3)), 1)
-	var state := {"turns": 0}
+	var lock_seconds := maxf(float(module.get_meta("lock_seconds", 2.0)), 0.4)
+	var state := {"turns": 0, "charging": false, "accum": 0.0, "opened": false}
 	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
 	var interact: Area3D = ExitScript.new()
 	interact.name = "DialInteract"
@@ -528,16 +660,18 @@ func _wire_celestial_dial(module: Node3D) -> void:
 	interact.add_to_group("interactable")
 	interact.prompt_text = LocalizationScript.text("Turn the celestial dial")
 	interact.world_callback = func(_a: Node, _p: Node) -> void:
+		if bool(state["opened"]):
+			return
 		state["turns"] = int(state["turns"]) + 1
 		if int(state["turns"]) < required:
 			_notify(LocalizationScript.text("THE DIAL ALIGNS  %d / %d") % [int(state["turns"]), required], 1.2)
 			_play("rest", -7.0, 1.2)
 			return
-		if gate != null and is_instance_valid(gate):
-			_set_static_colliders_enabled(gate, false)
-			gate.visible = false
-		_notify(LocalizationScript.text("THE CELESTIAL GATE OPENS"), 1.8)
-		_play("rest", -5.0, 1.1)
+		if not bool(state["charging"]):
+			state["charging"] = true
+			_notify(LocalizationScript.text("THE DIAL LOCKS — HOLD THE STARBAND"), 1.6)
+			_play("rest", -7.0, 1.0)
+	_make_charge_zone(module, "StarbandCharge", lock_seconds, state, gate)
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(2.2, 1.6, 2.2)
@@ -548,42 +682,93 @@ func _wire_celestial_dial(module: Node3D) -> void:
 	_wired.append(interact)
 
 
+func _make_charge_zone(module: Node3D, marker_name: String, lock_seconds: float, state: Dictionary, gate: StaticBody3D) -> Area3D:
+	# 站在星带内持续充能 lock_seconds 后开启星门（中断则重蓄）
+	var marker := module.get_node_or_null(marker_name) as Marker3D
+	var area := Area3D.new()
+	area.name = "StarbandChargeZone"
+	area.collision_layer = 0
+	area.collision_mask = 2
+	area.monitoring = true
+	area.monitorable = false
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(3.0, 3.0, 3.0)
+	shape.shape = box
+	shape.position.y = 1.5
+	area.add_child(shape)
+	area.position = marker.position if marker != null else Vector3.ZERO
+	module.add_child(area)
+	_wired.append(area)
+	var charge_tween := create_tween().set_loops().bind_node(area)
+	charge_tween.tween_interval(0.2)
+	charge_tween.tween_callback(func() -> void:
+		if bool(state["opened"]) or not bool(state["charging"]):
+			return
+		if _player == null or not area.get_overlapping_bodies().has(_player):
+			state["accum"] = 0.0
+			return
+		state["accum"] = float(state["accum"]) + 0.2
+		if float(state["accum"]) >= lock_seconds:
+			state["opened"] = true
+			if gate != null and is_instance_valid(gate):
+				_set_static_colliders_enabled(gate, false)
+				gate.visible = false
+			_notify(LocalizationScript.text("THE CELESTIAL GATE OPENS"), 1.8)
+			_play("rest", -5.0, 1.1)
+	)
+	return area
+
+
 func _wire_alchemy_ingredients(module: Node3D) -> void:
-	# 炼丹配料谜题：交互炉台投入配料，集齐后丹炉开启
-	var station := module.get_node_or_null("IngredientStation") as StaticBody3D
+	# 炼丹配料谜题：从房间内原料刷新点采集，集齐后丹炉开启（生成配置差异）。
+	# 与 celestial_dial 的“转盘对齐 + 充能锁定”对照 —— 炼丹是空间采集。
 	var gate := module.get_node_or_null("AlchemyGate") as StaticBody3D
-	if station == null:
-		return
 	var required := maxi(int(module.get_meta("required_count", 3)), 1)
 	var state := {"count": 0}
 	var ExitScript = load("res://scripts/world/campaign_exit_interact.gd")
-	var interact: Area3D = ExitScript.new()
-	interact.name = "IngredientInteract"
-	interact.collision_layer = 8
-	interact.collision_mask = 0
-	interact.monitoring = false
-	interact.monitorable = true
-	interact.add_to_group("interactable")
-	interact.prompt_text = LocalizationScript.text("Add an ingredient")
-	interact.world_callback = func(_a: Node, _p: Node) -> void:
-		state["count"] = int(state["count"]) + 1
-		if int(state["count"]) < required:
+	var spawns: Array[Marker3D] = []
+	for child in module.get_children():
+		if child is Marker3D and String(child.name).begins_with("IngredientSpawn"):
+			spawns.append(child)
+	if spawns.is_empty():
+		var fallback := module.get_node_or_null("IngredientStation")
+		if fallback is Marker3D:
+			spawns.append(fallback as Marker3D)
+	for marker in spawns:
+		if marker == null:
+			continue
+		var interact: Area3D = ExitScript.new()
+		interact.name = "IngredientInteract"
+		interact.collision_layer = 8
+		interact.collision_mask = 0
+		interact.monitoring = false
+		interact.monitorable = true
+		interact.add_to_group("interactable")
+		interact.position = marker.position
+		interact.prompt_text = LocalizationScript.text("Collect an ingredient")
+		interact.world_callback = func(_a: Node, _p: Node) -> void:
+			if int(state["count"]) >= required:
+				return
+			state["count"] = int(state["count"]) + 1
+			interact.monitoring = false
+			interact.monitorable = false
+			interact.visible = false
 			_notify(LocalizationScript.text("INGREDIENTS  %d / %d") % [int(state["count"]), required], 1.2)
-			_play("rest", -7.0, 1.3)
-			return
-		if gate != null and is_instance_valid(gate):
-			_set_static_colliders_enabled(gate, false)
-			gate.visible = false
-		_notify(LocalizationScript.text("THE ELIXIR BREWS"), 1.8)
-		_play("rest", -5.0, 1.1)
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(1.8, 1.8, 1.8)
-	shape.shape = box
-	shape.position.y = 1.0
-	interact.add_child(shape)
-	module.add_child(interact)
-	_wired.append(interact)
+			_play("rest", -7.0, 1.2)
+			if int(state["count"]) >= required and gate != null and is_instance_valid(gate):
+				_set_static_colliders_enabled(gate, false)
+				gate.visible = false
+				_notify(LocalizationScript.text("THE ELIXIR BREWS"), 1.8)
+				_play("rest", -5.0, 1.1)
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(1.8, 1.8, 1.8)
+		shape.shape = box
+		shape.position.y = 1.0
+		interact.add_child(shape)
+		module.add_child(interact)
+		_wired.append(interact)
 
 
 func _wire_gravity_anchor(module: Node3D) -> void:
@@ -1125,9 +1310,14 @@ func _tick_projectile_lanes(delta: float) -> void:
 		if area == null or not is_instance_valid(area):
 			continue
 		lane["accum"] = float(lane["accum"]) + delta
+		if bool(lane.get("telegraph", false)):
+			# 齐射前 0.35s 预兆闪烁（危险模式提示，不改变伤害数值）
+			var remaining := float(lane["interval"]) - float(lane["accum"])
+			_set_zone_visible(area, remaining > 0.35 or int(remaining * 12.0) % 2 == 0)
 		if float(lane["accum"]) < float(lane["interval"]):
 			continue
 		lane["accum"] = 0.0
+		_set_zone_visible(area, true)
 		if not area.get_overlapping_bodies().has(_player):
 			continue
 		_player.receive_hit(float(lane["damage"]), 0.15, Vector3.ZERO, area)
@@ -1135,17 +1325,29 @@ func _tick_projectile_lanes(delta: float) -> void:
 
 
 func _tick_moving_platforms(delta: float) -> void:
-	# 平台正弦往返
+	# 平台运动：lift 正弦往返 / ferry 两端停顿渡台 / arc 斜向弧线（不同巡逻路径）
 	for entry in _moving_platforms:
 		var platform: AnimatableBody3D = entry.get("platform")
 		if platform == null or not is_instance_valid(platform):
 			continue
 		entry["elapsed"] = float(entry["elapsed"]) + delta
 		var t := float(entry["elapsed"]) / float(entry["duration"])
-		var wave := (sin(t * TAU - PI * 0.5) + 1.0) * 0.5
 		var origin: Vector3 = entry["origin"]
 		var travel: Vector3 = entry["travel"]
-		platform.position = origin + travel * wave
+		var profile := StringName(entry.get("profile", &"lift"))
+		match profile:
+			&"ferry":
+				var ferry := (sin(t * TAU - PI * 0.5) + 1.0) * 0.5
+				var hold := 0.16
+				var wave := clampf((ferry - hold) / (1.0 - hold * 2.0), 0.0, 1.0)
+				platform.position = origin + travel * wave
+			&"arc":
+				var arc_wave := (sin(t * TAU - PI * 0.5) + 1.0) * 0.5
+				var hump := sin(arc_wave * PI) * float(entry.get("arc_height", 1.6))
+				platform.position = origin + travel * arc_wave + Vector3(0.0, hump, 0.0)
+			_:
+				var wave := (sin(t * TAU - PI * 0.5) + 1.0) * 0.5
+				platform.position = origin + travel * wave
 
 
 func _notify(message: String, duration: float) -> void:

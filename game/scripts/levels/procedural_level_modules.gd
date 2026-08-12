@@ -26,6 +26,80 @@ const MODULE_IDS: Array[StringName] = [
 	&"soul_forger_trial",
 ]
 
+## H-04 装饰放置表：prop/<slug> 真模型（L-18 注册的 8 个 GLB）按模块族放置。
+## 每项 {slug, pos 局部偏移, yaw}。config["props"] 可整体覆盖族默认列表；
+## try_instance 对未注册/缺失资源安全回落（不报错）。
+const PROP_DECOR := {
+	&"gate_exit": [
+		{"slug": "bridge_tea", "pos": Vector3(0.0, 0.0, 2.4), "yaw": 0.0},
+		{"slug": "ember_shrine", "pos": Vector3(-2.6, 0.0, 0.6), "yaw": 45.0},
+	],
+	&"hazard": [
+		{"slug": "traps", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+		{"slug": "ambient_props", "pos": Vector3(0.0, 0.0, -1.2), "yaw": 90.0},
+	],
+	&"poison_fire_zone": [
+		{"slug": "traps", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"fragile_floor": [
+		{"slug": "ambient_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"projectile_lane": [
+		{"slug": "ambient_props", "pos": Vector3(0.0, 0.0, -4.5), "yaw": 0.0},
+	],
+	&"switch_offering": [
+		{"slug": "puzzle_props", "pos": Vector3(0.0, 0.0, -4.0), "yaw": 0.0},
+		{"slug": "pickups", "pos": Vector3(0.0, 0.0, 2.2), "yaw": 0.0},
+	],
+	&"moving_platform": [
+		{"slug": "ambient_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"illusion_marker": [
+		{"slug": "lost_echo", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+		{"slug": "ambient_props", "pos": Vector3(0.0, 0.0, 1.4), "yaw": 0.0},
+	],
+	&"gravity_visual_zone": [
+		{"slug": "ambient_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"arena_seal": [
+		{"slug": "ember_shrine", "pos": Vector3(0.0, 0.0, -3.2), "yaw": 0.0},
+		{"slug": "forge_and_anvil", "pos": Vector3(2.8, 0.0, 0.0), "yaw": 90.0},
+	],
+	&"mirror_light": [
+		{"slug": "puzzle_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"valve_shutoff": [
+		{"slug": "forge_and_anvil", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"celestial_dial": [
+		{"slug": "puzzle_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"alchemy_ingredients": [
+		{"slug": "puzzle_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+		{"slug": "pickups", "pos": Vector3(0.0, 0.0, 2.4), "yaw": 0.0},
+	],
+	&"gravity_anchor": [
+		{"slug": "puzzle_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"gravity_inversion": [
+		{"slug": "ambient_props", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+	],
+	&"riddle_gate": [
+		{"slug": "lost_echo", "pos": Vector3(0.0, 0.0, 3.0), "yaw": 0.0},
+		{"slug": "puzzle_props", "pos": Vector3(0.0, 0.0, 1.0), "yaw": 0.0},
+	],
+	&"stealth_passage": [
+		{"slug": "traps", "pos": Vector3(0.0, 0.0, -3.0), "yaw": 0.0},
+	],
+	&"memory_verification": [
+		{"slug": "lost_echo", "pos": Vector3(0.0, 0.0, 4.0), "yaw": 0.0},
+	],
+	&"soul_forger_trial": [
+		{"slug": "forge_and_anvil", "pos": Vector3(0.0, 0.0, 0.0), "yaw": 0.0},
+		{"slug": "ember_shrine", "pos": Vector3(0.0, 0.0, -3.0), "yaw": 0.0},
+	],
+}
+
 
 static func has_module(module_id: StringName) -> bool:
 	return module_id in MODULE_IDS
@@ -93,10 +167,14 @@ static func build(module_id: StringName, config: Dictionary, material: Material)
 			_add_body(root, "DialBody", config.get("size", Vector3(2.0, 2.0, 0.4)), &"celestial_dial", material)
 			_add_body(root, "CelestialGate", config.get("gate_size", Vector3(3.0, 3.0, 0.5)), &"gate", material)
 			root.set_meta("required_turns", int(config.get("required_turns", 3)))
+			# H-04：对齐后需在星带处充能锁定（机关响应差异，见 runtime _make_charge_zone）
+			_add_marker(root, "StarbandCharge", config.get("charge_offset", Vector3.ZERO))
 		&"alchemy_ingredients":
 			_add_body(root, "IngredientStation", config.get("size", Vector3(1.2, 1.8, 1.2)), &"alchemy_ingredients", material)
 			_add_body(root, "AlchemyGate", config.get("gate_size", Vector3(3.0, 3.0, 0.5)), &"gate", material)
 			root.set_meta("required_count", int(config.get("required_count", 3)))
+			# H-04：房间内原料刷新点（生成配置差异，runtime 在标记处生成采集物）
+			_add_ingredient_spawns(root, config)
 		&"gravity_anchor":
 			_add_body(root, "AnchorBody", config.get("size", Vector3(1.0, 1.4, 1.0)), &"gravity_anchor", material)
 			_add_area(root, "AnchorTarget", config.get("zone_size", Vector3(7.0, 6.0, 7.0)), &"gravity_zone", material)
@@ -125,6 +203,9 @@ static func build(module_id: StringName, config: Dictionary, material: Material)
 			_add_area(root, "TrialAura", config.get("aura_size", Vector3(6.0, 3.0, 6.0)), &"trial_aura", material)
 			root.set_meta("trial_duration", float(config.get("trial_duration", 12.0)))
 			root.set_meta("trial_dps", float(config.get("trial_dps", 6.0)))
+	# —— H-04 行为抛光：每族独立行为特征（meta 由 CampaignModuleRuntime 消费）+ prop/ 真模型装饰 ——
+	_apply_behavior_traits(root, module_id, config)
+	_place_props(root, module_id, config)
 	return root
 
 
@@ -221,6 +302,83 @@ static func _add_riddle_answers(root: Node3D, config: Dictionary) -> void:
 		marker.set_meta("answer_index", index)
 		marker.set_meta("answer_text", String(answers[index]))
 		root.add_child(marker)
+
+
+static func _add_ingredient_spawns(root: Node3D, config: Dictionary) -> void:
+	# 炼丹配料族：围绕炉台布置原料刷新点（IngredientSpawnN），runtime 在此生成采集物
+	var count := maxi(int(config.get("required_count", 3)), 1)
+	var offsets: Array = config.get(
+		"ingredient_spawn_offsets",
+		[
+			Vector3(-2.4, 0.0, 1.6),
+			Vector3(2.4, 0.0, 1.6),
+			Vector3(0.0, 0.0, 3.2),
+			Vector3(2.4, 0.0, 2.4),
+		]
+	)
+	for index in range(count):
+		var marker := Marker3D.new()
+		marker.name = "IngredientSpawn%d" % (index + 1)
+		marker.position = offsets[index] if index < offsets.size() else Vector3(0.0, 0.0, 3.0)
+		root.add_child(marker)
+
+
+static func _apply_behavior_traits(root: Node3D, module_id: StringName, config: Dictionary) -> void:
+	# H-04 行为抛光：每族独立行为特征写入 meta（CampaignModuleRuntime 消费）。
+	# 默认值保持既有行为可预测；chapter polish（campaign_content module_configs）可覆盖。
+	match module_id:
+		&"hazard":
+			# 恒定灼烧场（Ch.1 已抛光行为不变）：danger_pattern constant、无预兆
+			root.set_meta("danger_pattern", StringName(config.get("danger_pattern", &"constant")))
+			root.set_meta("telegraph", bool(config.get("telegraph", false)))
+		&"poison_fire_zone":
+			# 毒雾毒焰：脉冲式危险（active/quiet 交替 + 预兆闪烁），与 hazard 恒定场对照
+			root.set_meta("danger_pattern", StringName(config.get("danger_pattern", &"pulse")))
+			root.set_meta("pulse_on", float(config.get("pulse_on", 1.0)))
+			root.set_meta("pulse_off", float(config.get("pulse_off", 0.7)))
+		&"gravity_visual_zone":
+			# 软重力漂移：持续上推 + 倒置（drift），与 gravity_inversion 硬翻转对照
+			root.set_meta("gravity_mode", StringName(config.get("gravity_mode", &"drift")))
+			root.set_meta("drift_push", float(config.get("drift_push", 2.4)))
+		&"gravity_inversion":
+			# 硬翻转：瞬时取反 + 天花面（倒转后可在天花板站立）
+			root.set_meta("gravity_mode", StringName(config.get("gravity_mode", &"hard")))
+		&"celestial_dial":
+			# 天仪：转盘对齐后需在星带充能锁定（sequence），与 alchemy 采集对照
+			root.set_meta("solve_kind", StringName(config.get("solve_kind", &"sequence")))
+			root.set_meta("lock_seconds", float(config.get("lock_seconds", 2.0)))
+		&"alchemy_ingredients":
+			# 炼丹：房间内采集原料（collect），与天仪转盘对照
+			root.set_meta("solve_kind", StringName(config.get("solve_kind", &"collect")))
+		&"moving_platform":
+			# 平台运动型线：auto（按行程自动归类 lift/ferry/arc）→ 不同巡逻路径
+			root.set_meta("motion_profile", StringName(config.get("motion_profile", &"auto")))
+		&"projectile_lane":
+			# 弹道廊：齐射前 0.35s 预兆闪烁（危险模式提示）
+			root.set_meta("telegraph", bool(config.get("telegraph", true)))
+
+
+static func _place_props(root: Node3D, module_id: StringName, config: Dictionary) -> void:
+	# 装饰放置：在模块根部挂 Props 容器，按族放置 prop/<slug> 真模型。
+	# try_instance 已安全（未注册/缺资源返回 false），失败静默回落，不影响可玩性。
+	var placements: Variant = config.get("props", PROP_DECOR.get(module_id, []))
+	if placements is not Array or placements.is_empty():
+		return
+	var decor := Node3D.new()
+	decor.name = "Props"
+	root.add_child(decor)
+	for entry in placements:
+		if entry is not Dictionary:
+			continue
+		var slug := String(entry.get("slug", ""))
+		if slug.is_empty():
+			continue
+		var anchor := Node3D.new()
+		anchor.name = "Prop_%s" % slug
+		anchor.position = entry.get("pos", Vector3.ZERO)
+		anchor.rotation.y = deg_to_rad(float(entry.get("yaw", 0.0)))
+		decor.add_child(anchor)
+		RealModelResolver.try_instance("prop/%s" % slug, anchor)
 
 
 static func _pascal_case(value: String) -> String:

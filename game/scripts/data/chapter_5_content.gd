@@ -85,16 +85,16 @@ static func elites() -> Array[Dictionary]:
 	return [
 		{
 			"id": "elite_void_sentinel",
-			"display_name": "Void Sentinel / 虚空守卫",
+			"display_name": "Sea of Possibilities / 可能性之海",
 			"max_health": 250.0, "move_speed": 3.0, "aggro_range": 16.0,
 			"attack_range": 3.5, "poise_limit": 70.0, "reward": 170,
 			"special_ability": "void_tear",
-			"appears_in": "level_05_01", "body_color": "1a1a2a",
+			"appears_in": "level_05_03", "body_color": "1a1a2a",
 			"weapon_shape": "void_blade", "body_type": "void_knight",
 		},
 		{
 			"id": "elite_gravity_twister",
-			"display_name": "Gravity Twister / 重力扭曲者",
+			"display_name": "Avatar of Anti-Entropy / 逆熵化身",
 			"max_health": 200.0, "move_speed": 4.0, "aggro_range": 15.0,
 			"attack_range": 5.0, "poise_limit": 42.0, "reward": 155,
 			"special_ability": "gravity_reverse",
@@ -103,7 +103,7 @@ static func elites() -> Array[Dictionary]:
 		},
 		{
 			"id": "elite_soul_forger_echo",
-			"display_name": "Soul-Forger Echo / 铸魂者回响",
+			"display_name": "The Last Torch-Servant / 最后的烛阴侍者",
 			"max_health": 280.0, "move_speed": 2.2, "aggro_range": 15.0,
 			"attack_range": 4.0, "poise_limit": 85.0, "reward": 200,
 			"special_ability": "soul_shatter",
@@ -174,6 +174,11 @@ static func boss() -> Dictionary:
 			"hit": "star_shatter_sparks",
 			"arena": "cosmic_throne_of_bronze_and_embers",
 			"ground_effect": "soul_river_currents",
+		},
+		# P0-2：专属流程 —— P3 进入时玩家重力置零（太空弹幕），退出/战终恢复。
+		"flow": {
+			"script": "res://scripts/boss/flow/zhu_yin_zero_g_flow.gd",
+			"config": {"zero_g_phase": 3},
 		},
 	}
 

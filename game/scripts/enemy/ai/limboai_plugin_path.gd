@@ -25,7 +25,7 @@ static func install_instructions() -> String:
 	return "\n".join([
 		"LimboAI 落地步骤：",
 		"1) 从 %s 下载匹配 Godot 4.7.x 的 GDExtension 发布包" % REPO_URL,
-		"2) 解压到 game/addons/limboai/（含 plugin.cfg 与 bin/）",
+		"2) 解压到 game/addons/limboai/（官方 gdextension 包无 plugin.cfg；含 bin/limboai.gdextension 与各平台二进制，按目录探测即可）",
 		"3) 项目设置启用插件；用 BTPlayer + BTBlackboard 替换 BossMacroBT.tick",
 		"4) 黑板键名保持与 BossMacroBlackboard 一致，便于热切换",
 		"当前无二进制时：BossMacroBT 兼容层已可验收宏意图切换。",

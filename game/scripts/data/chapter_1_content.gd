@@ -77,7 +77,7 @@ static func elites() -> Array[Dictionary]:
 	return [
 		{
 			"id": "elite_bronze_mirror_keeper",
-			"display_name": "Bronze Mirror Keeper / 铜镜守护者",
+			"display_name": "Formation-Guarding Stone Sentinel / 守阵石卫",
 			"max_health": 200.0, "move_speed": 3.5, "aggro_range": 15.0,
 			"disengage_range": 22.0, "leash_range": 18.0, "attack_range": 2.5,
 			"poise_limit": 48.0, "reward": 120,
@@ -88,7 +88,7 @@ static func elites() -> Array[Dictionary]:
 		},
 		{
 			"id": "elite_elixir_golem",
-			"display_name": "Elixir Golem / 丹药魔像",
+			"display_name": "Alchemy-Obsessed Spirit / 炼丹痴魂",
 			"max_health": 240.0, "move_speed": 1.8, "aggro_range": 13.0,
 			"disengage_range": 20.0, "leash_range": 16.0, "attack_range": 3.0,
 			"poise_limit": 80.0, "reward": 150,

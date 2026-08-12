@@ -1,6 +1,6 @@
 # Research — 真动画资产管线（Real Animation Asset Pipeline）
 
-**日期**: 2026-08-11 · **引擎**: Godot 4.7.1（`gl_compatibility`, `e:/godot/darksoul/game`）· **调研方式**: Perplexity Pro（web 调研）+ 本地只读复验（headless Godot 4.7.1 实测）
+**日期**: 2026-08-11 · **更新**: 2026-08-12（补真根运动决策 + 真 clip 覆盖表）· **引擎**: Godot 4.7.1（`gl_compatibility`, `e:/godot/darksoul/game`）· **调研方式**: Perplexity Pro（web 调研）+ 本地只读复验（headless Godot 4.7.1 实测）
 
 ## 一句话结论
 
@@ -24,7 +24,7 @@
 ### MEDIUM
 
 6. **humanoid→DEF 骨名映射表完全可推导且已被 minnyquinn 证明**（`LeftUpperArm→DEF-upper_arm.L`, `LeftLowerArm→DEF-forearm.L`, `LeftHand→DEF-hand.L`, `Hips→DEF-hips`, `Spine→DEF-spine.001`, `Chest→DEF-spine.002`, `UpperChest→DEF-spine.003`, `Neck→DEF-neck`, `Head→DEF-head`, `LeftThumbMetacarpal→DEF-thumb.01.L`, `LeftIndexProximal→DEF-f_index.01.L`, … `LeftUpperLeg→DEF-thigh.L`, `LeftLowerLeg→DEF-shin.L`, `LeftFoot→DEF-foot.L`, `LeftToes→DEF-toe.L`）。纯名字重映射的**旋转朝向是否无需调整仍待一个测试 clip 校验**（web 调研提示可能需朝向微调；minnyquinn 成品降低了该风险）。
-7. **许可约束**：Mixamo 派生资产不可随商品分发（Adobe ToS）；OAL 已移除 Mixamo 派生库，MeleeLib/ShooterLib 为非 Mixamo 源。游戏分发 `mannyquin_lib.tres` 属派生 clip，须只用许可干净源。`UNVERIFIED`：OAL 实际许可文本逐字核对。
+7. **许可约束**（`VERIFIED-WITH-CONSTRAINT`，2026-08-12）：Mixamo/Adobe —— Adobe 官方 Mixamo FAQ 明确 Mixamo 资产可用于任意项目（含商业）无限次使用，唯一禁止的是"分发原始角色/动画文件"（"the only thing you can't do is distribute the raw character and animation files"）；Adobe 社区 moderator 进一步确认"把 Mixamo 内容做成数据集/数据库发布违反 ToS"、任何独立再分发均违反 ToS。**但** FORMER-README 所引的"Adobe ToS §6.2.E"具体条号未能在 Adobe 一手原文核实（`adobe.com/legal/terms.html` 多次抓取超时、Wayback 不可达），该条号仅见于作者自述，须按"作者转述、非逐字引用"对待。OAL —— 仓库**无 LICENSE 文件**（GitHub license API 404、完整 tree 与本地 clone 均无 `LICENSE`/`COPYING`、侧栏无 license 字段、Godot Asset Library 亦未收录该库），无许可 = 默认"保留所有权利"（proprietary）；MeleeLib/ShooterLib 系作者自建 rigify 系动画（提交历史 "Updating the rigify based body shape animations, in prep for natural based libraries"、"in active development as a build my game"），非 Mixamo 下载资产，故 Adobe/Mixamo 限制对本库大概率不适用。**保守结论**：商业游戏内使用、重定向烘焙进 `mannyquin_lib.tres`、随游戏分发烘焙库，均需 OAL 作者（catprisbrey / "Bones in the Walls"，https://bonesinthewalls.bandcamp.com）书面许可，否则须换用许可干净且来源可溯的源（CC0/MIT/CC-BY）。来源：Adobe 官方 Mixamo FAQ https://community.adobe.com/questions-696/mixamo-faq-licensing-royalties-ownership-eula-and-tos-589400 · Adobe 社区 dataset 回复 https://community.adobe.com/t5/mixamo-discussions/making-dataset/m-p/11470217#M76 · OAL 仓库 https://github.com/catprisbrey/Godot4-OpenAnimationLibraries（`.../blob/main/LICENSE` 返回 404）· Adobe ToS https://www.adobe.com/legal/terms.html（一手原文抓取超时）。
 
 ### LOW
 
@@ -62,8 +62,33 @@
 
 - **Phase-0 误判已修正**：OAL 轨道命名是 `SkeletonProfileHumanoid`（非 Rigify `DEF-*`、非自定义）。
 - "61 骨" vs 实测 58 骨（devlog 01 §2.6 与 GLB 不一致，minor）。
-- `UNVERIFIED`：① headless 下 `RetargetModifier3D` 帧捕获烘焙的确定性；② 纯名字重映射旋转朝向是否需要调整；③ OAL 许可文本逐字核对。
-- 已知边界（devlog 04:52）：恰名但被剔空的 clip 会让 `_clip_path` 指向不存在的 `real/<clip>` —— 建议注入前校验。
+- `UNVERIFIED`：① headless 下 `RetargetModifier3D` 帧捕获烘焙的确定性；② 纯名字重映射旋转朝向是否需要调整。`VERIFIED-WITH-CONSTRAINT`（2026-08-12）：③ OAL 许可——仓库确无 LICENSE（默认"保留所有权利"，详见项 7）；Adobe §6.2.E 逐字文本未取得 Adobe 一手来源（官网抓取超时），仍须法律复核 Adobe ToS §6.2。
+- 已知边界（devlog 04:52）：恰名但被剔空的 clip 会让 `_clip_path` 指向不存在的 `real/<clip>` —— 建议注入前校验。**已于 2026-08-12 落地**：桥在注入时按"幸存 clip 集"解析——被剥离/0 轨的 clip 永不被状态认领（回退程序化），并有契约 `real_root_motion_contract.gd`（marker `REAL_ROOT_MOTION_CONTRACTS_OK`）。
+
+---
+
+## 2026-08-12 补充：真根运动决策（RELIABLE — 本会话实测定稿）
+
+- **路径 bug**：桥的 `root_motion_track` 原为 `"../RootMotionSkeleton:Root"`（相对 AnimationTree 子节点），与动画轨 `RootMotionSkeleton:Root`（相对 AnimationPlayer 根）是两条不同 NodePath → `consume_root_motion()` 恒 0，根运动从未流过树（leap/轻击一直静默回退代码驱动）。**已改为 `NodePath("RootMotionSkeleton:Root")`**（`player_animation_bridge.gd:776`）。
+- **烘焙**：`colossal_leap` 的真根位移已烘焙进 `mannyquin_lib.tres`（`REAL_ROOT_MOTION_KEYS` 白名单 `[&"colossal_leap"]` 保留 `RootMotionSkeleton:Root` position 轨）。
+- **玩家门槛**：仅当真 clip 净前向 ≥ 0.5m（`LEAP_REAL_ROOT_MIN_FORWARD`）才走真根运动；OAL `HeavyJumpAttack` 实测仅 ~0.04m（0.0431m）→ **真模型跃击仍回落 authored 代码驱动前冲（~2.53m）**。
+- **手感变化（需实机 QA，本会话 SKIPPED——VLM 服务不可用、无渲染路径）**：程序化身体跃击现在经真根运动行进（~1.65m，而非旧的静默代码驱动 ~2.53m）；轻击根运动（0.55m）现已激活。
+- **移动模式**：真根运动只负责角色级位移（`consume_root_motion`/`consume_root_motion_rotation`）；locomotion 移动速度仍由游戏侧 `MovementMode` 控制，二者解耦。
+
+## 2026-08-12 补充：真 clip 覆盖表（20 clip）
+
+`mannyquin_lib.tres` 现含 **20 clip**：bind-pose 回退 `Armature|mixamo_com|Layer0_godot_rig` + **19 状态键真 clip**。`retarget_oal_to_mannyquin.gd` 的 `STATE_KEY_MAP` 19 项（7 原 + 12 新，源 OAL MeleeLib/ShooterLib）。旧文档"7 clip"/"9 clip"计数已过时。
+
+| 类别 | 键 | 真 / 程序化 | 来源 |
+|------|----|-------------|------|
+| 绑定回退 | `Armature|mixamo_com\|Layer0_godot_rig` | 真（静态 bind-pose） | 原 minnyquinn |
+| 移动 | `idle` / `walk` | 真 | ShooterLib `idle` / MeleeLib `LightWalking` |
+| 移动 | `strafe_fwd/back/left/right` | 真（驱动 D-03 BlendSpace2D） | `LightStrafe45L` / `Retreat`（ground truth）/ `LightStrafeL` / `LightStrafeR` |
+| 近战 | `sword_light_1` | 真 | MeleeLib `Slash1` |
+| 跃击 | `colossal_leap` / `greatsword_leap` / `hammer_slam` / `ultra_slam` | 真（根运动仅 `colossal_leap` 烘焙） | MeleeLib `HeavyJumpAttack` |
+| 处决 | `riposte` / `backstab` | 真 | `Stab1` / `cqb-KO-attacker-back` |
+| 战技 stance | `spear_charge_stance` / `sword_guard_stance` / `shield_counter_stance` / `fist_deflect_stance` / `curved_spin` / `dagger_backstep_stance` | 真 | `Stab1` / `Guarding` / `GuardParry` / `HeavySpin` / `Retreat` |
+| 施法 / 法术 | `veil_bolt` 等 cast 键 | **程序化** | OAL 无 spell clips → 保留程序化（前臂抬手等身体姿态） |
 
 ---
 

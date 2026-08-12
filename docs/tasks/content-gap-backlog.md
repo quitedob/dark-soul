@@ -1,16 +1,16 @@
 # Content / Feature Gap Backlog — 内容与功能缺口
 
-**Status:** 🟡 OPEN（P0 接线 L-01…L-06 + P1 细节 L-07…L-17 已全部闭环 ✅；剩余 P2 资产/P2 作者化 + 专属流程）
-**Updated:** 2026-07-31  
+**Status:** ✅ P0–P2 + 工程项全部闭环（L-01…L-24 DONE，2026-08-12）
+**Updated:** 2026-08-12  
 **Authority:** [bestiary/enemies-master.md](../bestiary/enemies-master.md) · [bestiary/bosses-master.md](../bestiary/bosses-master.md) · [chapters/](../chapters/) · [systems/](../systems/) · [tasks-master.md](../tasks-master.md)
 
 ---
 
 ## 审计结论
 
-系统层（战斗/防务/AI/镜头/存档/HUD/输入）实现扎实且测试良好；P0 接线（L-01…L-06）与 P1 细节（L-07…L-17）已**全部闭环**，见 [devlog 08](docs/devlog/2026-07-31/08-l-p0-wiring-l-01-l-06.md) 与 [devlog 09](docs/devlog/2026-07-31/09-p1-wave-l-07-l-17.md)。剩余缺口在**深度/作者化**：
+系统层（战斗/防务/AI/镜头/存档/HUD/输入）实现扎实且测试良好；P0 接线（L-01…L-06）、P1 细节（L-07…L-17）、P2 资产（L-18…L-22）与工程项（L-23…L-24）已**全部闭环**，见 [devlog 08](docs/devlog/2026-07-31/08-l-p0-wiring-l-01-l-06.md)、[devlog 09](docs/devlog/2026-07-31/09-p1-wave-l-07-l-17.md) 与 [devlog 08-12](docs/devlog/2026-08-12/01-cast-hitbox-real-animation-session-reflection.md)。剩余为**内容债**（真动画观感 QA、施法/战技身体 clip、OAL 许可、Ch.3–5 专属 Boss 流程等）：
 
-> **库房满仓、两层货架已补满。** Ch.1–5 遭遇、Boss、NPC、命运抉择/隐藏结局链全部接入；剩余为 P2 真资产生产、Boss 攻击 type / 弱点锚点作者化，以及 Ch.3–5 专属 Boss 流程等工程债。
+> **库房满仓、货架补满。** Ch.1–5 遭遇、Boss、NPC、命运抉择/隐藏结局链、真模型/真动画、Boss 攻击 type / 弱点锚点、.tres 作者化、精英对齐全部接入。
 
 关键证据（随 P0/P1 更新后的现状）：
 - 章节分发：`game/scripts/game_world.gd:369`（`_spawn_chapter_encounters`）按章调 `_spawn_chapter3/4/5_encounters`（`:383-394`）；三哨兵仅剩「未注册章节」兜底（`:395-400`）
@@ -46,26 +46,26 @@
 | L-16 | 重力操作 / 倒悬（Ch.4/5）真实现 | ✅ DONE（`player.gravity` 翻转 + `gravity_inversion`/`gravity_anchor`） |
 | L-17 | 谜题模块扩充：镜光/阀门/天仪/配料/重力锚/谜语/记忆验证/潜行/铸魂试炼 | ✅ DONE（10 新家族挂载对应关卡） |
 
-## P2 — 资产与占位
+## P2 — 资产与占位（✅ 已全部闭环，2026-08-12）
 
-| ID | Task | 说明 |
+| ID | Task | 状态 |
 |----|------|------|
-| L-18 | 真模型资产生产：`docs/model-prompts` → md→图片→3D → `game/assets/models/`，替换程序化工厂 | 现全部几何体为图元拼装；动画 2 骨 Skeleton |
-| L-19 | Boss 攻击 type 全覆盖：`boss_attack_executor.gd` 从 8 种扩到内容表 ~25 种，去掉 `_:` 静默近战兜底 | `boss_attack_executor.gd:35` |
-| L-20 | Boss 弱点骨骼锚点（替换虚拟偏移） | `enemy.gd:555`（weak_point 分支）、`:616 get_execution_anchor`；`combat_camera_director.gd:142` 硬编码骨名 |
-| L-21 | 资源 .tres 作者化：5 风格武器/招式 + 敌人攻击 .tres | 现仅 `reliquary_guard` 1 家 + 1 个敌人攻击 .tres |
-| L-22 | 精英怪对齐文档（代码精英 → 设计精英名册） | 如 铜镜守护者 vs 守阵石卫、噬忆者 vs 千年树魂 |
+| L-18 | 真模型资产生产：85 GLB 导入+注册+敌人/首领/召唤/NPC 激活+专属动效档案（[devlog 08-11](docs/devlog/2026-08-11/01-85-glb-into-game-real-model-milestone.md)）；真动画扩至 **20 clip**（bind-pose 回退 + 19 状态键，见 [research-real-animation-pipeline](../research-real-animation-pipeline.md)） | ✅ DONE（职业身体线程化 / 武器握持点 / 观感 QA 仍为内容债） |
+| L-19 | Boss 攻击 type 全覆盖：`boss_attack_executor.gd` 从 8 种扩到内容表 ~25 种，去掉 `_:` 静默近战兜底 | ✅ DONE（`boss_attack_types_contract.gd`） |
+| L-20 | Boss 弱点骨骼锚点（替换虚拟偏移） | ✅ DONE（`boss_execution_anchor_contract.gd`） |
+| L-21 | 资源 .tres 作者化：5 风格武器/招式 + 敌人攻击 .tres | ✅ DONE（敌人攻击 `.tres` 磁盘清单 17/17 路径齐全） |
+| L-22 | 精英怪对齐文档（代码精英 → 设计精英名册） | ✅ DONE（11 个 `display_name` 对齐 + 3 处移层：`siege_commander` 2-2→2-5、`fox_bride` 3-3→3-5、`void_sentinel` 5-1→5-3；见 [elite-name-alignment.md](elite-name-alignment.md)） |
 
-## 测试与工程债
+## 测试与工程债（✅ 已全部闭环，2026-08-12）
 
-| ID | Task | 说明 |
+| ID | Task | 状态 |
 |----|------|------|
-| L-23 | 测试补齐：补 `tests/integration/` 目录 + 音频/UI 覆盖层/镜头/叙事/存档/输入/法术/投掷物契约测试 | `.gutconfig.json` 引空目录；上述模块零测试 |
-| L-24 | `.gd.uid` 补齐（5 脚本）+ devlog/数据口径修正：`05_04` 关卡名（十一→九铸魂者之墓）、嗔念/执念 HP（280/250→120/140）、I-16 口径统一、精英名对齐 | `dialogue_runner/ending_resolver/quest_state/dialogue_overlay/shrine_npc_interact` 缺 uid |
+| L-23 | 测试补齐：`tests/integration/` 目录 + 音频/UI/镜头/叙事/存档/输入/法术/投掷物契约测试 | ✅ DONE（新增 `real_root_motion_contract.gd` / `elite_name_contract_test.gd` / `boss_attack_types_contract.gd` / `boss_execution_anchor_contract.gd` 等；GUT 96/96） |
+| L-24 | `.gd.uid` 补齐（5 脚本）+ devlog/数据口径修正：`05_04` 关卡名、嗔念/执念 HP、I-16 口径统一、精英名对齐 | ✅ DONE（`chapter2_slice_contract_test.gd` 断言随精英移层更新） |
 
 ---
 
-## 建议实施顺序
+## 建议实施顺序（2026-08-12 已全部完成）
 
 1. **L-01 命运抉择闭环**（最小改动、最大诚信修复）
 2. **L-02 + L-03 Ch.3–5 接线**（数据/工厂现成，改生成分支即解锁整章）
@@ -73,6 +73,8 @@
 4. **L-04 隐藏结局链**
 5. **L-18 资产化**（接 `docs/model-prompts` P0 清单）
 6. 其余 P1/P2 + 测试债按需
+
+> 上述 P0–P2 + 工程项已于 2026-08-12 全部落地（L-01…L-24 ✅ DONE）。后续内容债：真动画观感 QA、施法/战技身体 clip 选源、OAL 分发书面许可、Ch.3–5 专属 Boss 流程、跨章叙事填充。
 
 ## Related
 

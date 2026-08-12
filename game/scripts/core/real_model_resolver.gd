@@ -36,6 +36,7 @@ const _PC := "res://assets/models/characters/player-classes/"
 const _NPC := "res://assets/models/characters/npcs/"
 const _SUMMON := "res://assets/models/characters/summons/"
 const _WP := "res://assets/models/weapons/"
+const _PROP := "res://assets/models/props/"
 
 const REGISTRY := {
 	# ── Player ──
@@ -44,6 +45,8 @@ const REGISTRY := {
 		"root_name": "BodyRoot",
 		"scale": 1.0,
 		"y_offset": 0.0,
+		# 模型作者朝向 +Z；游戏前向 -Z（相机在背后 +Z）。yaw 180 让角色背对镜头。
+		"yaw_deg": 180.0,
 	},
 	"player/weapon/sword": {
 		"path": "res://assets/models/weapons/templateweapons.glb",
@@ -84,14 +87,14 @@ const REGISTRY := {
 	"weapon/11-NineTails-Illusion-Moon":   {"path": _WP + "11-NineTails-Illusion-Moon.glb", "scale": 0.6},
 	"weapon/12-Weapon-Types":              {"path": _WP + "12-Weapon-Types.glb", "scale": 0.6},
 	# ── Player classes (8) — build_player() threads the class id ──
-	"player/body/class_barbarian":      {"path": _PC + "02-Frenzied-Warrior.glb", "root_name": "BodyRoot", "align_ground": true},
-	"player/body/class_marksman":       {"path": _PC + "01-Divine-Marksman.glb", "root_name": "BodyRoot", "align_ground": true},
-	"player/body/class_mystic":         {"path": _PC + "03-Mystic-Mage.glb", "root_name": "BodyRoot", "align_ground": true},
-	"player/body/class_invoker":        {"path": _PC + "04-Invocation-Master.glb", "root_name": "BodyRoot", "align_ground": true},
-	"player/body/class_yin_yang":       {"path": _PC + "05-Yin-Yang-Master.glb", "root_name": "BodyRoot", "align_ground": true},
-	"player/body/class_war_shaman":     {"path": _PC + "06-War-Shaman.glb", "root_name": "BodyRoot", "align_ground": true},
-	"player/body/class_arcane_archer":  {"path": _PC + "07-Arcane-Archer.glb", "root_name": "BodyRoot", "align_ground": true},
-	"player/body/class_asura":          {"path": _PC + "08-Asura.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_barbarian":      {"path": _PC + "02-Frenzied-Warrior.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_marksman":       {"path": _PC + "01-Divine-Marksman.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_mystic":         {"path": _PC + "03-Mystic-Mage.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_invoker":        {"path": _PC + "04-Invocation-Master.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_yin_yang":       {"path": _PC + "05-Yin-Yang-Master.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_war_shaman":     {"path": _PC + "06-War-Shaman.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_arcane_archer":  {"path": _PC + "07-Arcane-Archer.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_asura":          {"path": _PC + "08-Asura.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
 	# ── Ch.1 enemies ──
 	"enemy/body/by_id/lost_soul_soldier":       {"path": _E + "01-spirit-ruins/01-Lost-Soul-Soldier.glb", "align_ground": true},
 	"enemy/body/by_id/temple_guardian_warrior": {"path": _E + "01-spirit-ruins/02-Temple-Guardian-Warrior.glb", "align_ground": true},
@@ -183,6 +186,18 @@ const REGISTRY := {
 	"npc/npc_silence_bringer":     {"path": _NPC + "05-Silence-Bringer.glb", "align_ground": true},
 	"npc/npc_bridge_tea_soul":     {"path": _NPC + "06-Tea-Soul.glb", "align_ground": true},
 	"npc/npc_ember_tea_keeper":    {"path": _NPC + "07-Ember-Tea-Keeper.glb", "align_ground": true},
+	# ── Props (8) — display/environment GLBs ──
+	# 实际放置到关卡归 H-04（procedural_level_modules.gd）；此处仅注册，使
+	# RealModelResolver.has_model("prop/<slug>") 为 true，关卡模块按需实例化。
+	# 专属 key 前缀 prop/，不与 enemy/、player/、weapon/ 查找冲突。
+	"prop/ember_shrine":    {"path": _PROP + "01-EmberShrine.glb", "align_ground": true},
+	"prop/lost_echo":       {"path": _PROP + "02-LostEcho.glb", "align_ground": true},
+	"prop/forge_and_anvil": {"path": _PROP + "03-ForgeAndAnvil.glb", "align_ground": true},
+	"prop/traps":           {"path": _PROP + "04-Traps.glb", "align_ground": true},
+	"prop/puzzle_props":    {"path": _PROP + "05-PuzzleProps.glb", "align_ground": true},
+	"prop/ambient_props":   {"path": _PROP + "06-AmbientProps.glb", "align_ground": true},
+	"prop/pickups":         {"path": _PROP + "07-Pickups.glb", "align_ground": true},
+	"prop/bridge_tea":      {"path": _PROP + "08-BridgeTea.glb", "align_ground": true},
 }
 
 ## path -> PackedScene (or null on failed load). Process-lifetime cache.

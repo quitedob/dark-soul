@@ -13,7 +13,9 @@ const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 # player/weapon/<shape> template fallback so equipped weapons become real.
 # Axes map to the re-pointed per-hand sub-node entries (weapon/02 twin axes).
 const _THEMED_SHAPE_WEAPON := {
-	"sword":        "weapon/08-XuanXiao-Falling-Star",
+	# 玩家默认剑用模板剑（templateweapons.glb Sword，与 player/shield 同库同族），
+	# 避免把起始"guardian_sword"实例化成 XuanXiao BOSS 大剑导致武器/盾美术错位。
+	"sword":        "player/weapon/sword",
 	"bow":          "weapon/01-WindHunter-Bow",
 	"axe_right":    "player/weapon/axe_right",
 	"axe_left":     "player/weapon/axe_left",
@@ -26,6 +28,11 @@ const _THEMED_SHAPE_WEAPON := {
 
 static func build_into_parent(parent: Node3D, shape_id: String, material: StandardMaterial3D) -> void:
 	_clear_children(parent)
+	# 12-Weapon-Types 是武器陈列架/合集展示 GLB（12 种武器一次展示），不是可装备武器。
+	# 显式排除：任何 shape 都不解析到它；若将来误传此 id，回退程序化默认体而非实例化合集。
+	if shape_id == "12-Weapon-Types":
+		_build_default(parent, material)
+		return
 	var themed_key := String(_THEMED_SHAPE_WEAPON.get(shape_id, ""))
 	if themed_key != "" and RealModelResolver.try_instance(themed_key, parent):
 		return

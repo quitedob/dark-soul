@@ -40,7 +40,7 @@ static func levels() -> Array[Dictionary]:
 		_level(&"level_05_01", "烬海之岸 / Shore of the Ember Sea", &"chapter_05", &"open_shore", &"theme_ember_abyss", &"narrative", &"final_revelation_and_respite", &"level_05_02"),
 		_level(&"level_05_02", "倒悬殿 / Inverted Sanctuary", &"chapter_05", &"inverted_multi_surface", &"theme_ember_abyss", &"gravity_puzzle", &"inversion_locks", &"level_05_03"),
 		_level(&"level_05_03", "轮回歧路 / Forked Path of Samsara", &"chapter_05", &"non_euclidean_branches", &"theme_ember_abyss", &"choice", &"validate_past_outcomes", &"level_05_04"),
-		_level(&"level_05_04", "十一铸魂者之墓 / Tomb of the Eleven Soul-Forgers", &"chapter_05", &"memorial_ring", &"theme_ember_abyss", &"trial", &"select_final_blessings", &"level_05_05"),
+		_level(&"level_05_04", "九铸魂者之墓 / Tomb of the Nine Soul-Forgers", &"chapter_05", &"memorial_ring", &"theme_ember_abyss", &"trial", &"select_final_blessings", &"level_05_05"),
 		_level(&"level_05_05", "烬座·烛阴之缚 / Throne of Ashes · The Dragon Binding", &"chapter_05", &"cosmic_multi_phase_arena", &"theme_ember_abyss", &"final_boss", &"final_boss_and_endings", &"", &"boss_zhu_yin"),
 		# 可选隐藏 Boss 关：无目钟塔（盲钟·听烬）—— 独立定位，不承接主线，next 为空
 		_level(&"level_05_06", "无目钟塔 / Blind Bell Tower", &"chapter_05", &"inverted_multi_surface", &"theme_ember_abyss", &"boss", &"optional_boss_blind_bell_tower", &"", &"boss_blind_bell"),
