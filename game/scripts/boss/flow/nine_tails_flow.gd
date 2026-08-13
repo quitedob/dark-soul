@@ -184,8 +184,10 @@ func _show_message(message: String) -> void:
 
 
 ## 取所属 Boss 的 world_node（game_world）；无效时返回 null（安全空转）。
-func _world():
+func _world() -> Node:
 	if flow_boss == null or not is_instance_valid(flow_boss):
 		return null
 	var world: Variant = flow_boss.get("world_node")
-	return world if world is Node and is_instance_valid(world) else null
+	if world is Node and is_instance_valid(world):
+		return world as Node
+	return null

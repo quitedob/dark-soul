@@ -35,6 +35,7 @@ const DialogueOverlayScript = preload("res://scripts/ui/dialogue_overlay.gd")
 const DialogueRunnerScript = preload("res://scripts/story/dialogue_runner.gd")
 const ShrineNpcInteractScript = preload("res://scripts/world/shrine_npc_interact.gd")
 const FurnaceMemoryCrystalScript = preload("res://scripts/world/furnace_memory_crystal.gd")
+const SamsaraForkInteractScript = preload("res://scripts/world/samsara_fork_interact.gd")
 const EndingResolverScript = preload("res://scripts/story/ending_resolver.gd")
 const QuestStateScript = preload("res://scripts/story/quest_state.gd")
 const CampaignContentScript = preload("res://scripts/data/campaign_content.gd")
@@ -80,6 +81,7 @@ var _phase_polisher = null  # G-04 Boss 相变抛光
 var _fate_overlay = null
 var _dialogue_overlay = null
 var _pending_fate_boss = null
+var _samsara_queue: Array = []
 var _level_transition_locked := false
 var _shrine_npcs: Array = []
 var _fast_travel_overlay = null
@@ -204,6 +206,45 @@ func _update_interaction_target() -> void:
 		hud.set_prompt(nearest.get_prompt() if nearest != null and nearest.has_method("get_prompt") else "")
 
 
+## 调试：把玩家传送到空白开阔测试区（大平地 + 强光），便于目检模型/动作/朝向。
+## 由 F2 触发（见 player.gd _unhandled_input）。远离当前关卡坐标，避免与敌人/关卡重叠。
+func teleport_player_to_blank(player: Node3D) -> void:
+	if player == null:
+		return
+	var blank := get_node_or_null("BlankTestArea") as Node3D
+	if blank == null:
+		blank = Node3D.new()
+		blank.name = "BlankTestArea"
+		blank.position = Vector3(0.0, -0.3, 60.0)
+		add_child(blank)
+		var floor := StaticBody3D.new()
+		floor.name = "Floor"
+		floor.collision_layer = 1
+		var mi := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(80.0, 0.6, 80.0)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.22, 0.24, 0.28)
+		mat.roughness = 0.9
+		mesh.material = mat
+		mi.mesh = mesh
+		floor.add_child(mi)
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = mesh.size
+		col.shape = shape
+		floor.add_child(col)
+		blank.add_child(floor)
+		var light := DirectionalLight3D.new()
+		light.name = "KeyLight"
+		light.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
+		light.light_energy = 1.6
+		blank.add_child(light)
+	player.global_position = blank.position + Vector3(0.0, 1.5, 0.0)
+	if player is CharacterBody3D:
+		player.velocity = Vector3.ZERO
+
+
 func _create_systems() -> void:
 	run_state = RunStateScript.new()
 	game_settings = SettingsScript.new()
@@ -229,6 +270,8 @@ func _create_systems() -> void:
 	if hud.has_signal("combat_tip_mode_requested"):
 		hud.combat_tip_mode_requested.connect(_on_hud_combat_tip_mode_requested)
 	hud.play_started.connect(_on_play_started)
+	if hud.has_signal("epilogue_finished"):
+		hud.epilogue_finished.connect(_on_epilogue_finished)
 
 	player = PlayerScene.instantiate()
 	player.position = respawn_position
@@ -767,6 +810,7 @@ func _spawn_chapter5_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_03.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_03)
 			_spawn_furnace_memory(origin + Vector3(0.0, 1.1, -9.0), "furnace_memory_3")
+			_spawn_samsara_review(origin + Vector3(0.0, 1.1, -4.0))
 		&"level_05_04":
 			# 九铸魂者之墓：铸魂者残影 ×2 + 精英·最后的烛阴侍者
 			var remnant := _chapter_enemy_by_id(roster, "soul_forger_remnant")
@@ -776,6 +820,7 @@ func _spawn_chapter5_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_04.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -13.0), elite_04)
 			_spawn_furnace_memory(origin + Vector3(-3.0, 1.1, -12.0), "furnace_memory_4")
+			_spawn_soul_forger_communion(origin + Vector3(0.0, 1.1, -5.0))
 		&"level_05_05":
 			# 烬座·烛阴之缚：仅 Boss 烬渊之主·烛阴
 			guardian = _spawn_content_enemy(origin + Vector3(0.0, 1.15, -18.0), Chapter5ContentScript.boss(), true)
@@ -899,7 +944,7 @@ func _on_campaign_exit_requested(from_level_id: StringName) -> void:
 		current_id = campaign_runtime.current_level_id
 	var next_level: Dictionary = campaign_runtime.registry.get_next_level(current_id) if campaign_runtime != null else {}
 	if next_level.is_empty():
-		hud.show_message(LocalizationScript.text("THE PATH ENDS HERE"), 2.0)
+		_show_ending_epilogue()
 		return
 	_level_transition_locked = true
 	var completed := String(current_id)
@@ -915,6 +960,22 @@ func _on_campaign_exit_requested(from_level_id: StringName) -> void:
 	run_state.chapter_id = String(campaign_runtime.get_level_data().get("chapter_id", run_state.chapter_id))
 	_save_run("level_advanced")
 	_level_transition_locked = false
+
+
+## 终局：走完 5-5 出口且无下一关时，读回 ending_state 显示分结局尾声（替代 "THE PATH ENDS HERE"）。
+func _show_ending_epilogue() -> void:
+	var ending_id := EndingResolverScript.resolve(run_state)
+	if ending_id == EndingResolverScript.ENDING_NONE:
+		hud.show_message(LocalizationScript.text("THE PATH ENDS HERE"), 2.0)
+		return
+	var data := DialogueRunnerScript.ending_epilogue(ending_id, run_state)
+	if hud != null and hud.has_method("show_epilogue"):
+		hud.show_epilogue(data)
+
+
+func _on_epilogue_finished() -> void:
+	# 尾声「返回标题」→ 重载主场景回到标题。
+	get_tree().reload_current_scene()
 
 
 func _spawn_enemy(spawn_position: Vector3, is_guardian: bool, enemy_type = -1):
@@ -1543,6 +1604,12 @@ func _on_boss_story_threshold(story_flag: StringName, health_ratio: float, enemy
 
 
 func _on_fate_choice_made(story_flag: StringName, value: String) -> void:
+	# 5-3 轮回歧路：samsara 段旗独立处理（写旗 + 链式回放下一章），不落命运抉择闭环
+	if String(story_flag).begins_with("samsara_stance_"):
+		if run_state != null and run_state.has_method("set_choice_flag"):
+			run_state.set_choice_flag(story_flag, value)
+		_open_next_samsara()
+		return
 	if run_state != null and run_state.has_method("set_choice_flag"):
 		run_state.set_choice_flag(story_flag, value)
 	elif run_state != null:
@@ -1804,6 +1871,91 @@ func _spawn_furnace_memory(at: Vector3, memory_key: String) -> void:
 	crystal.add_child(mesh)
 	crystal.position = at
 	add_child(crystal)
+
+
+## 5-3 轮回歧路·因果回放交互节点
+func _spawn_samsara_review(at: Vector3) -> void:
+	var node = SamsaraForkInteractScript.new()
+	node.name = "SamsaraReview"
+	node.collision_layer = INTERACTABLE_LAYER
+	node.collision_mask = 0
+	node.monitoring = false
+	node.monitorable = true
+	node.add_to_group("interactable")
+	node.prompt_text = LocalizationScript.text("回望往昔的选择")
+	node.world_callback = Callable(self, "_on_samsara_review")
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 1.1
+	shape.shape = sphere
+	shape.position = Vector3(0.0, 1.0, 0.0)
+	node.add_child(shape)
+	var mesh := MeshInstance3D.new()
+	var cube := BoxMesh.new()
+	cube.size = Vector3(0.6, 0.6, 0.6)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.3, 0.2, 0.5)
+	mat.emission_enabled = true
+	mat.emission = Color(0.5, 0.35, 0.85)
+	mat.emission_energy_multiplier = 2.0
+	cube.material = mat
+	mesh.mesh = cube
+	mesh.position = Vector3(0.0, 1.0, 0.0)
+	node.add_child(mesh)
+	node.position = at
+	add_child(node)
+
+
+func _on_samsara_review(_node: Node, _player: Node) -> void:
+	_begin_samsara_review()
+
+
+## 逐章链式回放：ch1→ch2→ch3→ch4，每章接受/悔
+func _begin_samsara_review() -> void:
+	_samsara_queue = [&"samsara_stance_ch1", &"samsara_stance_ch2", &"samsara_stance_ch3", &"samsara_stance_ch4"]
+	_open_next_samsara()
+
+
+func _open_next_samsara() -> void:
+	if _samsara_queue.is_empty():
+		return
+	var flag := StringName(_samsara_queue.pop_front())
+	if _fate_overlay != null and FateCatalog.entry_for_flag(flag).size() > 0:
+		_fate_overlay.open_for_flag(flag)
+
+
+## 5-4 九铸魂者之墓·证词汇合交互节点（复用 shrine_npc_interact 开对白）
+func _spawn_soul_forger_communion(at: Vector3) -> void:
+	var node = ShrineNpcInteractScript.new()
+	node.name = "SoulForgerCommunion"
+	node.collision_layer = INTERACTABLE_LAYER
+	node.collision_mask = 0
+	node.monitoring = false
+	node.monitorable = true
+	node.add_to_group("interactable")
+	node.npc_id = &"npc_soul_forgers"
+	node.prompt_text = LocalizationScript.text("与九铸魂者交谈")
+	node.world_callback = Callable(self, "_on_shrine_npc_talk")
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 1.1
+	shape.shape = sphere
+	shape.position = Vector3(0.0, 1.0, 0.0)
+	node.add_child(shape)
+	var mesh := MeshInstance3D.new()
+	var cube := BoxMesh.new()
+	cube.size = Vector3(0.6, 0.6, 0.6)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.2, 0.3, 0.4)
+	mat.emission_enabled = true
+	mat.emission = Color(0.3, 0.5, 0.7)
+	mat.emission_energy_multiplier = 2.0
+	cube.material = mat
+	mesh.mesh = cube
+	mesh.position = Vector3(0.0, 1.0, 0.0)
+	node.add_child(mesh)
+	node.position = at
+	add_child(node)
 
 
 ## 支线·桥头的供茶：桥头栏杆上一盏仍温的供茶（烬茶倌未及送出的那杯）

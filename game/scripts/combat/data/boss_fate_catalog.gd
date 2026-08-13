@@ -58,6 +58,39 @@ static func all_entries() -> Dictionary:
 				{"id": "mob", "label": "随波", "hint": "顺众怒封魂，吞下怒烬"},
 			],
 		},
+		# 5-3 轮回歧路·因果回放：逐章接受/悔于过去的命运选择（samsara_stance 段旗）
+		&"samsara_stance_ch1": {
+			"title": "第一章 · 巨阙",
+			"subtitle": "回望灵墟的结局——接受，还是悔？",
+			"options": [
+				{"id": "accept", "label": "接受", "hint": "这段过去，我认"},
+				{"id": "regret", "label": "悔", "hint": "这段过去，我悔"},
+			],
+		},
+		&"samsara_stance_ch2": {
+			"title": "第二章 · 刑天",
+			"subtitle": "回望血铁的结局——接受，还是悔？",
+			"options": [
+				{"id": "accept", "label": "接受", "hint": "这段过去，我认"},
+				{"id": "regret", "label": "悔", "hint": "这段过去，我悔"},
+			],
+		},
+		&"samsara_stance_ch3": {
+			"title": "第三章 · 九尾",
+			"subtitle": "回望玉障的结局——接受，还是悔？",
+			"options": [
+				{"id": "accept", "label": "接受", "hint": "这段过去，我认"},
+				{"id": "regret", "label": "悔", "hint": "这段过去，我悔"},
+			],
+		},
+		&"samsara_stance_ch4": {
+			"title": "第四章 · 玄霄",
+			"subtitle": "回望天崩的结局——接受，还是悔？",
+			"options": [
+				{"id": "accept", "label": "接受", "hint": "这段过去，我认"},
+				{"id": "regret", "label": "悔", "hint": "这段过去，我悔"},
+			],
+		},
 	}
 
 

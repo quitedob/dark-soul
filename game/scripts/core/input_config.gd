@@ -25,6 +25,8 @@ static func configure_inputs() -> void:
 	_add_key_action("heavy_attack_alt", KEY_K)
 	_add_key_action("help", KEY_F1)
 	_add_key_action("debug_hitbox", KEY_F3)
+	_add_key_action("debug_blank_area", KEY_F2)
+	_add_key_action("debug_flip_body", KEY_F4)
 	_add_key_action("pause", KEY_ESCAPE)
 	_add_key_action("guard", KEY_C)
 	_add_key_action("parry", KEY_R)

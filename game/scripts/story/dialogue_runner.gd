@@ -43,8 +43,94 @@ static func resolve_lines(dialogue_id: StringName, run_state) -> PackedStringArr
 			return silence_bringer_lines(run_state)
 		&"npc_bridge_tea_soul":
 			return bridge_tea_soul_lines(run_state)
+		&"npc_soul_forgers":
+			return soul_forgers_lines(run_state)
 		_:
 			return PackedStringArray()
+
+
+## 分结局尾声：读回 ending_state + 命运旗 → 结局专属标题/叙事 + NPC 见证 + 命运后果。
+## 返回 { "title", "subtitle", "paragraphs": PackedStringArray, "witnesses": PackedStringArray }。
+## 这是 7 个未消费命运旗（fate_*）在终局的消费点。
+static func ending_epilogue(ending_id: StringName, run_state) -> Dictionary:
+	var title := ""
+	var subtitle := ""
+	var paragraphs := PackedStringArray()
+	if run_state == null:
+		return {"title": title, "subtitle": subtitle, "paragraphs": paragraphs, "witnesses": PackedStringArray()}
+	match String(ending_id):
+		"kindle":
+			title = "薪火相传"
+			subtitle = "轮回重启，而你化作第一束薪火。"
+			paragraphs = PackedStringArray([
+				"你踏入炉心，将一路收集的余烬尽数倾回天之炉。",
+				"沉寂五百年的轮回重新转动，灵魂再度往返于生死之间，人间开始有新的生命降生。",
+				"作为首份燃料，你消散成纯粹的烬，成为新轮回里第一缕重新燃起的光。",
+				"世界重生了。只是——那里没有你的位置。",
+			])
+		"keeper":
+			title = "守炉人"
+			subtitle = "你坐上烬座，成为新的守炉者。"
+			paragraphs = PackedStringArray([
+				"你没有击碎它，也没有重铸它。你选择坐下，替烛阴看守那口永恒的炉。",
+				"烬座之上，时间失去意义。诸界在你的守望下缓慢愈合，无人知晓你的名字。",
+				"永恒铺展在前——寂静、孤独，却必要。",
+			])
+		"void":
+			title = "大寂灭"
+			subtitle = "轮回终结，众生终于自由。"
+			paragraphs = PackedStringArray([
+				"你击碎了烬座，也击碎了轮回本身。",
+				"不再有转世，不再有既定的秩序。每一个灵魂第一次拥有了真正的自由——活着、死去、然后消散。",
+				"宇宙化作一片可能性的荒野。这是救赎，还是诅咒？没有人能回答。",
+			])
+		"forge":
+			title = "共铸新炉"
+			subtitle = "双律并立，轮回由你们共同裁定。"
+			paragraphs = PackedStringArray([
+				"你没有击败烛阴，也没有取代他。你把四段炉忆交还给他，说服他一起重铸。",
+				"新的轮回以更少的记忆为燃料，灵魂可以拒绝转世，也可以选择继续。",
+				"你与烛阴都将独立人格熔入炉中，成为彼此制衡的双重炉律——谁也不能单独左右新炉。",
+				"这是最接近希望的一种结局，尽管并不完美：世界得到了同意与监督，却失去了促成它的两个人。",
+			])
+		_:
+			return {"title": title, "subtitle": subtitle, "paragraphs": paragraphs, "witnesses": PackedStringArray()}
+	# NPC 见证 + 命运后果（消费 npc_*_met + 7 个 fate_* 旗标）
+	var witnesses: Array = []
+	if bool(run_state.get_choice_flag("npc_cloud_wanderer_met", false)):
+		witnesses.append("云游：……你终究没有盲从任何人。")
+	if bool(run_state.get_choice_flag("npc_iron_heart_met", false)):
+		witnesses.append("铁心：炉火不会忘记替你敲过的那把剑。")
+	if bool(run_state.get_choice_flag("npc_lady_of_memories_met", false)):
+		witnesses.append("忆姬：你的名字，将第一次被写进轮回。")
+	if bool(run_state.get_choice_flag("npc_xuanxiao_remnant_met", false)):
+		witnesses.append("玄霄残识：这一次，天界终于闭上了眼睛。")
+	if bool(run_state.get_choice_flag("npc_silence_bringer_met", false)):
+		witnesses.append("寂灭：我守候的最后一个答案，你带来了。")
+	if bool(run_state.get_choice_flag("fate_remnant_trust", false)):
+		witnesses.append("九位残影因你释放巨阙的宽恕，在终局为你让开了路。")
+	if bool(run_state.get_choice_flag("fate_guardian_protection", false)):
+		witnesses.append("巨阙的核心守在你身后，替你挡下最后一缕倾泻的星火。")
+	if bool(run_state.get_choice_flag("fate_heroes_aid", false)):
+		witnesses.append("铁啸关的两军英魂，在烬座之上列阵为你送行。")
+	if bool(run_state.get_choice_flag("fate_zhu_yin_wrath", false)):
+		witnesses.append("你吸收的怒意让烛阴燃得更烈——也让你更早看清了它的破绽。")
+	if bool(run_state.get_choice_flag("fate_safe_illusion", false)):
+		witnesses.append("九尾的幻身，在魂暴中为你撑起一瞬安全。")
+	if bool(run_state.get_choice_flag("fate_dispel_illusion", false)):
+		witnesses.append("你亲手驱散的那次幻象，成了炉心前最后的清醒。")
+	if bool(run_state.get_choice_flag("fate_gravity_boost", false)):
+		witnesses.append("玄霄留下的飞升之力，仍在你体内轻轻托举着这片天穹。")
+	# 5-3 轮回歧路的悔（samsara_stance 段旗消费）
+	if String(run_state.get_choice_flag("samsara_stance_ch1", "accept")) == "regret":
+		witnesses.append("你悔于巨阙的结局——那段过去，终夜不散。")
+	if String(run_state.get_choice_flag("samsara_stance_ch2", "accept")) == "regret":
+		witnesses.append("你悔于刑天的结局——战歌在耳边，仍未停歇。")
+	if String(run_state.get_choice_flag("samsara_stance_ch3", "accept")) == "regret":
+		witnesses.append("你悔于九尾的结局——镜中的幻梦，无人点破。")
+	if String(run_state.get_choice_flag("samsara_stance_ch4", "accept")) == "regret":
+		witnesses.append("你悔于玄霄的结局——坠落的城，再无归期。")
+	return {"title": title, "subtitle": subtitle, "paragraphs": paragraphs, "witnesses": PackedStringArray(witnesses)}
 
 
 ## L-05：铁心（魂匠）——锻造服务台词
@@ -130,6 +216,28 @@ static func bridge_tea_soul_lines(run_state) -> PackedStringArray:
 		lines.append("茶魂：他们封了我。这就是他们要的公正。……茶还温着，你喝吧。")
 		return lines
 	lines.append("茶魂：桥头风大。茶还温着。")
+	return lines
+
+
+## 5-4 九铸魂者·证词汇合：九位陨落铸魂者依命运选择留下的证词
+static func soul_forgers_lines(run_state) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	lines.append("九铸魂者：你的每一次选择，都已烧进炉心。")
+	if bool(run_state.get_choice_flag("fate_remnant_trust", false)):
+		lines.append("残影：你释放巨阙的那份宽恕，我们记下了。")
+	if bool(run_state.get_choice_flag("fate_guardian_protection", false)):
+		lines.append("残影：你留下守护核心，炉心前它会还你一次。")
+	if bool(run_state.get_choice_flag("fate_heroes_aid", false)):
+		lines.append("残影：铁啸关的英魂，愿在终局为你列阵。")
+	if bool(run_state.get_choice_flag("fate_zhu_yin_wrath", false)):
+		lines.append("残影：你吞下的怒意，会让烛阴燃得更烈——也露了破绽。")
+	if bool(run_state.get_choice_flag("fate_safe_illusion", false)):
+		lines.append("残影：九尾的幻身，会替你挡下魂暴。")
+	if bool(run_state.get_choice_flag("fate_dispel_illusion", false)):
+		lines.append("残影：你能驱散一次幻象，要留给最关键的一刻。")
+	if bool(run_state.get_choice_flag("fate_gravity_boost", false)):
+		lines.append("残影：玄霄的飞升之力，是你脚下的浮空根基。")
+	lines.append("九铸魂者：去吧，最后的答案在烬座。")
 	return lines
 
 

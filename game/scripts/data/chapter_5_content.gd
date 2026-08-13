@@ -165,7 +165,9 @@ static func boss() -> Dictionary:
 				],
 				"vfx": "fading_dragon_essence",
 				"lighting": "dim_dying_ember_glow",
-				"ending_triggers": ["absorb_ember", "sit_throne", "destroy_throne", "repair_furnace"],
+				# 终末裁决经 FateChoiceOverlay（命运浮层）完成：选项 id 即结局 id。
+				#（EndingResolver.resolve 兼容旧别名 absorb→kindle / sit→keeper / shatter→void。）
+				"ending_triggers": ["kindle", "keeper", "void", "forge"],
 			},
 		},
 		"vfx_unique": {

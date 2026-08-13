@@ -11,6 +11,8 @@ static func all_profiles() -> Array:
 		make_xing_tian(),
 		make_nine_tails(),
 		make_xuan_xiao(),
+		make_xuan_xiao_wrath(),
+		make_xuan_xiao_obsession(),
 		make_zhu_yin(),
 		make_blind_bell(),
 	]
@@ -93,6 +95,44 @@ static func make_xuan_xiao() -> Resource:
 	p.interaction_distance = 3.2
 	p.critical_multiplier = 2.35
 	p.allow_lethal_on_execution = false
+	return p
+
+
+## 玄霄嗔念（怒之碎片，Ch.4 子 Boss）：致死处决、无剧情地板、无命运旗标
+static func make_xuan_xiao_wrath() -> Resource:
+	var p = ProfileScript.new()
+	p.boss_id = &"boss_xuan_xiao_wrath"
+	p.display_name_key = &"嗔念"
+	p.story_flag = &""
+	p.max_execution_break = 120.0
+	p.expose_seconds = 2.8
+	p.story_floor_ratio = 0.0
+	p.weak_point_anchor = &"wrath_core"
+	p.weak_point_offset = Vector3(0.0, 1.5, 0.4)
+	p.weak_point_bone_name = &""  # 静态节点层，无骨架 → get_execution_anchor 虚拟偏移兜底
+	p.interaction_distance = 3.0
+	p.critical_multiplier = 2.2
+	p.allow_lethal_on_execution = true
+	p.grab_enabled = false
+	return p
+
+
+## 玄霄执念（执之碎片，Ch.4 子 Boss）：致死处决、无剧情地板、无命运旗标
+static func make_xuan_xiao_obsession() -> Resource:
+	var p = ProfileScript.new()
+	p.boss_id = &"boss_xuan_xiao_obsession"
+	p.display_name_key = &"执念"
+	p.story_flag = &""
+	p.max_execution_break = 125.0
+	p.expose_seconds = 2.8
+	p.story_floor_ratio = 0.0
+	p.weak_point_anchor = &"obsession_core"
+	p.weak_point_offset = Vector3(0.0, 1.5, 0.4)
+	p.weak_point_bone_name = &""
+	p.interaction_distance = 3.0
+	p.critical_multiplier = 2.2
+	p.allow_lethal_on_execution = true
+	p.grab_enabled = false
 	return p
 
 

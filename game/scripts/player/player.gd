@@ -248,6 +248,7 @@ var _camera_recenter_timer := 0.0
 const LOCK_CAMERA_DEFAULT_PITCH := -0.18
 
 var visual_root: Node3D
+var body_yaw: Node3D
 var body_mesh: MeshInstance3D
 var cloak_mesh: MeshInstance3D
 var head_mesh: MeshInstance3D
@@ -656,10 +657,15 @@ func respawn_at(at: Vector3) -> void:
 	visible = true
 	body_collision.set_deferred("disabled", false)
 	visual_root.rotation = Vector3.ZERO
+	if body_yaw != null:
+		body_yaw.rotation.y = PlayerVisuals.BODY_YAW
 	_change_state(State.LOCOMOTION)
 	last_safe_transform = global_transform
 	_emit_stats()
 	_emit_focus()
+
+
+var _debug_flip_body := false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -681,6 +687,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("debug_hitbox") and combat_area != null:
 		combat_area.debug_draw = not combat_area.debug_draw
 		_show_message("HITBOX DEBUG " + ("ON" if combat_area.debug_draw else "OFF"), 0.6)
+	# F2：传送到空白测试区（大平地 + 强光，便于目检模型/动作/朝向）
+	if event.is_action_pressed("debug_blank_area"):
+		if world_node != null and world_node.has_method("teleport_player_to_blank"):
+			world_node.call("teleport_player_to_blank", self)
+			_show_message("BLANK AREA", 0.8)
+		else:
+			_show_message("world_node 不可用", 0.8)
+	# F4：运行时翻转 visual_root 朝向（目检模型正/反面）
+	if event.is_action_pressed("debug_flip_body"):
+		_debug_flip_body = not _debug_flip_body
+		_show_message("BODY FLIP " + ("ON" if _debug_flip_body else "OFF"), 0.8)
 
 
 func receive_hit(damage, stagger, hit_direction, source) -> void:

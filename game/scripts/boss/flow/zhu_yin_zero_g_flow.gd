@@ -36,7 +36,7 @@ func _process(_delta: float) -> void:
 		_initialize()
 	# 兜底清理：Boss 失效或已脱战（死亡/重置/脱出战斗）时确保不残留零重力
 	if _zero_g_active:
-		if flow_boss == null or not is_instance_valid(flow_boss) or not bool(flow_boss.get("engaged", false)):
+		if flow_boss == null or not is_instance_valid(flow_boss) or not bool(flow_boss.get("engaged")):
 			_clear_zero_g()
 
 

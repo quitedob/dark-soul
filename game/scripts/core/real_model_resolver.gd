@@ -45,14 +45,11 @@ const REGISTRY := {
 		"root_name": "BodyRoot",
 		"scale": 1.0,
 		"y_offset": 0.0,
-		# 模型作者朝向 +Z；游戏前向 -Z（相机在背后 +Z）。yaw 180 让角色背对镜头。
-		"yaw_deg": 180.0,
 	},
 	"player/weapon/sword": {
 		"path": "res://assets/models/weapons/templateweapons.glb",
 		"sub_node": "Sword",
 		"scale": 0.8,
-		"yaw_deg": 180.0,
 	},
 	"player/weapon/axe_right": {
 		"path": "res://assets/models/weapons/02-XingTian-Twin-Axes.glb",
@@ -87,14 +84,14 @@ const REGISTRY := {
 	"weapon/11-NineTails-Illusion-Moon":   {"path": _WP + "11-NineTails-Illusion-Moon.glb", "scale": 0.6},
 	"weapon/12-Weapon-Types":              {"path": _WP + "12-Weapon-Types.glb", "scale": 0.6},
 	# ── Player classes (8) — build_player() threads the class id ──
-	"player/body/class_barbarian":      {"path": _PC + "02-Frenzied-Warrior.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
-	"player/body/class_marksman":       {"path": _PC + "01-Divine-Marksman.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
-	"player/body/class_mystic":         {"path": _PC + "03-Mystic-Mage.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
-	"player/body/class_invoker":        {"path": _PC + "04-Invocation-Master.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
-	"player/body/class_yin_yang":       {"path": _PC + "05-Yin-Yang-Master.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
-	"player/body/class_war_shaman":     {"path": _PC + "06-War-Shaman.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
-	"player/body/class_arcane_archer":  {"path": _PC + "07-Arcane-Archer.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
-	"player/body/class_asura":          {"path": _PC + "08-Asura.glb", "root_name": "BodyRoot", "align_ground": true, "yaw_deg": 180.0},
+	"player/body/class_barbarian":      {"path": _PC + "02-Frenzied-Warrior.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_marksman":       {"path": _PC + "01-Divine-Marksman.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_mystic":         {"path": _PC + "03-Mystic-Mage.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_invoker":        {"path": _PC + "04-Invocation-Master.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_yin_yang":       {"path": _PC + "05-Yin-Yang-Master.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_war_shaman":     {"path": _PC + "06-War-Shaman.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_arcane_archer":  {"path": _PC + "07-Arcane-Archer.glb", "root_name": "BodyRoot", "align_ground": true},
+	"player/body/class_asura":          {"path": _PC + "08-Asura.glb", "root_name": "BodyRoot", "align_ground": true},
 	# ── Ch.1 enemies ──
 	"enemy/body/by_id/lost_soul_soldier":       {"path": _E + "01-spirit-ruins/01-Lost-Soul-Soldier.glb", "align_ground": true},
 	"enemy/body/by_id/temple_guardian_warrior": {"path": _E + "01-spirit-ruins/02-Temple-Guardian-Warrior.glb", "align_ground": true},

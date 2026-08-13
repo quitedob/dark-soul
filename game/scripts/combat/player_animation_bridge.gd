@@ -365,7 +365,8 @@ func _find_body_skeleton() -> Skeleton3D:
 	var visual_root := _player.get_node_or_null("Visuals") as Node3D
 	if visual_root == null:
 		return null
-	var body_root := visual_root.get_node_or_null("BodyRoot") as Node3D
+	# BodyRoot 现在挂在 Visuals/BodyYaw 下（统一坐标系），用递归查找而非直接子节点。
+	var body_root := visual_root.find_child("BodyRoot", true, false) as Node3D
 	if body_root == null:
 		return null
 	return _first_skeleton(body_root)

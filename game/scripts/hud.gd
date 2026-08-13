@@ -3,6 +3,7 @@ extends CanvasLayer
 signal locale_requested(locale: String)
 signal play_started
 signal combat_tip_mode_requested(enabled: bool)
+signal epilogue_finished
 
 const MobileControlsScript = preload("res://scripts/ui/mobile_controls.gd")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
@@ -57,6 +58,11 @@ var boss_bar: ProgressBar
 var death_overlay: ColorRect
 var victory_overlay: ColorRect
 var title_overlay: ColorRect
+var epilogue_overlay: ColorRect
+var epilogue_title_label: Label
+var epilogue_subtitle_label: Label
+var epilogue_body: VBoxContainer
+var epilogue_back_button: Button
 var pause_overlay: ColorRect
 var help_overlay: ColorRect
 var play_button: Button
@@ -370,6 +376,42 @@ func show_title(has_save: bool) -> void:
 	play_button.grab_focus()
 
 
+## 分结局尾声：读入 DialogueRunner.ending_epilogue 返回的 Dictionary 渲染终幕。
+func show_epilogue(data: Dictionary) -> void:
+	if epilogue_overlay == null:
+		return
+	epilogue_title_label.text = String(data.get("title", ""))
+	epilogue_subtitle_label.text = String(data.get("subtitle", ""))
+	for child in epilogue_body.get_children():
+		epilogue_body.remove_child(child)
+		child.queue_free()
+	var paragraphs: PackedStringArray = data.get("paragraphs", PackedStringArray())
+	for p in paragraphs:
+		_add_epilogue_line(String(p), 14, COLOR_TEXT)
+	var witnesses: PackedStringArray = data.get("witnesses", PackedStringArray())
+	for w in witnesses:
+		_add_epilogue_line(String(w), 13, COLOR_MUTED)
+	epilogue_overlay.visible = true
+	get_tree().paused = true
+	if mobile_controls != null:
+		mobile_controls.visible = false
+	epilogue_back_button.grab_focus()
+
+
+func _add_epilogue_line(text: String, size: int, color: Color) -> void:
+	var lbl := _make_label(text, size, color)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	epilogue_body.add_child(lbl)
+
+
+func _finish_epilogue() -> void:
+	if epilogue_overlay != null:
+		epilogue_overlay.visible = false
+	get_tree().paused = false
+	epilogue_finished.emit()
+
+
 func _process(_delta: float) -> void:
 	if lock_target != null and not is_instance_valid(lock_target):
 		set_lock_target(null)
@@ -431,6 +473,7 @@ func _build_interface() -> void:
 	_build_pause_overlay()
 	_build_help_overlay()
 	_build_title_overlay()
+	_build_epilogue_overlay()
 
 
 func _build_top_row() -> HBoxContainer:
@@ -755,6 +798,55 @@ func _build_title_overlay() -> void:
 	chinese_button.set_meta("base_minimum_size", Vector2(180.0, 48.0))
 	chinese_button.pressed.connect(_request_locale.bind("zh_CN"))
 	language_row.add_child(chinese_button)
+
+
+func _build_epilogue_overlay() -> void:
+	epilogue_overlay = ColorRect.new()
+	epilogue_overlay.color = Color(0.004, 0.006, 0.009, 0.92)
+	epilogue_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	epilogue_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	epilogue_overlay.visible = false
+	root.add_child(epilogue_overlay)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	epilogue_overlay.add_child(center)
+	var menu := PanelContainer.new()
+	menu.custom_minimum_size = Vector2(560.0, 0.0)
+	_menu_panels.append(menu)
+	menu.add_theme_stylebox_override("panel", _panel_style(COLOR_SURFACE, COLOR_BORDER, 7, 0.0, 0.0))
+	center.add_child(menu)
+	var margins := MarginContainer.new()
+	margins.add_theme_constant_override("margin_left", 40)
+	margins.add_theme_constant_override("margin_top", 30)
+	margins.add_theme_constant_override("margin_right", 40)
+	margins.add_theme_constant_override("margin_bottom", 30)
+	menu.add_child(margins)
+	var content := VBoxContainer.new()
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_theme_constant_override("separation", 14)
+	margins.add_child(content)
+	epilogue_title_label = _make_label("", 30, COLOR_EMBER)
+	epilogue_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	content.add_child(epilogue_title_label)
+	epilogue_subtitle_label = _make_label("", 15, COLOR_MUTED)
+	epilogue_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	epilogue_subtitle_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(epilogue_subtitle_label)
+	var divider := HSeparator.new()
+	divider.custom_minimum_size = Vector2(420.0, 1.0)
+	divider.set_meta("base_width", 420.0)
+	content.add_child(divider)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0.0, 260.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(scroll)
+	epilogue_body = VBoxContainer.new()
+	epilogue_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	epilogue_body.add_theme_constant_override("separation", 10)
+	scroll.add_child(epilogue_body)
+	epilogue_back_button = _make_button("返回标题")
+	epilogue_back_button.pressed.connect(_finish_epilogue)
+	content.add_child(epilogue_back_button)
 
 
 func _build_help_overlay() -> void:
