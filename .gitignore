@@ -6,6 +6,10 @@ build/
 exports/
 dist/
 
+# Local screenshot captures (runtime + editor renders)
+screenshot/
+game/screenshot/
+
 # Flutter and Dart-generated state
 app/.dart_tool/
 app/.packages
