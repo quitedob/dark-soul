@@ -24,6 +24,7 @@ func _initialize() -> void:
 
 func _run_all() -> void:
 	_test_run_state_round_trip_and_bridge()
+	_test_focus_above_80_round_trip()
 	_test_body_class_override_round_trip()
 	_test_run_state_disk_persistence()
 	_test_checkpoint_signals_and_state()
@@ -84,6 +85,24 @@ func _test_run_state_round_trip_and_bridge() -> void:
 	_expect(bridge_restored != null, "Bridge save must parse.")
 	if bridge_restored != null:
 		_expect(bridge_restored.checkpoint_id == "ash_courtyard", "Bridge round-trip lost checkpoint.")
+
+
+func _test_focus_above_80_round_trip() -> void:
+	# 回归：max_focus 突破 80（天赋/经脉/道行/魂器加成）后，focus>80 的存档必须能正常往返。
+	var state = RunStateScript.new()
+	state.checkpoint_id = "ash_courtyard"
+	state.max_focus = 120.0
+	state.focus = 110.0
+	var restored = RunStateScript.from_json(state.to_json())
+	_expect(restored != null, "focus>80 save was rejected on load.")
+	if restored != null:
+		_expect(is_equal_approx(restored.max_focus, 120.0), "Round-trip lost max_focus.")
+		_expect(is_equal_approx(restored.focus, 110.0), "Round-trip lost focus above 80.")
+	# bridge 往返同样应携带 maxFocus 并接受 focus>80
+	var bridge_restored = RunStateScript.from_dictionary(state.to_bridge_dictionary())
+	_expect(bridge_restored != null, "focus>80 bridge save was rejected.")
+	if bridge_restored != null:
+		_expect(is_equal_approx(bridge_restored.focus, 110.0), "Bridge round-trip lost focus above 80.")
 
 
 func _test_body_class_override_round_trip() -> void:

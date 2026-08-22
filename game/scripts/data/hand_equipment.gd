@@ -132,6 +132,11 @@ const ITEMS := {
 		"primary_label": "SPIRIT SUMMON", "secondary_label": "DISMISS",
 		"weapon_type": "talisman", "mesh_shape": "talisman_papers", "mesh_color": "88ccff",
 	},
+	"blind_bell_tongue": {
+		"hand": "right", "primary": "right_axe_strike", "secondary": "colossal_leap",
+		"primary_label": "BELL TOLL", "secondary_label": "BELL SLAM",
+		"weapon_type": "axe", "mesh_shape": "temple_bell", "mesh_color": "c8a050",
+	},
 }
 
 ## L-10：防具重量档（左手持握物）。weight_class 决定翻滚档；physical_reduction 供展示/后续减伤。

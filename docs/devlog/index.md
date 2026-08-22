@@ -6,6 +6,12 @@
 
 ## 日期索引
 
+### 2026-08-13
+
+- [**会话执行复盘：全量 fix all → 浏览器预览 → frontenddebugger 调试**](2026-08-13/01-full-fixall-web-preview-frontend-debug-reflection.md)
+- [**会话执行复盘：朝向/武器 → 分结局尾声 → 5-3/5-4 剧情 → 脚本化通关**](2026-08-13/02-orientation-ending-story-playthrough.md)
+- [**代码审查复盘：技能系统 + 关卡系统（"永不生效"排查 + 文档与历史对账）**](2026-08-13/03-code-review-skill-level-system-audit.md)
+
 ### 2026-08-12
 
 - [**会话执行复盘：施法/战技动画 + 命中盒审查修复 + 真动画管线（全部行动 / 难点排查 / 决策 / 记忆）**](2026-08-12/01-cast-hitbox-real-animation-session-reflection.md)

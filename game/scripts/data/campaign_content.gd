@@ -57,6 +57,8 @@ static func levels() -> Array[Dictionary]:
 		record["module_configs"] = _module_configs_for(record)
 		# 非 Boss 关启用 shortcut 空间折叠（单向门 + 升降梯回祠堂）
 		record["shortcut_fold"] = _shortcut_fold_for(record)
+		# 可选隐藏 Boss 关：出口返回其入口所在关卡（否则空 next 会误入终局尾声）
+		record["return_level_id"] = _optional_return_level_id(record)
 	return records
 
 
@@ -226,6 +228,13 @@ static func _shortcut_fold_for(level: Dictionary) -> Dictionary:
 			"elevator": "%s:elevator" % checkpoint_id,
 		},
 	}
+
+
+static func _optional_return_level_id(level: Dictionary) -> String:
+	# 可选隐藏 Boss 关的返回点：无目钟塔从 chapter_03 的镜花水月亭（level_03_04）进入。
+	if StringName(level.get("id", &"")) == &"level_05_06":
+		return "level_03_04"
+	return ""
 
 
 static func _chapter(id: StringName, display_name: String, theme_id: StringName, start_level_id: StringName, exit_level_id: StringName, boss_ids: Array[StringName]) -> Dictionary:

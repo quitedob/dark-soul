@@ -20,6 +20,9 @@ const STYLE_LOADOUTS := [
 var checkpoint_id := DEFAULT_CHECKPOINT
 var embers := 0
 var focus := 80.0
+## 灵蕴上限（基础 80 + 天赋/经脉/道行/魂器加成）。持久化仅用于载入时校验 focus 上限，
+## 不参与运行时统计重算（_apply_progression_stats/_apply_meridian_stats 会从等级重算真实上限）。
+var max_focus := 80.0
 var combat_style := 0
 var lost_echo_amount := 0
 var lost_echo_position := Vector3.ZERO
@@ -54,6 +57,7 @@ func to_dictionary() -> Dictionary:
 		"checkpoint_id": checkpoint_id,
 		"embers": embers,
 		"focus": focus,
+		"max_focus": max_focus,
 		"combat_style": combat_style,
 		"lost_echo": _lost_echo_dictionary(),
 		"activated_shortcuts": activated_shortcuts.duplicate(),
@@ -88,6 +92,7 @@ func to_bridge_dictionary() -> Dictionary:
 		"player": {
 			"embers": embers,
 			"focus": focus,
+			"maxFocus": max_focus,
 			"upgradeTier": upgrade_tier,
 			"rightHand": right_hand,
 			"leftHand": left_hand if not left_hand.is_empty() else null,
@@ -165,7 +170,9 @@ static func from_dictionary(data: Dictionary):
 	state.checkpoint_id = parsed_checkpoint
 	if not _read_non_negative_int(player_data, "embers", "embers", state, "embers", 0):
 		return null
-	if not _read_float_range(player_data, "focus", "focus", state, "focus", 80.0, 0.0, 80.0):
+	if not _read_float_range(player_data, "max_focus", "maxFocus", state, "max_focus", 80.0, 80.0, 9999.0):
+		return null
+	if not _read_float_range(player_data, "focus", "focus", state, "focus", 80.0, 0.0, state.max_focus):
 		return null
 	if not _read_int_range(data, "combat_style", "combatStyle", state, "combat_style", 0, 0, 4):
 		return null

@@ -944,6 +944,13 @@ func _on_campaign_exit_requested(from_level_id: StringName) -> void:
 		current_id = campaign_runtime.current_level_id
 	var next_level: Dictionary = campaign_runtime.registry.get_next_level(current_id) if campaign_runtime != null else {}
 	if next_level.is_empty():
+		# 可选隐藏 Boss 关（无下一关）→ 返回入口所在关卡，而不是误入终局尾声。
+		var return_level := ""
+		if campaign_runtime != null:
+			return_level = String(campaign_runtime.get_level_data().get("return_level_id", ""))
+		if not return_level.is_empty():
+			_travel_to_level(return_level)
+			return
 		_show_ending_epilogue()
 		return
 	_level_transition_locked = true
@@ -1422,6 +1429,7 @@ func _on_player_died(death_position: Vector3) -> void:
 	var lost_amount: int = int(player.lose_embers())
 	if lost_echo != null and is_instance_valid(lost_echo):
 		lost_echo.queue_free()
+		lost_echo = null
 	if lost_amount > 0:
 		_spawn_lost_echo(lost_amount, death_position + Vector3.UP * 0.35)
 		run_state.lost_echo_amount = lost_amount
@@ -1443,6 +1451,7 @@ func _on_player_died(death_position: Vector3) -> void:
 func _spawn_lost_echo(amount: int, at: Vector3) -> void:
 	if lost_echo != null and is_instance_valid(lost_echo):
 		lost_echo.queue_free()
+		lost_echo = null
 	var safe_at := at
 	var space := get_world_3d().direct_space_state if is_inside_tree() else null
 	if space != null:
@@ -2088,6 +2097,8 @@ const BOSS_LOOT_BY_ID := {
 	"boss_xuan_xiao_obsession": "xingtian_axe_left",
 	"boss_xuan_xiao": "spirit_talisman",
 	"boss_zhu_yin": "prayer_beads",
+	"boss_xing_tian": "xingtian_axe_right",
+	"boss_blind_bell": "blind_bell_tongue",
 }
 
 ## L-10：精锐掉落池（可选防具/副手；玩家非起始装备，能扩充图鉴）
@@ -2240,6 +2251,7 @@ func _snapshot_run_state() -> Dictionary:
 	run_state.chapter_id = String(level_data.get("chapter_id", run_state.chapter_id))
 	run_state.embers = int(player.embers)
 	run_state.focus = float(player.focus)
+	run_state.max_focus = float(player.max_focus)
 	run_state.combat_style = int(player.combat_style)
 	if player.has_method("get_hand_loadout"):
 		var hand_loadout: Dictionary = player.get_hand_loadout()
@@ -2252,7 +2264,7 @@ func _snapshot_run_state() -> Dictionary:
 	if shortcut != null and shortcut.is_open:
 		if "ancient_gate" not in run_state.activated_shortcuts:
 			run_state.activated_shortcuts.append("ancient_gate")
-	if lost_echo != null and is_instance_valid(lost_echo):
+	if lost_echo != null and is_instance_valid(lost_echo) and not lost_echo.is_queued_for_deletion():
 		run_state.lost_echo_amount = int(lost_echo.amount)
 		run_state.lost_echo_position = lost_echo.global_position
 	else:

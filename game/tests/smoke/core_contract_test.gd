@@ -276,6 +276,21 @@ func _test_run_state_rejects_invalid_data() -> void:
 		}) == null,
 		"Malformed v2 progression was accepted."
 	)
+	# 回归：focus 必须 ≤ max_focus；focus>80 但 ≤ max_focus（灵蕴上限突破 80）不得拒绝。
+	var elevated = RunStateScript.new()
+	elevated.checkpoint_id = "x"
+	elevated.max_focus = 120.0
+	elevated.focus = 110.0
+	_expect(
+		RunStateScript.from_json(elevated.to_json()) != null,
+		"focus within an elevated max_focus was rejected."
+	)
+	var over_cap: Dictionary = elevated.to_dictionary()
+	over_cap["focus"] = 130.0
+	_expect(
+		RunStateScript.from_dictionary(over_cap) == null,
+		"focus above max_focus was accepted."
+	)
 
 
 func _test_settings_sanitize_values() -> void:

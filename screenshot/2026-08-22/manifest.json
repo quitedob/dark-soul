@@ -1,0 +1,1079 @@
+[
+ {
+  "i": 0,
+  "name": "01-Furnace-Keeper-JuQue",
+  "category": "bosses",
+  "rel": "bosses/01-Furnace-Keeper-JuQue.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_giant_gate"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 1,
+  "name": "02-Blood-General-XingTian",
+  "category": "bosses",
+  "rel": "bosses/02-Blood-General-XingTian.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_xing_tian"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 2,
+  "name": "03-Jade-Faced-Fox-NineTails",
+  "category": "bosses",
+  "rel": "bosses/03-Jade-Faced-Fox-NineTails.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_nine_tails"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 3,
+  "name": "04-Fallen-Immortal-XuanXiao",
+  "category": "bosses",
+  "rel": "bosses/04-Fallen-Immortal-XuanXiao.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_xuan_xiao"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 4,
+  "name": "05-Lord-of-the-Ember-Abyss-ZhuYin",
+  "category": "bosses",
+  "rel": "bosses/05-Lord-of-the-Ember-Abyss-ZhuYin.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_zhu_yin"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 5,
+  "name": "06-Blind-Bell-Hearer",
+  "category": "bosses",
+  "rel": "bosses/06-Blind-Bell-Hearer.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_blind_bell"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 6,
+  "name": "01-WrathFragment",
+  "category": "bosses",
+  "rel": "bosses/sub-bosses/01-WrathFragment.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_xuan_xiao_wrath"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 7,
+  "name": "02-ObsessionFragment",
+  "category": "bosses",
+  "rel": "bosses/sub-bosses/02-ObsessionFragment.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/boss_xuan_xiao_obsession"
+  ],
+  "consumer": "enemy_boss_body",
+  "skinned": false
+ },
+ {
+  "i": 8,
+  "name": "01-Cloud-Wanderer",
+  "category": "characters",
+  "rel": "characters/npcs/01-Cloud-Wanderer.glb",
+  "registered": true,
+  "keys": [
+   "npc/npc_cloud_wanderer"
+  ],
+  "consumer": "npc",
+  "skinned": false
+ },
+ {
+  "i": 9,
+  "name": "02-Iron-Heart",
+  "category": "characters",
+  "rel": "characters/npcs/02-Iron-Heart.glb",
+  "registered": true,
+  "keys": [
+   "npc/npc_iron_heart"
+  ],
+  "consumer": "npc",
+  "skinned": false
+ },
+ {
+  "i": 10,
+  "name": "03-Lady-of-Memories",
+  "category": "characters",
+  "rel": "characters/npcs/03-Lady-of-Memories.glb",
+  "registered": true,
+  "keys": [
+   "npc/npc_lady_of_memories"
+  ],
+  "consumer": "npc",
+  "skinned": false
+ },
+ {
+  "i": 11,
+  "name": "04-XuanXiao-Remnant",
+  "category": "characters",
+  "rel": "characters/npcs/04-XuanXiao-Remnant.glb",
+  "registered": true,
+  "keys": [
+   "npc/npc_xuanxiao_remnant"
+  ],
+  "consumer": "npc",
+  "skinned": false
+ },
+ {
+  "i": 12,
+  "name": "05-Silence-Bringer",
+  "category": "characters",
+  "rel": "characters/npcs/05-Silence-Bringer.glb",
+  "registered": true,
+  "keys": [
+   "npc/npc_silence_bringer"
+  ],
+  "consumer": "npc",
+  "skinned": false
+ },
+ {
+  "i": 13,
+  "name": "06-Tea-Soul",
+  "category": "characters",
+  "rel": "characters/npcs/06-Tea-Soul.glb",
+  "registered": true,
+  "keys": [
+   "npc/npc_bridge_tea_soul"
+  ],
+  "consumer": "npc",
+  "skinned": false
+ },
+ {
+  "i": 14,
+  "name": "07-Ember-Tea-Keeper",
+  "category": "characters",
+  "rel": "characters/npcs/07-Ember-Tea-Keeper.glb",
+  "registered": true,
+  "keys": [
+   "npc/npc_ember_tea_keeper"
+  ],
+  "consumer": "npc",
+  "skinned": false
+ },
+ {
+  "i": 15,
+  "name": "01-Divine-Marksman",
+  "category": "characters",
+  "rel": "characters/player-classes/01-Divine-Marksman.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_marksman"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 16,
+  "name": "02-Frenzied-Warrior",
+  "category": "characters",
+  "rel": "characters/player-classes/02-Frenzied-Warrior.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_barbarian"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 17,
+  "name": "03-Mystic-Mage",
+  "category": "characters",
+  "rel": "characters/player-classes/03-Mystic-Mage.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_mystic"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 18,
+  "name": "04-Invocation-Master",
+  "category": "characters",
+  "rel": "characters/player-classes/04-Invocation-Master.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_invoker"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 19,
+  "name": "05-Yin-Yang-Master",
+  "category": "characters",
+  "rel": "characters/player-classes/05-Yin-Yang-Master.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_yin_yang"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 20,
+  "name": "06-War-Shaman",
+  "category": "characters",
+  "rel": "characters/player-classes/06-War-Shaman.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_war_shaman"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 21,
+  "name": "07-Arcane-Archer",
+  "category": "characters",
+  "rel": "characters/player-classes/07-Arcane-Archer.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_arcane_archer"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 22,
+  "name": "08-Asura",
+  "category": "characters",
+  "rel": "characters/player-classes/08-Asura.glb",
+  "registered": true,
+  "keys": [
+   "player/body/class_asura"
+  ],
+  "consumer": "player_class_body",
+  "skinned": false
+ },
+ {
+  "i": 23,
+  "name": "01-DharmaProtectingChildSpirit",
+  "category": "characters",
+  "rel": "characters/summons/01-DharmaProtectingChildSpirit.glb",
+  "registered": true,
+  "keys": [
+   "summon/dharma_child"
+  ],
+  "consumer": "summon",
+  "skinned": false
+ },
+ {
+  "i": 24,
+  "name": "02-GoldenArmoredGuardian",
+  "category": "characters",
+  "rel": "characters/summons/02-GoldenArmoredGuardian.glb",
+  "registered": true,
+  "keys": [
+   "summon/golden_guardian"
+  ],
+  "consumer": "summon",
+  "skinned": false
+ },
+ {
+  "i": 25,
+  "name": "03-RebirthLotus",
+  "category": "characters",
+  "rel": "characters/summons/03-RebirthLotus.glb",
+  "registered": true,
+  "keys": [
+   "summon/rebirth_lotus"
+  ],
+  "consumer": "summon",
+  "skinned": false
+ },
+ {
+  "i": 26,
+  "name": "04-ResentfulSpirit",
+  "category": "characters",
+  "rel": "characters/summons/04-ResentfulSpirit.glb",
+  "registered": true,
+  "keys": [
+   "summon/resentful_spirit"
+  ],
+  "consumer": "summon",
+  "skinned": false
+ },
+ {
+  "i": 27,
+  "name": "05-WhiteCraneAttendant",
+  "category": "characters",
+  "rel": "characters/summons/05-WhiteCraneAttendant.glb",
+  "registered": true,
+  "keys": [
+   "summon/white_crane"
+  ],
+  "consumer": "summon",
+  "skinned": false
+ },
+ {
+  "i": 28,
+  "name": "01-Lost-Soul-Soldier",
+  "category": "enemies",
+  "rel": "enemies/01-spirit-ruins/01-Lost-Soul-Soldier.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/lost_soul_soldier",
+   "enemy/body/wraith_thin"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 29,
+  "name": "02-Temple-Guardian-Warrior",
+  "category": "enemies",
+  "rel": "enemies/01-spirit-ruins/02-Temple-Guardian-Warrior.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/temple_guardian_warrior",
+   "enemy/body/armored_medium"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 30,
+  "name": "03-Mirror-Shade",
+  "category": "enemies",
+  "rel": "enemies/01-spirit-ruins/03-Mirror-Shade.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/mirror_shade",
+   "enemy/body/by_id/ember_shade_skirmisher",
+   "enemy/body/ethereal_flicker"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 31,
+  "name": "04-Furnace-Slag-Beast",
+  "category": "enemies",
+  "rel": "enemies/01-spirit-ruins/04-Furnace-Slag-Beast.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/furnace_slag_beast",
+   "enemy/body/hulking_molten"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 32,
+  "name": "01-Lost-Soldier-BattleWorn",
+  "category": "enemies",
+  "rel": "enemies/02-blood-iron/01-Lost-Soldier-BattleWorn.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/battle_worn_soldier",
+   "enemy/body/ragged_soldier"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 33,
+  "name": "02-War-Dog-Wraith",
+  "category": "enemies",
+  "rel": "enemies/02-blood-iron/02-War-Dog-Wraith.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/war_dog_wraith",
+   "enemy/body/hound_spectral"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 34,
+  "name": "03-Camp-Guard-Wraith",
+  "category": "enemies",
+  "rel": "enemies/02-blood-iron/03-Camp-Guard-Wraith.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/camp_guard_wraith",
+   "enemy/body/armored_heavy"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 35,
+  "name": "04-Torture-Device-Spirit",
+  "category": "enemies",
+  "rel": "enemies/02-blood-iron/04-Torture-Device-Spirit.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/torture_device_spirit",
+   "enemy/body/immobile_turret"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 36,
+  "name": "05-Generals-Personal-Guard",
+  "category": "enemies",
+  "rel": "enemies/02-blood-iron/05-Generals-Personal-Guard.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/generals_personal_guard",
+   "enemy/body/elite_armored"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 37,
+  "name": "06-Beacon-Keeper-Wraith",
+  "category": "enemies",
+  "rel": "enemies/02-blood-iron/06-Beacon-Keeper-Wraith.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/beacon_keeper_wraith",
+   "enemy/body/tower_ranged"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 38,
+  "name": "01-Illusion-Butterfly",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/01-Illusion-Butterfly.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/illusion_butterfly",
+   "enemy/body/floating_small"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 39,
+  "name": "02-Memory-Thief",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/02-Memory-Thief.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/memory_thief",
+   "enemy/body/ethereal_thin"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 40,
+  "name": "03-Echo-Spirit",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/03-Echo-Spirit.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/echo_spirit",
+   "enemy/body/floating_orb"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 41,
+  "name": "04-Foxfire-Lantern-Spirit",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/04-Foxfire-Lantern-Spirit.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/foxfire_lantern",
+   "enemy/body/lantern_float"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 42,
+  "name": "05-Wedding-Gown-Ghost",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/05-Wedding-Gown-Ghost.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/wedding_gown_ghost",
+   "enemy/body/floating_dress"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 43,
+  "name": "06-Water-Moon",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/06-Water-Moon.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/water_moon_spirit",
+   "enemy/body/reflection_clone"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 44,
+  "name": "07-Mirror-Flower-Spirit",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/07-Mirror-Flower-Spirit.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/mirror_flower_spirit",
+   "enemy/body/flower_stationary"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 45,
+  "name": "08-Maze-Guardian",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/08-Maze-Guardian.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/maze_guardian"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 46,
+  "name": "09-MindLost-Fox-Demon",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/09-MindLost-Fox-Demon.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/mind_lost_fox_demon",
+   "enemy/body/beast_humanoid"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 47,
+  "name": "10-Ember-Greedy-Ghost",
+  "category": "enemies",
+  "rel": "enemies/03-jade-veil/10-Ember-Greedy-Ghost.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/ember_greedy_ghost"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 48,
+  "name": "01-Stairway-Guard-Wraith",
+  "category": "enemies",
+  "rel": "enemies/04-celestial-fall/01-Stairway-Guard-Wraith.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/stairway_guard_wraith",
+   "enemy/body/celestial_guard"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 49,
+  "name": "02-Cloud-Sky-Eagle",
+  "category": "enemies",
+  "rel": "enemies/04-celestial-fall/02-Cloud-Sky-Eagle.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/cloud_sky_eagle",
+   "enemy/body/flying_large"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 50,
+  "name": "03-Elixir-Furnace-Spirit",
+  "category": "enemies",
+  "rel": "enemies/04-celestial-fall/03-Elixir-Furnace-Spirit.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/elixir_furnace_spirit",
+   "enemy/body/barrel_heavy"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 51,
+  "name": "04-Alchemy-Fallen-Immortal",
+  "category": "enemies",
+  "rel": "enemies/04-celestial-fall/04-Alchemy-Fallen-Immortal.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/alchemy_fallen_immortal",
+   "enemy/body/robed_caster"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 52,
+  "name": "05-Book-Spirit",
+  "category": "enemies",
+  "rel": "enemies/04-celestial-fall/05-Book-Spirit.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/book_spirit",
+   "enemy/body/floating_book"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 53,
+  "name": "06-Library-Guardian-Spirit",
+  "category": "enemies",
+  "rel": "enemies/04-celestial-fall/06-Library-Guardian-Spirit.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/library_guardian_spirit"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 54,
+  "name": "07-Broken-Immortal-Body",
+  "category": "enemies",
+  "rel": "enemies/04-celestial-fall/07-Broken-Immortal-Body.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/broken_immortal_body",
+   "enemy/body/shambling_giant"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 55,
+  "name": "01-Ember-Shore-Drifter",
+  "category": "enemies",
+  "rel": "enemies/05-throne-of-ashes/01-Ember-Shore-Drifter.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/ember_shore_drifter",
+   "enemy/body/void_wraith"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 56,
+  "name": "02-Inverted-Guardian",
+  "category": "enemies",
+  "rel": "enemies/05-throne-of-ashes/02-Inverted-Guardian.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/inverted_guardian",
+   "enemy/body/gravity_armor"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 57,
+  "name": "03-Ember-Bat",
+  "category": "enemies",
+  "rel": "enemies/05-throne-of-ashes/03-Ember-Bat.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/ember_bat",
+   "enemy/body/flying_small"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 58,
+  "name": "04-Forked-Path-Guardian",
+  "category": "enemies",
+  "rel": "enemies/05-throne-of-ashes/04-Forked-Path-Guardian.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/forked_path_shade",
+   "enemy/body/shadow_form"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 59,
+  "name": "05-Shadow-of-Possibility",
+  "category": "enemies",
+  "rel": "enemies/05-throne-of-ashes/05-Shadow-of-Possibility.glb",
+  "registered": true,
+  "keys": [
+   "enemy/body/by_id/shadow_of_possibility",
+   "enemy/body/quantum_shimmer"
+  ],
+  "consumer": "enemy_body",
+  "skinned": false
+ },
+ {
+  "i": 60,
+  "name": "minnyquinn",
+  "category": "enemy",
+  "rel": "enemy/minnyquinn.glb",
+  "registered": false,
+  "keys": [],
+  "consumer": "DORMANT",
+  "skinned": true
+ },
+ {
+  "i": 61,
+  "name": "01-LightArmor",
+  "category": "equipment",
+  "rel": "equipment/01-LightArmor.glb",
+  "registered": false,
+  "keys": [],
+  "consumer": "DORMANT",
+  "skinned": false
+ },
+ {
+  "i": 62,
+  "name": "02-MediumArmor",
+  "category": "equipment",
+  "rel": "equipment/02-MediumArmor.glb",
+  "registered": false,
+  "keys": [],
+  "consumer": "DORMANT",
+  "skinned": false
+ },
+ {
+  "i": 63,
+  "name": "03-HeavyArmor",
+  "category": "equipment",
+  "rel": "equipment/03-HeavyArmor.glb",
+  "registered": false,
+  "keys": [],
+  "consumer": "DORMANT",
+  "skinned": false
+ },
+ {
+  "i": 64,
+  "name": "04-Accessories",
+  "category": "equipment",
+  "rel": "equipment/04-Accessories.glb",
+  "registered": false,
+  "keys": [],
+  "consumer": "DORMANT",
+  "skinned": false
+ },
+ {
+  "i": 65,
+  "name": "05-SoulVessels",
+  "category": "equipment",
+  "rel": "equipment/05-SoulVessels.glb",
+  "registered": false,
+  "keys": [],
+  "consumer": "DORMANT",
+  "skinned": false
+ },
+ {
+  "i": 66,
+  "name": "mannyquin",
+  "category": "player",
+  "rel": "player/mannyquin.glb",
+  "registered": true,
+  "keys": [
+   "player/body"
+  ],
+  "consumer": "player_body",
+  "skinned": true
+ },
+ {
+  "i": 67,
+  "name": "01-EmberShrine",
+  "category": "props",
+  "rel": "props/01-EmberShrine.glb",
+  "registered": true,
+  "keys": [
+   "prop/ember_shrine"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 68,
+  "name": "02-LostEcho",
+  "category": "props",
+  "rel": "props/02-LostEcho.glb",
+  "registered": true,
+  "keys": [
+   "prop/lost_echo"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 69,
+  "name": "03-ForgeAndAnvil",
+  "category": "props",
+  "rel": "props/03-ForgeAndAnvil.glb",
+  "registered": true,
+  "keys": [
+   "prop/forge_and_anvil"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 70,
+  "name": "04-Traps",
+  "category": "props",
+  "rel": "props/04-Traps.glb",
+  "registered": true,
+  "keys": [
+   "prop/traps"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 71,
+  "name": "05-PuzzleProps",
+  "category": "props",
+  "rel": "props/05-PuzzleProps.glb",
+  "registered": true,
+  "keys": [
+   "prop/puzzle_props"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 72,
+  "name": "06-AmbientProps",
+  "category": "props",
+  "rel": "props/06-AmbientProps.glb",
+  "registered": true,
+  "keys": [
+   "prop/ambient_props"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 73,
+  "name": "07-Pickups",
+  "category": "props",
+  "rel": "props/07-Pickups.glb",
+  "registered": true,
+  "keys": [
+   "prop/pickups"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 74,
+  "name": "08-BridgeTea",
+  "category": "props",
+  "rel": "props/08-BridgeTea.glb",
+  "registered": true,
+  "keys": [
+   "prop/bridge_tea"
+  ],
+  "consumer": "prop",
+  "skinned": false
+ },
+ {
+  "i": 75,
+  "name": "01-WindHunter-Bow",
+  "category": "weapons",
+  "rel": "weapons/01-WindHunter-Bow.glb",
+  "registered": true,
+  "keys": [
+   "weapon/01-WindHunter-Bow"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 76,
+  "name": "02-XingTian-Twin-Axes",
+  "category": "weapons",
+  "rel": "weapons/02-XingTian-Twin-Axes.glb",
+  "registered": true,
+  "keys": [
+   "player/weapon/axe_right",
+   "player/weapon/axe_left",
+   "weapon/02-XingTian-Twin-Axes"
+  ],
+  "consumer": "player_equip",
+  "skinned": false
+ },
+ {
+  "i": 77,
+  "name": "03-Mystic-Gate-Seal",
+  "category": "weapons",
+  "rel": "weapons/03-Mystic-Gate-Seal.glb",
+  "registered": true,
+  "keys": [
+   "weapon/03-Mystic-Gate-Seal"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 78,
+  "name": "04-Sandalwood-Beads-Talisman",
+  "category": "weapons",
+  "rel": "weapons/04-Sandalwood-Beads-Talisman.glb",
+  "registered": true,
+  "keys": [
+   "weapon/04-Sandalwood-Beads-Talisman"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 79,
+  "name": "05-Sun-Falling-Bow",
+  "category": "weapons",
+  "rel": "weapons/05-Sun-Falling-Bow.glb",
+  "registered": true,
+  "keys": [
+   "weapon/05-Sun-Falling-Bow"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 80,
+  "name": "06-Five-Elements-Seal",
+  "category": "weapons",
+  "rel": "weapons/06-Five-Elements-Seal.glb",
+  "registered": true,
+  "keys": [
+   "weapon/06-Five-Elements-Seal"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 81,
+  "name": "07-XingTian-Indomitable",
+  "category": "weapons",
+  "rel": "weapons/07-XingTian-Indomitable.glb",
+  "registered": true,
+  "keys": [
+   "weapon/07-XingTian-Indomitable"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 82,
+  "name": "08-XuanXiao-Falling-Star",
+  "category": "weapons",
+  "rel": "weapons/08-XuanXiao-Falling-Star.glb",
+  "registered": true,
+  "keys": [
+   "weapon/08-XuanXiao-Falling-Star"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 83,
+  "name": "09-ZhuYin-The-End",
+  "category": "weapons",
+  "rel": "weapons/09-ZhuYin-The-End.glb",
+  "registered": true,
+  "keys": [
+   "weapon/09-ZhuYin-The-End"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 84,
+  "name": "10-JuQue-Gatekeeper",
+  "category": "weapons",
+  "rel": "weapons/10-JuQue-Gatekeeper.glb",
+  "registered": true,
+  "keys": [
+   "weapon/10-JuQue-Gatekeeper"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 85,
+  "name": "11-NineTails-Illusion-Moon",
+  "category": "weapons",
+  "rel": "weapons/11-NineTails-Illusion-Moon.glb",
+  "registered": true,
+  "keys": [
+   "weapon/11-NineTails-Illusion-Moon"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 86,
+  "name": "12-Weapon-Types",
+  "category": "weapons",
+  "rel": "weapons/12-Weapon-Types.glb",
+  "registered": true,
+  "keys": [
+   "weapon/12-Weapon-Types"
+  ],
+  "consumer": "weapon_theme",
+  "skinned": false
+ },
+ {
+  "i": 87,
+  "name": "templateweapons",
+  "category": "weapons",
+  "rel": "weapons/templateweapons.glb",
+  "registered": true,
+  "keys": [
+   "player/weapon/sword",
+   "player/shield"
+  ],
+  "consumer": "player_equip",
+  "skinned": false
+ }
+]
