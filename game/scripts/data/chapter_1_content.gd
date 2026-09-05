@@ -119,13 +119,15 @@ static func boss() -> Dictionary:
 				"vfx": "mechanical_steam_puffs",
 				"lighting": "cool_blue_moonlight",
 			},
+			# L-26：phase2 相变触发竞技场环带坍塌（arena_director 读取 arena_event）
 			"2": {
 				"threshold": 0.6,
 				"description": "Furnace overload — faster, fiery attacks, ember trails",
+				"arena_event": "ring_collapse",
 				"attacks": [
 					{"name": "flame_sweep", "windup": 0.62, "active": 0.22, "recovery": 0.58, "damage": 28.0, "stagger": 32.0, "lunge": 1.8, "heavy": false},
 					{"name": "ember_slam", "windup": 0.88, "active": 0.28, "recovery": 0.78, "damage": 42.0, "stagger": 50.0, "lunge": 2.4, "heavy": true},
-					{"name": "furnace_burst", "windup": 1.05, "active": 0.35, "recovery": 0.9, "damage": 32.0, "stagger": 36.0, "lunge": 0.0, "heavy": true, "type": "radial_aoe", "range": 4.0},
+					{"name": "furnace_burst", "windup": 1.05, "active": 0.35, "recovery": 0.9, "damage": 32.0, "stagger": 36.0, "lunge": 0.0, "heavy": true, "type": "radial_aoe", "range": 4.0, "spawn_hazard": true, "hazard_radius": 2.2, "hazard_lifetime": 5.0, "hazard_telegraph": 0.8},
 					{"name": "charge_rush", "windup": 0.78, "active": 0.30, "recovery": 0.72, "damage": 26.0, "stagger": 30.0, "lunge": 5.5, "heavy": false},
 				],
 				"vfx": "orange_ember_trails",

@@ -220,7 +220,10 @@ func _multi_hit(attacker: Node3D, target: Node3D, attack: Dictionary, default_hi
 
 ## radial_aoe：以攻击者为圆心径向命中范围内候选
 func _radial_aoe(attacker: Node3D, target: Node3D, attack: Dictionary, radius: float) -> void:
-	last_aoe_hits = _aoe_damage(attacker, _pos(attacker), radius, attack, false, 0.0, target)
+	var center := _pos(attacker)
+	_notify_arena_impact(attacker, center, radius)
+	_spawn_aoe_hazard(attacker, attack, center)
+	last_aoe_hits = _aoe_damage(attacker, center, radius, attack, false, 0.0, target)
 
 
 ## cone_aoe：以攻击者前向做点积过滤的扇形
@@ -232,13 +235,18 @@ func _cone_aoe(attacker: Node3D, target: Node3D, attack: Dictionary, radius: flo
 ## stage_wide_aoe：超大半径径向
 func _stage_wide_aoe(attacker: Node3D, target: Node3D, attack: Dictionary) -> void:
 	var r := float(attack.get("range", 30.0))
-	last_aoe_hits = _aoe_damage(attacker, _pos(attacker), r, attack, false, 0.0, target)
+	var center := _pos(attacker)
+	_notify_arena_impact(attacker, center, r)
+	_spawn_aoe_hazard(attacker, attack, center)
+	last_aoe_hits = _aoe_damage(attacker, center, r, attack, false, 0.0, target)
 
 
 ## targeted_impact_aoe：以目标（落点）为中心径向
 func _targeted_impact_aoe(attacker: Node3D, target: Node3D, attack: Dictionary) -> void:
 	var r := float(attack.get("range", 4.5))
 	var center := _pos(target) if target != null and is_instance_valid(target) else _pos(attacker)
+	_notify_arena_impact(attacker, center, r)
+	_spawn_aoe_hazard(attacker, attack, center)
 	last_aoe_hits = _aoe_damage(attacker, center, r, attack, false, 0.0, target)
 
 
@@ -438,6 +446,43 @@ func _trail_hazard(attacker: Node3D, target: Node3D, attack: Dictionary) -> void
 		"radius": float(attack.get("radius", 1.6)),
 		"lifetime": float(attack.get("hazard_lifetime", 3.0)),
 		"action_id": String(attack.get("name", "boss_trail_hazard")),
+	})
+	last_hazard = true
+
+
+## L-26：AoE 落点通知竞技场——组呼叫砸碎半径内可破坏物件 + 请求世界节点冲击 VFX。
+## executor 是 RefCounted（无 get_tree）：从 attacker 走树，且要求 attacker 在树内。
+func _notify_arena_impact(attacker: Node3D, position: Vector3, radius: float) -> void:
+	if attacker == null or not is_instance_valid(attacker) or not attacker.is_inside_tree():
+		return
+	var tree := attacker.get_tree()
+	if tree != null:
+		tree.call_group("destructibles", "apply_boss_impact", position, radius)
+	var world := _world_node(attacker)
+	if world != null and world.has_method("spawn_boss_impact_vfx"):
+		world.spawn_boss_impact_vfx(position, radius)
+
+
+## L-26：spawn_hazard 招式键——在 AoE 落点留下持续危害区（伤害/硬直减半的地面余燃）。
+## hazard_radius / hazard_lifetime / hazard_telegraph / hazard_dot_interval 由招式表提供。
+func _spawn_aoe_hazard(attacker: Node3D, attack: Dictionary, ground_point: Vector3) -> void:
+	if not bool(attack.get("spawn_hazard", false)):
+		return
+	last_hazard = false
+	if attacker == null or not is_instance_valid(attacker) or not attacker.is_inside_tree():
+		return
+	var parent := _projectile_parent(attacker)
+	if parent == null:
+		return
+	var hazard = BossAttackHazard.new()
+	parent.add_child(hazard)
+	hazard.global_position = ground_point
+	hazard.setup(attacker, _damage(attacker, attack) * 0.5, _stagger(attacker, attack) * 0.5, {
+		"radius": float(attack.get("hazard_radius", 2.0)),
+		"lifetime": float(attack.get("hazard_lifetime", 4.0)),
+		"telegraph": float(attack.get("hazard_telegraph", 0.0)),
+		"dot_interval": float(attack.get("hazard_dot_interval", 0.0)),
+		"action_id": String(attack.get("name", "boss_aoe")) + "_hazard",
 	})
 	last_hazard = true
 

@@ -28,6 +28,9 @@ const HitStopManagerScript = preload("res://scripts/combat/hit_stop_manager.gd")
 const TraumaShakeScript = preload("res://scripts/components/trauma_shake.gd")
 const CombatCameraDirectorScript = preload("res://scripts/combat/combat_camera_director.gd")
 const BossPhasePolisherScript = preload("res://scripts/boss/boss_phase_polisher.gd")
+const ImpactVfxScript = preload("res://scripts/fx/impact_vfx.gd")
+const PhaseEnvironmentScript = preload("res://scripts/fx/phase_environment.gd")
+const ArenaDirectorScript = preload("res://scripts/world/arena_director.gd")
 const BossFlowControllerScript = preload("res://scripts/boss/boss_flow_controller.gd")
 const FateChoiceOverlayScript = preload("res://scripts/ui/fate_choice_overlay.gd")
 const FateCatalog = preload("res://scripts/combat/data/boss_fate_catalog.gd")
@@ -78,6 +81,9 @@ var _hit_stop_manager: HitStopManager
 var _trauma_shake: TraumaShake
 var _camera_director = null
 var _phase_polisher = null  # G-04 Boss 相变抛光
+var _impact_vfx = null  # L-24 命中冲击粒子池（GPU 一次性爆发）
+var _phase_environment = null  # L-24 相变环境漂移（雾/光/调色渐变）
+var _arena_director = null  # L-26 Boss 场地互动导演（塌陷环 / 药罐 / 相变塌陷）
 var _fate_overlay = null
 var _dialogue_overlay = null
 var _pending_fate_boss = null
@@ -99,6 +105,8 @@ func _ready() -> void:
 	_env_setup = WorldEnvScript.new()
 	_env_setup.setup(self)
 	_env_setup.create_environment()
+	# L-24：补上历史漏赋值——world_environment 此前从未被赋值，低画质开关因此静默失效
+	world_environment = get_node_or_null("NightEnvironment") as WorldEnvironment
 	materials = _env_setup.create_materials()
 	campaign_runtime = CampaignLevelRuntimeScript.new()
 	campaign_runtime.name = "CampaignLevelRuntime"
@@ -107,6 +115,7 @@ func _ready() -> void:
 	_update_level_markers()
 	_create_systems()
 	_load_initial_state()
+	_wire_destructible_rewards()
 	call_deferred("_generate_navigation")
 	if "--smoke-test" in OS.get_cmdline_user_args():
 		get_tree().create_timer(2.0).timeout.connect(_run_smoke_test)
@@ -305,6 +314,14 @@ func _create_systems() -> void:
 	_phase_polisher.name = "BossPhasePolisher"
 	_phase_polisher.setup(_camera_director)
 	add_child(_phase_polisher)
+	_impact_vfx = ImpactVfxScript.new()
+	_impact_vfx.name = "ImpactVfx"
+	add_child(_impact_vfx)
+	_phase_environment = PhaseEnvironmentScript.new()
+	_phase_environment.name = "PhaseEnvironment"
+	add_child(_phase_environment)
+	if world_environment != null:
+		_phase_environment.bind(world_environment, _find_key_light())
 	_fate_overlay = FateChoiceOverlayScript.new()
 	_fate_overlay.name = "FateChoiceOverlay"
 	add_child(_fate_overlay)
@@ -410,9 +427,39 @@ func _clear_enemies() -> void:
 	guardian = null
 
 
+## L-25：主场景静态 GLB 药罐（hub_props 组）只在初始庭园（含烬火神龛）显示
+func _update_hub_props() -> void:
+	var is_start_level := campaign_runtime == null \
+		or String(campaign_runtime.current_level_id) == "level_01_01"
+	for prop in get_tree().get_nodes_in_group("hub_props"):
+		if prop is Node3D and is_instance_valid(prop):
+			prop.visible = is_start_level
+
+
+## L-25：可破坏物奖励接线（hub 静态药罐 + 场地导演生成的药罐），幂等可重入
+func _wire_destructible_rewards() -> void:
+	for prop in get_tree().get_nodes_in_group("destructibles"):
+		if prop is Node3D and prop.has_signal("broken"):
+			var handler := _on_destructible_broken.bind(prop)
+			if not prop.is_connected("broken", handler):
+				prop.broken.connect(handler)
+
+
+## L-25：药罐碎裂 → 余烬奖励 + 尘土冲击表现
+func _on_destructible_broken(_source_position: Vector3, prop) -> void:
+	if prop == null or not is_instance_valid(prop):
+		return
+	var reward := int(prop.get("ember_reward"))
+	if reward > 0 and player != null:
+		player.add_embers(reward)
+	if _impact_vfx != null:
+		_impact_vfx.spawn_impact((prop as Node3D).global_position + Vector3.UP * 0.4, Vector3.UP, "dust")
+
+
 func _spawn_chapter_encounters() -> void:
 	# 相对标记点生成第一章教程遭遇
 	_clear_enemies()
+	_update_hub_props()
 	if campaign_runtime == null:
 		return
 	var spawn_marker := campaign_runtime.get_spawn_marker()
@@ -900,7 +947,22 @@ func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guard
 	add_child(enemy)
 	enemies.append(enemy)
 	_attach_boss_flow(enemy, payload)
+	if is_guardian:
+		_setup_boss_arena(enemy)
 	return enemy
+
+
+## L-26：守卫 Boss 入场——场地导演建塌陷环 + 药罐，相变时联动塌陷
+func _setup_boss_arena(boss_enemy) -> void:
+	if _arena_director != null and is_instance_valid(_arena_director):
+		_arena_director.queue_free()
+	_arena_director = ArenaDirectorScript.new()
+	_arena_director.name = "ArenaDirector"
+	add_child(_arena_director)
+	_arena_director.setup(self)
+	_arena_director.set_trauma_shake(_trauma_shake)
+	_arena_director.build_arena(boss_enemy.global_position)
+	_wire_destructible_rewards()
 
 
 ## P0-2：把内容 dict 的可选 "flow" 专属流程挂到 boss 上（BossFlowController 主机）。
@@ -1489,6 +1551,11 @@ func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
 			hud.hide_boss()
 			hud.show_victory()
 			audio.play_cue("victory", -2.0)
+			# L-24/L-26：Boss 战后恢复环境基调并清场（塌陷环收尾）
+			if _phase_environment != null:
+				_phase_environment.restore_defaults()
+			if _arena_director != null:
+				_arena_director.on_boss_died()
 			_save_run("guardian_defeated")
 			# Boss 胜后解封并打开通往下一关出口
 			_open_boss_victory_exit()
@@ -2148,11 +2215,46 @@ func on_boss_phase_changed(enemy, new_phase: int) -> void:
 	if not bool(enemy.get("guardian")):
 		return
 	_phase_polisher.play_transition(enemy, int(new_phase))
+	# L-24/L-26：相变环境漂移（读取该阶段 phases.lighting 键）+ 场地事件（arena_event）+ 短促 hit-stop 镜头节拍
+	if _phase_environment != null and _phase_environment.is_bound():
+		var lighting_key := _phase_lighting_key(enemy, int(new_phase))
+		_phase_environment.apply_lighting_key(lighting_key)
+	if _arena_director != null:
+		_arena_director.on_boss_phase(enemy, int(new_phase))
+	if _hit_stop_manager != null and not bool(game_settings.reduced_motion):
+		_hit_stop_manager.trigger(player, enemy, 0.1, float(Engine.physics_ticks_per_second))
 	if hud != null and int(new_phase) >= 2:
 		hud.show_message(
 			LocalizationScript.text("PHASE %d") % int(new_phase),
 			1.2
 		)
+
+
+## L-24：读 Boss 内容 phases[str(phase)]["lighting"]；缺失回退空串（由环境器做通用渐变）
+func _phase_lighting_key(enemy, phase: int) -> String:
+	if not ("chapter_content" in enemy):
+		return ""
+	var phases: Variant = enemy.chapter_content.get("phases", {})
+	if typeof(phases) != TYPE_DICTIONARY or not (phases as Dictionary).has(str(phase)):
+		return ""
+	return String((phases as Dictionary)[str(phase)].get("lighting", ""))
+
+
+## L-24：找主方向光（Moonlight），供环境器绑定
+func _find_key_light() -> Light3D:
+	for child in get_children():
+		if child is DirectionalLight3D:
+			return child
+	return null
+
+
+## L-24：Boss AoE 落点冲击表现（boss_attack_executor 以 has_method 探测调用）
+func spawn_boss_impact_vfx(position: Vector3, radius: float) -> void:
+	if _impact_vfx != null:
+		_impact_vfx.spawn_slam_ring(position, "ember")
+		_impact_vfx.spawn_impact(position, Vector3.UP, "ember", clampf(radius * 0.35, 0.8, 2.2))
+	if _trauma_shake != null:
+		_trauma_shake.inject(clampf(radius * 0.12, 0.3, 0.8))
 
 
 func _on_boss_grab_started(_target, enemy) -> void:
@@ -2336,6 +2438,11 @@ func _on_player_hit_landed(target: Node3D, is_heavy: bool) -> void:
 	_hit_stop_manager.trigger(player, target, duration, float(Engine.physics_ticks_per_second))
 	var weight := _resolve_hit_trauma_weight(is_heavy)
 	_trauma_shake.inject_weight(weight)
+	# L-24：命中点冲击粒子（Boss 石躯 = 石火，其余 = 钢火）
+	if _impact_vfx != null and target is Node3D:
+		var hit_point: Vector3 = target.get_target_point() if target.has_method("get_target_point") else (target as Node3D).global_position
+		var kind := "stone_sparks" if bool(target.get("guardian")) else "steel"
+		_impact_vfx.spawn_impact(hit_point, Vector3.UP, kind, 1.4 if is_heavy else 1.0)
 	# 重击命中：短时 Master 低通 duck（headless 内为 no-op）
 	if is_heavy and audio != null and is_instance_valid(audio) and audio.has_method("duck_heavy_impact"):
 		audio.duck_heavy_impact()

@@ -236,8 +236,8 @@ const VOID_RECOVER_Y := -36.0
 const VOID_DROP_FROM_SAFE := 28.0
 const LOCK_ON_MAX_DISTANCE := 18.0
 const LOCK_ON_BREAK_DISTANCE := 22.0
-# F-03：锁敌镜头四元数 slerp 速度（越大越贴目标）
-const LOCK_ON_CAMERA_SLERP := 4.5
+# G-05：锁敌取景解算器（纯静态数学：偏航/俯仰/臂长/指数权重）
+const LockCameraSolverScript = preload("res://scripts/camera/lock_camera_solver.gd")
 # F-05：断锁后镜头回正时长与插值速度
 const LOCK_CAMERA_RECOVER_TIME := 0.5
 const LOCK_CAMERA_RECOVER_SPEED := 5.0
@@ -3221,22 +3221,33 @@ func _update_camera_rig(delta: float) -> void:
 	camera_rig.global_position = global_position + Vector3.UP * 1.45
 	if _camera_director_override:
 		return
-	# F-03：锁敌用 Quaternion slerp，禁止 look_at 瞬转
+	# G-05：锁敌取景——镜头驻留玩家身后，缓慢跟踪玩家→目标连线（DS 式绕背）
 	if lock_target != null and is_instance_valid(lock_target):
 		_camera_recover_timer = 0.0
 		_camera_recenter_timer = CAMERA_RECENTER_DELAY
 		var point: Vector3 = lock_target.get_target_point() if lock_target.has_method("get_target_point") else lock_target.global_position
-		var direction: Vector3 = point - camera_rig.global_position
-		var horizontal_direction := Vector3(direction.x, 0.0, direction.z)
-		if horizontal_direction.length_squared() > 0.001:
-			var target_basis := Basis.looking_at(horizontal_direction.normalized(), Vector3.UP)
-			var current_quaternion := camera_rig.global_basis.get_rotation_quaternion()
-			var target_quaternion := target_basis.get_rotation_quaternion()
-			var blended := current_quaternion.slerp(target_quaternion, clampf(delta * LOCK_ON_CAMERA_SLERP, 0.0, 1.0))
-			camera_rig.global_basis = Basis(blended)
-		var horizontal := Vector2(direction.x, direction.z).length()
-		var desired_pitch := -atan2(direction.y, maxf(horizontal, 0.01)) - 0.08
-		camera_pitch.rotation.x = lerp_angle(camera_pitch.rotation.x, clampf(desired_pitch, -0.65, 0.25), clampf(delta * 3.5, 0.0, 1.0))
+		# 偏航：只转 rig 的 Y，慢速指数插值——玩家绕敌环走时世界缓慢旋转，不甩镜
+		var yaw_target: float = LockCameraSolverScript.desired_yaw(global_position, point, camera_rig.rotation.y)
+		camera_rig.rotation.y = lerp_angle(
+			camera_rig.rotation.y,
+			yaw_target,
+			LockCameraSolverScript.exp_weight(LockCameraSolverScript.YAW_TRACK_SPEED, delta)
+		)
+		# 俯仰：瞄准玩家头顶与目标胸口的中点（中点偏向目标）
+		var pitch_target: float = LockCameraSolverScript.desired_pitch(global_position, point, camera_rig.global_position)
+		camera_pitch.rotation.x = lerp_angle(
+			camera_pitch.rotation.x,
+			pitch_target,
+			LockCameraSolverScript.exp_weight(LockCameraSolverScript.PITCH_SPEED, delta)
+		)
+		# 臂长：随分离距离展宽，让玩家与目标同框
+		var separation: float = global_position.distance_to(point)
+		var boom_target: float = LockCameraSolverScript.desired_boom(separation)
+		spring_arm.spring_length = lerpf(
+			spring_arm.spring_length,
+			boom_target,
+			LockCameraSolverScript.exp_weight(LockCameraSolverScript.BOOM_SPEED, delta)
+		)
 		return
 	# F-05：断锁后偏航对齐角色，俯仰回默认轻度俯视
 	if _camera_recover_timer > 0.0:
@@ -3244,6 +3255,8 @@ func _update_camera_rig(delta: float) -> void:
 		var weight := clampf(delta * LOCK_CAMERA_RECOVER_SPEED, 0.0, 1.0)
 		camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, rotation.y, weight)
 		camera_pitch.rotation.x = lerp_angle(camera_pitch.rotation.x, LOCK_CAMERA_DEFAULT_PITCH, weight)
+		# G-05：断锁后臂长缓慢收回基础长度
+		spring_arm.spring_length = lerpf(spring_arm.spring_length, LockCameraSolverScript.BOOM_BASE, LockCameraSolverScript.exp_weight(LockCameraSolverScript.BOOM_SPEED, delta))
 		return
 	# F-06：无手动输入一段时间后，镜头回跟角色朝向（速度越快越贴）
 	_camera_recenter_timer = maxf(_camera_recenter_timer - delta, 0.0)

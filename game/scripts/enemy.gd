@@ -39,6 +39,7 @@ enum EnemyType {
 const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
 const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
+const EnemyRigHook = preload("res://scripts/core/enemy_rig_hook.gd")
 const ChapterEnemyFactory = preload("res://scripts/combat/enemy_factory.gd")
 const ModelFx = preload("res://scripts/fx/model_fx.gd")
 const ModelMotionProfiles = preload("res://scripts/data/model_motion_profiles.gd")
@@ -189,6 +190,7 @@ var _model_base_y_set := false
 var _vfx_emitted := false
 ## L-20：视觉树 Skeleton3D 缓存（骨锚解析用；模型重建后按 is_inside_tree 失效）
 var _enemy_skeleton_cache: Skeleton3D = null
+var _rig_sway_time := 0.0   # Phase C: time accumulator for the rig idle sway
 
 var navigation_agent: NavigationAgent3D
 var body_collision: CollisionShape3D
@@ -1733,6 +1735,9 @@ func _real_model_idle_vfx(delta: float) -> void:
 	var model_root := body_visual_root.get_node_or_null("ModelRoot") as Node3D
 	if model_root == null:
 		return
+	# Bone-level idle sway (Phase C proof): if a runtime rig skeleton was built,
+	# drive a gentle spine/neck rotation so the enemy is visibly posed by BONES.
+	_apply_rig_idle_sway(delta)
 	if not _model_base_y_set:
 		_model_base_y = model_root.position.y
 		_model_base_y_set = true
@@ -1742,6 +1747,25 @@ func _real_model_idle_vfx(delta: float) -> void:
 	ModelFx.ensure_ambient(body_visual_root, vfx.get("ambient", {}))
 	if vfx.has("aura"):
 		ModelFx.ensure_aura(body_visual_root, vfx["aura"])
+
+
+## Phase C proof: if a runtime rig skeleton is cached, apply a gentle sinusoidal
+## spine/neck bone sway so the enemy is visibly posed at the BONE level (the
+## whole-node ModelMotionProfile motion continues to run on top as the base).
+func _apply_rig_idle_sway(delta: float) -> void:
+	var skel := _get_enemy_skeleton()
+	if skel == null:
+		return
+	_rig_sway_time += delta
+	var t := _rig_sway_time
+	var sway := sin(t * 1.2) * 0.04          # ~2.3s period, subtle
+	var breathe := sin(t * 0.8) * 0.02       # slow vertical-ish cue via Hips pitch
+	var spine := skel.find_bone("spine")
+	var neck := skel.find_bone("neck")
+	if spine != -1:
+		skel.set_bone_pose_rotation(spine, Basis(Vector3.UP, sway) * Basis(Vector3.RIGHT, breathe))
+	if neck != -1:
+		skel.set_bone_pose_rotation(neck, Basis(Vector3.UP, -sway * 0.6))
 
 
 func _update_state_visuals() -> void:
@@ -1814,6 +1838,13 @@ func _ensure_visual_palette() -> void:
 		CharacterMeshFactory.build_enemy(body_visual_root, type_key, body_material)
 		WeaponMeshFactory.build_enemy_weapon(weapon_pivot, type_key, weapon_material)
 	weapon_pivot.rotation = Vector3(0.0, 0.0, -0.2)
+	# Rig a whitelisted enemy with a runtime bone skeleton so it can be posed at
+	# the bone level (not just whole-node). Non-listed enemies: no-op.
+	if not chapter_content.is_empty():
+		var eid := String(chapter_content.get("id", ""))
+		var rig := EnemyRigHook.ensure_rig(body_visual_root, eid)
+		if rig != null:
+			_enemy_skeleton_cache = rig
 
 
 func _visual_identity_key() -> String:

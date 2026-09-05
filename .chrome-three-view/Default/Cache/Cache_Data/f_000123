@@ -1,0 +1,459 @@
+// ============================================================================
+// 全 GLB 模型核对查看器 —— 逐个加载 game/assets/models/ 下全部模型,
+// 用 three.js 渲染 + SkeletonHelper 显示骨架,针对 chrome-devtools 自动化:
+//   window.goTo(i)           切到第 i 个模型(返回 Promise,ready 后解析)
+//   window.__model           当前 index
+//   window.__total           模型总数
+// 每次 goTo 完成后把模型居中、贴地、自动旋转,便于截图核对。
+// ============================================================================
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const loader = new GLTFLoader();
+const $ = (id) => document.getElementById(id);
+const info = $('info');
+const modelSel = $('modelSel');
+
+// --- 场景 / 相机 / 渲染器 ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x171b22);
+scene.fog = null;
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 80);
+camera.position.set(3.8, 2.4, 4.2);
+const viewCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1000);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;   // 更细腻的高光/细节
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+const groundY = -1.4;
+const grid = new THREE.GridHelper(14, 40, 0x3a4250, 0x232933);
+grid.position.y = groundY; scene.add(grid);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: 0.35 }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = groundY; ground.receiveShadow = true;
+scene.add(ground);
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.35));
+const key = new THREE.DirectionalLight(0xfff4df, 2.1);
+key.position.set(4, 6, 5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0005;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 1.55);  // 审计正面补光
+fill.position.set(0, 2.5, 6); scene.add(fill);
+const backFill = new THREE.DirectionalLight(0xffffff, 1.25);  // 审计背面补光
+backFill.position.set(0, 3, -6); scene.add(backFill);
+const sideFill = new THREE.DirectionalLight(0xddeeff, 0.9);
+sideFill.position.set(-5, 3, 0); scene.add(sideFill);
+const rim = new THREE.DirectionalLight(0x8ab8ff, 0.65);
+rim.position.set(4, 4, -4); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xaabbdd, 0x3a3028, 0.95));
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.4;
+controls.target.set(0, 1.0, 0);
+
+// --- 运行时状态 ---
+const state = {
+  list: [],          // {path, name, category}
+  index: -1,
+  root: null, mixer: null, clips: [], actions: [],
+  skeleton: null, helper: null,
+  showSkeleton: true, autoRotate: true,
+  loading: false,
+  loadPromise: null,
+  activeCamera: camera,
+};
+
+// --- 归一化:等比缩放到统一身高,底部贴地、水平居中 ---
+function normalizeModel(model, targetHeight = 2.4) {
+  const bb = new THREE.Box3().setFromObject(model);
+  const size = bb.getSize(new THREE.Vector3());
+  const center = bb.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const s = targetHeight / maxDim;
+  model.scale.setScalar(s);
+  const nb = new THREE.Box3().setFromObject(model); // 缩放后的包围盒
+  model.position.set(-(nb.min.x + nb.max.x) / 2, groundY - nb.min.y, -(nb.min.z + nb.max.z) / 2);
+  model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return Math.max(size.x, size.y, size.z);
+}
+
+function disposeModel() {
+  if (state.mixer) { state.mixer.stopAllAction(); state.mixer.uncacheRoot(state.root); state.mixer = null; }
+  if (state.helper) { scene.remove(state.helper); state.helper.geometry?.dispose?.(); state.helper = null; }
+  if (state.root) {
+    state.root.traverse((o) => { if (o.isMesh) { o.geometry?.dispose?.(); o.material?.dispose?.(); } });
+    scene.remove(state.root);
+  }
+  state.root = state.clips = state.actions = null;
+  state.skeleton = null;
+}
+
+// --- 加载第 i 个模型（所有调用共享同一个串行 Promise） ---
+async function loadModel(i) {
+  if (i < 0 || i >= state.list.length) return null;
+  if (state.loading && state.loadPromise) {
+    await state.loadPromise;
+    if (state.index === i && state.root) return state.root;
+  }
+  if (!state.loading && state.index === i && state.root) return state.root;
+
+  const loadTask = (async () => {
+    state.loading = true;
+    disposeModel();
+    state.index = i;
+    const def = state.list[i];
+    info.innerHTML = `加载中 <b>${def.name}</b> (${def.category})…`;
+    try {
+      const gltf = await new Promise((res, rej) => loader.load('/game-models/' + def.path.split('/').map(encodeURIComponent).join('/'), res, undefined, rej));
+      const model = gltf.scene;
+      const dim = normalizeModel(model);
+
+      let skinned = null;
+      model.traverse((o) => { if (!skinned && o.isSkinnedMesh) skinned = o; });
+      state.skeleton = skinned ? skinned.skeleton : null;
+      state.mixer = new THREE.AnimationMixer(model);
+      state.clips = gltf.animations || [];
+      state.actions = state.clips.map((c) => state.mixer.clipAction(c));
+      if (state.clips.length) {
+        state.actions[0].reset().play();
+        state.mixer.timeScale = 0;
+      }
+
+      state.root = model;
+      scene.add(model);
+      if (state.skeleton) {
+        state.helper = new THREE.SkeletonHelper(model);
+        state.helper.visible = state.showSkeleton;
+        scene.add(state.helper);
+      }
+
+      const clipTxt = state.clips.length
+        ? state.clips.map((c) => `「${c.name}」${c.duration.toFixed(2)}s`).join(' / ')
+        : '<span class="bad">无(静态网格)</span>';
+      const skelTxt = state.skeleton
+        ? `<b class="ske">${state.skeleton.bones.length}</b> 个骨骼关节`
+        : '<span class="bad">无蒙皮骨架</span>';
+      info.innerHTML =
+        `<span class="ok">✅</span> <b>${def.name}</b><br>`
+        + `<span class="cat">${def.category} · ${(i + 1)}/${state.list.length} · 最长边 ${dim.toFixed(2)}m</span><br>`
+        + `蒙皮: ${skinned ? '是' : '<span class="bad">否</span>'} · 骨架: ${skelTxt}<br>`
+        + `动画剪辑 <b>${state.clips.length}</b> 个: ${clipTxt}<br>`
+        + `<span class="cat">3D 校验 · 自动旋转 · 骨骼网络</span>`;
+      updateSelect();
+      return model;
+    } catch (err) {
+      state.root = null;
+      info.innerHTML = `<span class="bad">❌ 加载失败</span> <b>${def.name}</b> (${def.category}):<br>${err.message}`;
+      console.error('[all-models] load fail', def.path, err);
+      return null;
+    } finally {
+      state.loading = false;
+    }
+  })();
+
+  state.loadPromise = loadTask;
+  const result = await loadTask;
+  if (state.loadPromise === loadTask) state.loadPromise = null;
+  return result;
+}
+
+function updateSelect() {
+  modelSel.value = String(state.index);
+}
+
+function refreshNav() {
+  // 下拉填充(一次即可,后续只更新已选项)
+  if (modelSel.options.length !== state.list.length) {
+    modelSel.innerHTML = '';
+    state.list.forEach((m, i) => {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = `[${String(i + 1).padStart(2, '0')}] ${m.name}`;
+      modelSel.appendChild(opt);
+    });
+  }
+  updateSelect();
+}
+
+// --- 对外自动化 API ---
+window.goTo = (i) => loadModel(i);
+window.goNext = () => loadModel(state.index + 1);
+window.goPrev = () => loadModel(state.index - 1);
+window.getState = () => ({ index: state.index, total: state.list.length, name: state.list[state.index]?.name });
+window.__model = () => state.index;
+window.__total = () => state.list.length;
+
+// --- UI 事件 ---
+$('prev').addEventListener('click', () => loadModel(state.index - 1));
+$('next').addEventListener('click', () => loadModel(state.index + 1));
+modelSel.addEventListener('change', (e) => loadModel(+e.target.value));
+$('skeletonChk').addEventListener('change', (e) => {
+  state.showSkeleton = e.target.checked;
+  if (state.helper) state.helper.visible = state.showSkeleton;
+});
+$('autorotChk').addEventListener('change', (e) => {
+  state.autoRotate = e.target.checked;
+  controls.autoRotate = state.autoRotate;
+});
+
+// --- 主循环 ---
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const delta = Math.min(clock.getDelta(), 0.05);
+  if (state.mixer) state.mixer.update(delta);
+  controls.update();
+  renderer.render(scene, state.activeCamera);
+});
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// --- 聚焦重拍:绕当前模型包围盒取一个受控 3/4 近景,关闭自动旋转,便于复核 ---
+window.focus = () => {
+  state.activeCamera = camera;
+  controls.autoRotate = false; controls.enableDamping = false;
+  if (state.root) {
+    const bb = new THREE.Box3().setFromObject(state.root);
+    const size = bb.getSize(new THREE.Vector3());
+    const c = bb.getCenter(new THREE.Vector3());
+    const r = Math.max(size.x, size.y, size.z) / 2;
+    const dist = Math.max(r * 2.4, 2.2);
+    controls.target.copy(c);
+    camera.position.set(c.x + dist * 0.75, c.y + dist * 0.55, c.z + dist * 0.9);
+    camera.lookAt(c);
+  }
+  controls.update();
+  return 'focused';
+};
+
+// --- 三视图截图:front(+Z) / back(-Z) / top(+Y),强制显示骨骼网络 ---
+function frameView(view) {
+  const bb = new THREE.Box3().setFromObject(state.root);
+  const size = bb.getSize(new THREE.Vector3());
+  const c = bb.getCenter(new THREE.Vector3());
+  const aspect = Math.max(innerWidth / Math.max(innerHeight, 1), 1);
+  const projectedWidth = size.x;
+  const projectedHeight = view === 'top' ? size.z : size.y;
+  const margin = 1.25;
+  const halfHeight = Math.max(projectedHeight * margin / 2, 0.5);
+  const halfWidth = Math.max(projectedWidth * margin / 2, halfHeight * aspect);
+  viewCamera.left = -halfWidth;
+  viewCamera.right = halfWidth;
+  viewCamera.top = halfHeight;
+  viewCamera.bottom = -halfHeight;
+  viewCamera.near = 0.01;
+  viewCamera.far = Math.max(size.x, size.y, size.z) * 10 + 10;
+  viewCamera.up.set(0, 1, 0);
+  if (view === 'front') {
+    viewCamera.position.set(c.x, c.y, c.z + viewCamera.far / 2);
+  } else if (view === 'back') {
+    viewCamera.position.set(c.x, c.y, c.z - viewCamera.far / 2);
+  } else if (view === 'top') {
+    viewCamera.up.set(0, 0, -1);
+    viewCamera.position.set(c.x, c.y + viewCamera.far / 2, c.z);
+  } else {
+    throw new Error(`unknown view: ${view}`);
+  }
+  viewCamera.lookAt(c);
+  viewCamera.updateProjectionMatrix();
+  viewCamera.updateMatrixWorld();
+  state.activeCamera = viewCamera;
+  controls.autoRotate = false;
+  controls.enableDamping = false;
+  controls.target.copy(c);
+  state.showSkeleton = true;
+  if (state.helper) {
+    state.helper.visible = true;
+    if (state.helper.material) state.helper.material.depthTest = false;
+  }
+  return { center: c, width: halfWidth * 2, height: halfHeight * 2 };
+}
+
+window.shootView = async (i, view) => {
+  const root = await loadModel(i);
+  if (!root || state.index !== i || !state.root) return `${i} ${view} NO_MODEL`;
+  frameView(view);
+  await new Promise((res) => setTimeout(res, 180));
+  const def = state.list[i];
+  const name = `${String(i).padStart(2, '0')}_${def.category}_${def.name}_${view}.png`.replace(/[\\/:*?"<>|]/g, '_');
+  const st = await window.captureNow(name, { index: i, ...def, view });
+  return `${i} ${view} ${st.ok ? 'OK' : 'FAIL'} ${def.name}`;
+};
+
+window.shootAllViews = async (start = 0, end = state.list.length - 1) => {
+  const out = [];
+  for (let i = start; i <= Math.min(end, state.list.length - 1); i++) {
+    await loadModel(i);
+    for (const view of ['front', 'back', 'top']) out.push(await window.shootView(i, view));
+  }
+  return out.join('\n');
+};
+
+// 暴露当前模型的骨骼/蒙皮信息,便于诊断
+window.boneInfo = () => {
+  const skel = state.skeleton;
+  let bones = 0, skinned = false;
+  if (skel) { bones = skel.bones.length; skinned = true; }
+  else state.root?.traverse((o) => { if (o.isSkinnedMesh) skinned = true; });
+  return { index: state.index, bones, skinned, name: state.list[state.index]?.name };
+};
+
+// ============================================================================
+// 骨骼网络叠加层 —— 与 Godot 端 part_rig_builder.gd 同一套部件名->骨骼映射,
+// 逐骨在"部件质心"处画关节球 + 父骨->子骨连线,用于 VLM 检查骨骼是否贴合模型。
+// window.showBones()/hideBones()/shootBones(i)
+// ============================================================================
+const BONE_TREE = {
+  'root':null,'hips':'root','spine':'hips','chest':'spine','neck':'chest','head':'neck',
+  'upper_arm.L':'chest','upper_arm.R':'chest','forearm.L':'upper_arm.L','forearm.R':'upper_arm.R',
+  'hand.L':'forearm.L','hand.R':'forearm.R','thigh.L':'hips','thigh.R':'hips',
+  'shin.L':'thigh.L','shin.R':'thigh.R','foot.L':'shin.L','foot.R':'shin.R',
+  'tail':'root','wing.L':'chest','wing.R':'chest',
+};
+function side(n){ n=n.toLowerCase();
+  if(/fl$|hl$|_fl|_hl/.test(n)) return 'L';
+  if(/fr$|hr$|_fr|_hr/.test(n)) return 'R';
+  if(/^l_/.test(n)||/^r_/.test(n)||/^\.l/.test(n)||/^\.r/.test(n)) return /^l|^\.l/.test(n)?'L':'R';
+  if(/\.l$|_l$|_la$|_lb$|_lt$/.test(n)) return 'L';
+  if(/\.r$|_r$|_ra$|_rb$|_rt$/.test(n)) return 'R';
+  // bare trailing L/R preceded by a consonant (legL, armR, handR, footL, greaveL)
+  if(n.length>=3){ const last=n.slice(-1), prev=n.slice(-2,-1);
+    if((last==='l'||last==='r') && !/[aeiou_\.]/.test(prev)) return last==='l'?'L':'R'; }
+  return ''; }
+function has_(n,ws){ for(const w of ws) if(n.includes(w)) return true; return false; }
+function boneForPart(name, hintSide){
+  const n=name.toLowerCase(), s=hintSide||side(n), sided=s!=='';
+  const L=(b)=> sided? b+'.'+s : b+'.L';
+  // held props follow the hand, NEVER the head
+  if(has_(n,['sword','blade','grip','pommel','haft','shaft','spear','axe_handle','weapon','knife','bow','quiver','staff'])) return L('hand');
+  if(has_(n,['foot','boot','ankle','toe','paw'])) return L('foot');
+  if(has_(n,['shin','calf','greave','knee_lower','knee_joint','knee_cap']) || (n.includes('leg_')&&/_l$/.test(n))) return L('shin');
+  if(has_(n,['thigh','upper_leg','knee_upper']) || (n.includes('leg_')&&/_u$|_fl_u$|_hl_u$/.test(n))) return L('thigh');
+  if(has_(n,['leg','haunch','paw_'])) return L('thigh');     // whole leg (legL, legFL)
+  if(has_(n,['fist','hand','palm','claw'])) return L('hand');
+  if(has_(n,['forearm','vambrace','elbow','arm_lower'])) return L('forearm');
+  if(has_(n,['upperarm','upper_arm','shoulder_base','pauldron','shoulder','arm'])) return L('upper_arm');
+  if(has_(n,['axe_head','mace','hammer_head','shield','shield_head','skull_trophy','skull_cord'])) return L('hand');
+  if(has_(n,['head','mask','face','skull','muzzle','helm','helmet','snout','nose','eye','ear','whisker'])) return 'head';
+  if(has_(n,['neck','neck_guard','throat'])) return 'neck';
+  if(has_(n,['pelvis','hips','hip','belt','waist','skirt','tasset'])) return 'hips';
+  if(has_(n,['tail'])) return 'tail';
+  if(has_(n,['wing'])) return sided? 'wing.'+s : 'wing.L';
+  return ''; // unmapped -> spine anchor
+}
+function ancestorSide(o){ let p=o.parent; while(p){ const s=side(p.name); if(s) return s; p=p.parent; } return ''; }
+let boneGroup = null;
+function clearBones(){ if(boneGroup){ state.root?.remove(boneGroup); boneGroup.traverse(o=>{o.geometry?.dispose?.(); o.material?.dispose?.();}); boneGroup=null; } }
+window.showBones = () => {
+  clearBones();
+  if(!state.root) return;
+  const byBone={};
+  let anyName=false;
+  state.root.traverse((o)=>{ if(o.isMesh && o.name && o.name!=='ModelRoot' && o.name!=='BodyRoot'){ anyName=true; const b=boneForPart(o.name, ancestorSide(o));
+    if(!b) return; // skip unmapped details -> only real bones
+    o.geometry?.computeBoundingBox?.();
+    const c=o.geometry?.boundingBox? o.geometry.boundingBox.getCenter(new THREE.Vector3()) : o.position.clone(); o.localToWorld(c); (byBone[b]??=[]).push(c); } });
+  if(!anyName || !Object.keys(byBone).length){ state.emptyBones=true; return; }  // fused -> nothing to draw
+  state.emptyBones=false;
+  // joint per bone = proximal point (part-center of this bone nearest the parent
+  // joint), so pivots sit at hips/knee/shoulder/elbow instead of part centroid.
+  const centroids={}; for(const b in byBone){ const a=byBone[b]; const c=new THREE.Vector3(); a.forEach(v=>c.add(v)); centroids[b]=c.divideScalar(a.length); }
+  const joint={};
+  const hipsC = centroids['hips'] || centroids['spine'] || new THREE.Vector3();
+  joint['root']=hipsC.clone(); joint['hips']=centroids['hips']||hipsC.clone();
+  const bOrder=Object.keys(BONE_TREE);
+  for(const b of bOrder){ if(b==='root'||b==='hips') continue; const p=BONE_TREE[b]; const pp=joint[p]||hipsC; const arr=byBone[b];
+    if(!arr || !arr.length) continue;   // ADAPTIVE: bones with no mapped part are not drawn (no phantom limbs)
+    let best=null,bd=Infinity; for(const v of arr){ const d=v.distanceTo(pp); if(d<bd){bd=d; best=v;} }
+    joint[b]=best?best.clone():pp.clone(); }
+  boneGroup=new THREE.Group();
+  const bmat=new THREE.LineBasicMaterial({color:0x33ff66, depthTest:false}); boneGroup.renderOrder=999;
+  const pts=[]; for(const b in joint){ if(b==='hips') continue; const p = (b==='root')? '' : BONE_TREE[b]; const pj = (b==='root')? joint['hips'] : joint[p];
+    if(pj && joint[b]){ pts.push(pj, joint[b]); } }
+  if(pts.length){ const g=new THREE.BufferGeometry().setFromPoints(pts); boneGroup.add(new THREE.LineSegments(g,bmat)); }
+  const smat=new THREE.MeshBasicMaterial({color:0xffe04a, depthTest:false});
+  for(const b in joint){ const sp=new THREE.Mesh(new THREE.SphereGeometry(0.07,10,10),smat); sp.position.copy(joint[b]); boneGroup.add(sp); }
+  state.root.add(boneGroup);
+};
+window.hideBones = () => { clearBones(); state.emptyBones=false; };
+window.shootBones = async (i) => { await loadModel(i); window.focus(); window.showBones(); controls.autoRotate=false; await new Promise(r=>setTimeout(r,180));
+  const def=state.list[i];
+  if(state.emptyBones){ return `${i} bones FUSED/EMPTY ${def.name}`; }   // no named parts -> nothing to draw
+  const name=`${String(i).padStart(2,'0')}_${def.category}_${def.name}_bones.png`.replace(/[\\/:*?"<>|]/g,'_');
+  const st=await window.captureNow(name); return `${i} bones ${st.ok?'OK':'FAIL'} ${def.name}`; };
+
+// --- 批量骨网截图:对所有"有命名部件"的模型逐一拍 bones 图,记录空/融合模型 ---
+window.shootAllBones = async (start, end) => {
+  const out=[];
+  for(let i=(start??0); i<=Math.min(end??state.list.length-1, state.list.length-1); i++){
+    out.push(await window.shootBones(i));
+  }
+  return out.join('\n');
+};
+
+// --- 自截图工具:渲染当前 canvas,POST 到 /capture 落盘 ---
+window.captureNow = async (name, identity = {}) => {
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const dataURL = renderer.domElement.toDataURL('image/png');
+  const infoText = document.getElementById('info').innerText;
+  const expected = state.list[identity.index];
+  const ok = infoText.includes('✅')
+    && expected
+    && state.index === identity.index
+    && expected.name === identity.name
+    && expected.category === identity.category
+    && identity.view;
+  if (!ok) {
+    return { ok: false, err: `identity mismatch: ${JSON.stringify({ state: state.index, identity, info: infoText })}` };
+  }
+  const response = await fetch('/capture', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ filename: name, data64: dataURL, identity }),
+  });
+  if (!response.ok) {
+    return { ok: false, err: `capture HTTP ${response.status}` };
+  }
+  return { ok: true, err: '' };
+};
+
+// --- 批量:逐个加载 + 截图,结果写入 window.__batch ---
+window.runBatch = async () => {
+  const results = [];
+  for (let i = 0; i < state.list.length; i++) {
+    const def = state.list[i];
+    await loadModel(i);
+    const name = `${String(i).padStart(2, '0')}_${def.category}_${def.name}.png`.replace(/[\\/:*?"<>|]/g, '_');
+    const r = await window.captureNow(name);
+    results.push({ i, name: def.name, category: def.category, ok: r.ok, err: r.err });
+  }
+  window.__batch = results;
+  return results.map((r) => `${r.i} ${r.ok ? 'OK ' : 'FAIL'} ${r.name}${r.err ? ' :: ' + r.err : ''}`).join('\n');
+};
+
+// --- 启动:拉取清单,初始按 URL ?i= (默认 0) ---
+async function boot() {
+  try {
+    const resp = await fetch('/game-models/list.json');
+    const data = await resp.json();
+    state.list = data.models || [];
+    refreshNav();
+    const qIdx = parseInt(new URLSearchParams(location.search).get('i') || '0', 10);
+    await loadModel(Number.isNaN(qIdx) ? 0 : Math.max(0, Math.min(qIdx, state.list.length - 1)));
+  } catch (err) {
+    info.innerHTML = `<span class="bad">❌ 清单加载失败</span>: ${err.message}`;
+    console.error(err);
+  }
+}
+boot();

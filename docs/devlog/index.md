@@ -6,6 +6,14 @@
 
 ## 日期索引
 
+### 2026-08-24
+
+- [**Three.js GLB 三视图截图管线修复与重拍验证**](2026-08-24/01-three-view-capture-repair-and-validation.md)
+
+### 2026-08-23
+
+- [**类魂镜头取景 · 战斗 VFX · Boss 场地互动 · GLB 真入玩法（研究 + 多子代理并行）**](2026-08-23/01-souls-camera-vfx-arena-glb.md)
+
 ### 2026-08-13
 
 - [**会话执行复盘：全量 fix all → 浏览器预览 → frontenddebugger 调试**](2026-08-13/01-full-fixall-web-preview-frontend-debug-reflection.md)

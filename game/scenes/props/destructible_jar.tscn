@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/props/07-Pickups.glb" id="1_pickups"]
+[ext_resource type="Script" path="res://scripts/world/destructible_prop.gd" id="2_script"]
+
+[node name="DestructibleJar" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("2_script")
+
+[node name="Model" parent="." instance=ExtResource("1_pickups")]

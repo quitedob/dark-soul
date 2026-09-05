@@ -39,16 +39,27 @@ const BONE_TREE := {
 
 ## Map a part node name -> bone id. Returns "" when no mapping applies (part is
 ## left attached to the torso/spine as a static anchor). Heuristic, ordered.
-static func bone_for_part(part_name: String) -> String:
+## `hint_side` overrides side when the part itself carries no side token but an
+## ancestor node does (e.g. player class: mesh `upper_arm` under group `l_arm`).
+static func bone_for_part(part_name: String, hint_side: String = "") -> String:
 	var n: String = part_name.to_lower()
-	var side: String = _side(n)
+	var side: String = hint_side if hint_side != "" else _side(n)
 	var sided: bool = side != ""
+	# --- held props (weapon/sword/staff) follow the hand, NEVER the head ---
+	if _has(n, ["sword", "blade", "grip", "pommel", "haft", "shaft", "spear",
+			"axe_handle", "weapon", "knife", "bow", "quiver", "staff"]):
+		return "hand." + side if sided else "hand.L"
 	# --- legs / feet ---
-	if _has(n, ["foot", "boot", "ankle", "toe"]):
+	if _has(n, ["foot", "boot", "ankle", "toe", "paw"]):
 		return "foot." + side if sided else "foot.L"
-	if _has(n, ["shin", "calf", "knee_lower", "knee_joint", "knee_cap", "boot_upper"]):
+	if _has(n, ["shin", "calf", "greave", "knee_lower", "knee_joint", "knee_cap", "boot_upper"]) \
+		or _has(n, ["leg_l", "leg_lower"]) \
+		or (n.find("leg_") != -1 and n.ends_with("_l")):
 		return "shin." + side if sided else "shin.L"
-	if _has(n, ["thigh", "upper_leg", "knee_upper"]):
+	if _has(n, ["thigh", "upper_leg", "knee_upper"]) or _has(n, ["leg_u", "leg_upper"]) \
+		or (n.find("leg_") != -1 and (n.ends_with("_u") or n.ends_with("_fl_u") or n.ends_with("_hl_u"))):
+		return "thigh." + side if sided else "thigh.L"
+	if _has(n, ["leg", "thigh", "haunch"]):   # whole unsplit leg (legL, legFL) -> thigh
 		return "thigh." + side if sided else "thigh.L"
 	# --- arms / hands ---
 	if _has(n, ["fist", "hand", "palm", "claw", "paw_hand"]):
@@ -57,13 +68,15 @@ static func bone_for_part(part_name: String) -> String:
 		return "forearm." + side if sided else "forearm.L"
 	if _has(n, ["upperarm", "upper_arm", "shoulder_base", "pauldron", "shoulder", "arm"]):
 		return "upper_arm." + side if sided else "upper_arm.L"
-	# --- head / neck ---
-	if _has(n, ["head", "mask", "face", "skull", "muzzle", "helm", "faceplate"]):
+	# --- head / neck (exclude weapon heads + belt trophies -> those are props) ---
+	if _has(n, ["axe_head", "mace", "hammer_head", "shield", "shield_head", "skull_trophy", "skull_cord"]):
+		return "hand." + side if sided else "hand.L"
+	if _has(n, ["head", "mask", "face", "skull", "muzzle", "helm", "faceplate", "helmet", "snout", "nose", "eye", "ear", "whisker"]):
 		return "head"
 	if _has(n, ["neck", "neck_guard", "throat"]):
 		return "neck"
 	# --- pelvis / torso core ---
-	if _has(n, ["pelvis", "hips", "hip", "belt", "waist", "skirt"]):
+	if _has(n, ["pelvis", "hips", "hip", "belt", "waist", "skirt", "tasset"]):
 		return "hips"
 	# --- extremities (non-anatomical) ---
 	if _has(n, ["tail"]):
@@ -74,12 +87,25 @@ static func bone_for_part(part_name: String) -> String:
 	return ""   # leave under spine (static center) — never flies off
 
 static func _side(n: String) -> String:
-	# right-first so "_.r_" never mis-read; look for l/r by suffix/short token.
+	# Right-first so "_.r_" never mis-read. Handles: quad fl/fr/hl/hr tokens,
+	# prefix l_/r_ (player class), suffix _l/_r/_la/_lb/_lt (and bare L/R).
+	if n.ends_with("fl") or n.ends_with("hl") or n.find("_fl") != -1 or n.find("_hl") != -1:
+		return "L"
+	if n.ends_with("fr") or n.ends_with("hr") or n.find("_fr") != -1 or n.find("_hr") != -1:
+		return "R"
+	if n.begins_with("l_") or n.begins_with("r_") or n.begins_with(".l") or n.begins_with(".r"):
+		return "L" if (n.begins_with("l_") or n.begins_with(".l")) else "R"
 	if n.ends_with(".l") or n.ends_with("_l") or n.ends_with("_la") or n.ends_with("_lb") or n.ends_with("_lt"):
 		return "L"
 	if n.ends_with(".r") or n.ends_with("_r") or n.ends_with("_ra") or n.ends_with("_rb") or n.ends_with("_rt"):
 		return "R"
-	# some names put side elsewhere (e.g. boot_upper_l handled by ends_with above)
+	# bare trailing L/R preceded by a consonant (legL, armR, handR, footL, greaveL)
+	if n.length() >= 3:
+		var last: String = n.substr(n.length() - 1, 1)
+		var prev: String = n.substr(n.length() - 2, 1)
+		if (last == "l" or last == "r") and not (prev == "a" or prev == "e" or prev == "i"
+				or prev == "o" or prev == "u" or prev == "_" or prev == "."):
+			return "L" if last == "l" else "R"
 	return ""
 
 static func _has(n: String, words: Array) -> bool:
@@ -109,7 +135,8 @@ static func build(body_root: Node3D) -> Skeleton3D:
 	var bone_local: Dictionary = {}   # bone id -> Array[Vector3] (local part centroids)
 	var bone_box: Dictionary = {}     # bone id -> AABB (body_root-local, union of parts)
 	for p in parts:
-		var bid: String = bone_for_part(p.name)
+		# Ancestor group (l_arm/r_arm) may carry the side the part mesh lacks.
+		var bid: String = bone_for_part(p.name, _ancestor_side(p))
 		var c: Vector3 = base_inv * _world_center(p)   # body_root-local centroid
 		if bid == "":
 			# unmapped detail -> anchor to torso core so it stays put
@@ -208,6 +235,18 @@ static func _collect_meshes(n: Node, out: Array[MeshInstance3D]) -> void:
 		out.append(n)
 	for c in n.get_children():
 		_collect_meshes(c, out)
+
+## Walk up parents to find a side token on an ancestor group (e.g. player-class
+## `l_arm`/`r_arm` group whose child `upper_arm`/`forearm`/`hand` meshes carry no
+## side of their own). Returns "L"/"R" or "".
+static func _ancestor_side(n: Node) -> String:
+	var p := n.get_parent()
+	while p != null:
+		var s: String = _side(p.name.to_lower())
+		if s != "":
+			return s
+		p = p.get_parent()
+	return ""
 
 static func _world_center(mi: MeshInstance3D) -> Vector3:
 	var aabb: AABB = mi.mesh.get_aabb() if mi.mesh != null else AABB()
