@@ -1,5 +1,6 @@
 class_name RealModelResolver
 extends RefCounted
+const EmbeddedActions = preload("res://scripts/core/embedded_model_actions.gd")
 ## Real-model swap resolver — replaces procedural placeholder geometry with GLB
 ## models when a model exists for a category/key, falling back to the procedural
 ## builders otherwise.
@@ -237,10 +238,26 @@ static func try_instance(id: String, parent: Node3D) -> bool:
 		root.position += entry["position"] as Vector3
 	root.rotation.y = deg_to_rad(float(entry.get("yaw_deg", 0.0)))
 
-	if entry.has("sub_node"):
+	var kept_instance := true
+	if entry.has("sub_node") and not instance.find_children("*", "Skeleton3D", true, false).is_empty():
+		var selection := EmbeddedActions.select_part(instance, String(entry["sub_node"]), path)
+		if not bool(selection["ok"]):
+			if not _warned.has(id):
+				_warned[id] = true
+				push_warning("RealModelResolver: cannot select skinned part: %s" % id)
+			instance.free()
+			root.free()
+			return false
+		var origin := Node3D.new()
+		origin.name = "PartOrigin"
+		origin.transform = (selection["anchor"] as Transform3D).affine_inverse()
+		root.add_child(origin)
+		origin.add_child(instance)
+	elif entry.has("sub_node"):
 		var sub_name := String(entry["sub_node"])
 		if _attach_sub_node(instance, sub_name, root):
 			instance.free()
+			kept_instance = false
 		else:
 			root.add_child(instance)
 	else:
@@ -248,10 +265,12 @@ static func try_instance(id: String, parent: Node3D) -> bool:
 
 	# 接地对齐:把模型最低点抬到容器原点(作者以脚踩原点导出,部分模型埋在 y<0)。
 	if entry.get("align_ground", false):
-		var min_y := _scene_min_y(instance)
+		var min_y := _scene_min_y(root)
 		if min_y < 0.0:
 			root.position.y -= s * min_y
 
+	if kept_instance:
+		EmbeddedActions.bind(root, instance, path)
 	parent.add_child(root)
 	return true
 
@@ -265,9 +284,8 @@ static func has_model(id: String) -> bool:
 	return not path.is_empty() and ResourceLoader.exists(path)
 
 
-## Disable any animation players/trees embedded in the GLB so the model stays in
-## its rest pose. The game poses models by rotating their PARENT (visual_root /
-## weapon_pivot), so embedded skeletal clips would otherwise fight that.
+## Start in rest pose. Only manifest-approved models are subsequently enabled by
+## EmbeddedActions; legacy Manny remains controlled by PlayerAnimationBridge.
 static func _neutralize_animation_players(node: Node) -> void:
 	if node is AnimationPlayer:
 		node.autoplay = ""
@@ -309,7 +327,7 @@ static func _find_named(node: Node, name: String) -> Node3D:
 static func _scene_min_y(top: Node3D) -> float:
 	var min_y := INF
 	for mi in _collect_meshes(top):
-		if mi.mesh == null:
+		if mi.mesh == null or not mi.visible:
 			continue
 		var bb: AABB = _xf_to(top, mi) * mi.mesh.get_aabb()
 		min_y = minf(min_y, bb.position.y)

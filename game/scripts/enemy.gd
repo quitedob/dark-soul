@@ -40,6 +40,7 @@ const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const WeaponMeshFactory = preload("res://scripts/core/weapon_meshes.gd")
 const CharacterMeshFactory = preload("res://scripts/core/character_meshes.gd")
 const EnemyRigHook = preload("res://scripts/core/enemy_rig_hook.gd")
+const EmbeddedActions = preload("res://scripts/core/embedded_model_actions.gd")
 const ChapterEnemyFactory = preload("res://scripts/combat/enemy_factory.gd")
 const ModelFx = preload("res://scripts/fx/model_fx.gd")
 const ModelMotionProfiles = preload("res://scripts/data/model_motion_profiles.gd")
@@ -185,6 +186,7 @@ var _cached_target_position := Vector3.ZERO
 var _cached_distance_to_target := INF
 var _cached_chase_direction := Vector3.ZERO
 var _visual_frozen := false
+var _embedded_death_playing := false
 var _model_base_y := 0.0
 var _model_base_y_set := false
 var _vfx_emitted := false
@@ -337,6 +339,7 @@ func _physics_process(delta: float) -> void:
 		return
 	# HitStop：冻本实体 AI/状态推进，重力与滑动保留
 	if _visual_frozen:
+		EmbeddedActions.set_speed(body_visual_root, 0.0)
 		if not is_on_floor():
 			velocity.y -= gravity * delta
 		else:
@@ -367,6 +370,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = minf(velocity.y, 0.0)
 	move_and_slide()
+	_update_embedded_movement()
 	_update_telegraph()
 	_real_model_idle_vfx(delta)
 
@@ -413,6 +417,10 @@ func reset_enemy() -> void:
 	body_collision.set_deferred("disabled", false)
 	telegraph_mesh.visible = false
 	_set_visual_palette()
+	_embedded_death_playing = false
+	EmbeddedActions.reset(body_visual_root)
+	EmbeddedActions.set_speed(body_visual_root, 0.0 if _visual_frozen else 1.0)
+	EmbeddedActions.play_action(body_visual_root, "idle")
 	set_physics_process(true)
 	health_changed.emit(health, max_health)
 	# G-01：重置宏层意图为巡逻
@@ -1550,6 +1558,7 @@ func _change_state(new_state: State, duration: float = 0.0, force: bool = false)
 	# 非法转移拒绝，保持原态（I-06）
 	if not force and not can_transition_to(state, new_state):
 		return
+	var previous_state: State = state
 	if combat_area != null and state == State.ACTIVE and new_state != State.ACTIVE:
 		combat_area.end_swing()
 	state = new_state
@@ -1606,7 +1615,44 @@ func _change_state(new_state: State, duration: float = 0.0, force: bool = false)
 			if combat_area != null:
 				combat_area.end_swing()
 			_end_grab()
+	_update_embedded_state(previous_state)
 	_update_state_visuals()
+
+
+func _update_embedded_state(previous_state: State) -> void:
+	if state == previous_state or not EmbeddedActions.available(body_visual_root):
+		return
+	match state:
+		State.WINDUP:
+			# One clip spans the accepted attack cycle; ACTIVE/RECOVERY only run gameplay hooks.
+			var custom_attack: bool = guardian and not String(_active_attack_profile.get("type", "")).is_empty()
+			_play_embedded_attack(state_duration + attack_active + attack_recovery, custom_attack)
+		State.GRAB_WINDUP:
+			var hold_seconds: float = float(_grab_profile.hold_seconds) if _grab_profile != null else 1.4
+			_play_embedded_attack(state_duration + hold_seconds + 0.55, true)
+		State.STAGGER, State.PARRY_VULNERABLE, State.GUARD_BROKEN, State.WEAK_POINT_EXPOSED:
+			EmbeddedActions.play_action(body_visual_root, "hit", true, state_duration)
+		State.DEAD:
+			_embedded_death_playing = EmbeddedActions.play_action(body_visual_root, "death", true)
+		State.IDLE, State.CHASE, State.RETURN:
+			_update_embedded_movement()
+	EmbeddedActions.set_speed(body_visual_root, 0.0 if _visual_frozen else 1.0)
+
+
+func _play_embedded_attack(duration: float, prefer_special: bool) -> void:
+	if prefer_special and EmbeddedActions.play_action(body_visual_root, "special", true, duration):
+		return
+	EmbeddedActions.play_action(body_visual_root, "attack", true, duration)
+
+
+func _update_embedded_movement() -> void:
+	if _visual_frozen or state not in [State.IDLE, State.CHASE, State.RETURN]:
+		return
+	var moving: bool = Vector2(velocity.x, velocity.z).length_squared() > 0.01
+	var action: String = "idle"
+	if moving and not _story_resolution:
+		action = "run" if state == State.CHASE else "walk"
+	EmbeddedActions.play_action(body_visual_root, action)
 
 
 func _die() -> void:
@@ -1616,7 +1662,8 @@ func _die() -> void:
 	_set_engaged(false)
 	velocity = Vector3.ZERO
 	body_collision.set_deferred("disabled", true)
-	visual_root.rotation.z = 1.35
+	if not _embedded_death_playing:
+		visual_root.rotation.z = 1.35
 	body_material.albedo_color = Color(0.08, 0.075, 0.08)
 	weapon_material.albedo_color = Color(0.12, 0.1, 0.1)
 	set_physics_process(false)
@@ -1743,7 +1790,8 @@ func _real_model_idle_vfx(delta: float) -> void:
 		_model_base_y_set = true
 	var profile := ModelMotionProfiles.profile_for("enemy/body/by_id/%s" % String(chapter_content.get("id", "")))
 	var vfx: Dictionary = profile.get("vfx", {})
-	ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
+	if not EmbeddedActions.available(body_visual_root):
+		ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
 	ModelFx.ensure_ambient(body_visual_root, vfx.get("ambient", {}))
 	if vfx.has("aura"):
 		ModelFx.ensure_aura(body_visual_root, vfx["aura"])
@@ -1753,6 +1801,8 @@ func _real_model_idle_vfx(delta: float) -> void:
 ## spine/neck bone sway so the enemy is visibly posed at the BONE level (the
 ## whole-node ModelMotionProfile motion continues to run on top as the base).
 func _apply_rig_idle_sway(delta: float) -> void:
+	if EmbeddedActions.available(body_visual_root):
+		return
 	var skel := _get_enemy_skeleton()
 	if skel == null:
 		return
@@ -1810,6 +1860,7 @@ func _update_state_visuals() -> void:
 
 func set_visual_frozen(frozen: bool) -> void:
 	_visual_frozen = frozen
+	EmbeddedActions.set_speed(body_visual_root, 0.0 if frozen else 1.0)
 
 
 func _set_visual_palette() -> void:

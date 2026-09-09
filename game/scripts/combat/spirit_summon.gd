@@ -8,6 +8,8 @@ extends Node3D
 signal despawned(summon)
 
 const LocalizationScript = preload("res://scripts/core/localization.gd")
+const EmbeddedActions = preload("res://scripts/core/embedded_model_actions.gd")
+const DEATH_VISUAL_SECONDS := 1.0
 
 var player: Node3D
 var world_node: Node
@@ -34,6 +36,7 @@ var _floating_base_y := 0.9
 # 真模型特效层:ModelRoot 接地 base_y 只捕获一次,逐帧只绕其振荡(避免漂移累积)。
 var _model_base_y := 0.0
 var _model_base_y_set := false
+var _embedded_movement_action := "idle"
 
 const KIND_DATA := {
 	"dharma_child": {
@@ -82,6 +85,7 @@ func setup(kind: StringName, owner: Node3D, world: Node) -> void:
 	_lifetime_left = float(data.get("lifetime", 20.0))
 	_floating_base_y = float(data.get("floating", 0.9))
 	_build_visual(data)
+	EmbeddedActions.play_action(_visual, "idle")
 	# 白鹤童子：场时专注回复提升
 	if focus_regen_multiplier > 1.0 and player != null and is_instance_valid(player):
 		player.focus_regen_multiplier = focus_regen_multiplier
@@ -108,7 +112,8 @@ func _tick_behavior(delta: float) -> void:
 		if _heal_timer >= 1.0:
 			_heal_timer = 0.0
 			_heal_player()
-		_visual.rotation.y += delta * 0.8
+		if not EmbeddedActions.available(_visual):
+			_visual.rotation.y += delta * 0.8
 		_drive_model_motion(delta)
 		return
 	_update_movement(delta)
@@ -123,18 +128,24 @@ func _tick_behavior(delta: float) -> void:
 
 
 func _update_movement(delta: float) -> void:
+	var moving := false
 	if _target != null and is_instance_valid(_target):
 		var to_target := _target.global_position - global_position
 		to_target.y = 0.0
 		if to_target.length() > 1.8:
 			global_position += to_target.normalized() * (2.6 * delta)
+			moving = true
 	elif player != null:
 		var to_player := player.global_position - global_position
 		to_player.y = 0.0
 		if to_player.length() > leash_distance:
 			global_position += to_player.normalized() * (2.8 * delta)
+			moving = true
 	if player != null:
 		global_position.y = lerpf(global_position.y, player.global_position.y + _floating_base_y, 0.2)
+	_embedded_movement_action = "idle"
+	if moving:
+		_embedded_movement_action = "drift" if kind_id == &"white_crane" else "walk"
 
 
 func _update_target() -> void:
@@ -163,8 +174,11 @@ func _perform_attack(target: Node3D) -> void:
 	if damage <= 0.0 or not target.has_method("receive_hit"):
 		return
 	var dir := (target.global_position - global_position).normalized()
+	var special: bool = kind_id in [&"resentful_spirit", &"white_crane"]
+	if not special or not EmbeddedActions.play_action(_visual, "special", true, attack_interval):
+		EmbeddedActions.play_action(_visual, "attack", true, attack_interval)
 	# 面向目标轻微抖动，方便观察
-	if _visual != null:
+	if _visual != null and not EmbeddedActions.available(_visual):
 		_visual.rotation.y += 0.15
 	target.receive_hit(damage, stagger, dir, self)
 
@@ -173,6 +187,8 @@ func _heal_player() -> void:
 	if heal_rate <= 0.0 or player == null or not is_instance_valid(player):
 		return
 	if global_position.distance_to(player.global_position) <= heal_radius and player.has_method("heal"):
+		if not EmbeddedActions.play_action(_visual, "cast", true, 1.0):
+			EmbeddedActions.play_action(_visual, "special", true, 1.0)
 		player.heal(heal_rate)
 
 
@@ -230,7 +246,12 @@ func _drive_model_motion(delta: float) -> void:
 		_model_base_y_set = true
 	var profile := ModelMotionProfiles.profile_for("summon/%s" % String(kind_id))
 	var vfx: Dictionary = profile.get("vfx", {})
-	ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
+	if EmbeddedActions.available(_visual):
+		var played: bool = EmbeddedActions.play_action(_visual, _embedded_movement_action)
+		if not played and _embedded_movement_action == "drift":
+			EmbeddedActions.play_action(_visual, "walk")
+	else:
+		ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
 	ModelFx.ensure_ambient(_visual, vfx.get("ambient", {}))
 	if vfx.has("aura"):
 		ModelFx.ensure_aura(_visual, vfx["aura"])
@@ -250,6 +271,8 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 	health = maxf(health - float(damage), 0.0)
 	if health <= 0.0:
 		_die()
+	else:
+		EmbeddedActions.play_action(_visual, "hit", true)
 
 
 ## 敌 FSM 目标合法性
@@ -267,7 +290,20 @@ func _die() -> void:
 	_dead = true
 	_restore_boons()
 	despawned.emit(self)
+	_retire_death_visual()
 	queue_free()
+
+
+func _retire_death_visual() -> void:
+	if not is_inside_tree() or get_parent() == null or not is_instance_valid(_visual):
+		return
+	if not EmbeddedActions.play_action(_visual, "death", true, DEATH_VISUAL_SECONDS):
+		return
+	# Only the visual survives. Refunds, boons, targetability and actor deletion are immediate.
+	var dying_visual: MeshInstance3D = _visual
+	dying_visual.reparent(get_parent(), true)
+	_visual = null
+	get_tree().create_timer(DEATH_VISUAL_SECONDS, false).timeout.connect(dying_visual.queue_free)
 
 
 func _despawn() -> void:

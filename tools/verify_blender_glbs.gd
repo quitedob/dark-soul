@@ -178,6 +178,11 @@ func _inspect_mesh(instance: MeshInstance3D) -> Dictionary:
 
 
 func _baked_positions(instance: MeshInstance3D) -> Array[PackedVector3Array]:
+	# The dummy rendering server in --headless does not register a SkinReference.
+	# Evaluate the engine-imported Skin/Skeleton data explicitly in that mode.
+	# This proves import and deformation math, not rendering-server/GPU execution.
+	if DisplayServer.get_name() == "headless":
+		return _cpu_skin_positions(instance)
 	var surfaces: Array[PackedVector3Array] = []
 	var baked := instance.bake_mesh_from_current_skeleton_pose()
 	if baked == null:
@@ -187,8 +192,37 @@ func _baked_positions(instance: MeshInstance3D) -> Array[PackedVector3Array]:
 	return surfaces
 
 
+func _cpu_skin_positions(instance: MeshInstance3D) -> Array[PackedVector3Array]:
+	var surfaces: Array[PackedVector3Array] = []
+	var skeleton := instance.get_node(instance.skeleton) as Skeleton3D
+	var skin := instance.skin
+	var matrices: Array[Transform3D] = []
+	var mesh_from_skeleton := instance.global_transform.affine_inverse() * skeleton.global_transform
+	for bind in skin.get_bind_count():
+		var bind_name := skin.get_bind_name(bind)
+		var bone := skeleton.find_bone(bind_name) if not bind_name.is_empty() else skin.get_bind_bone(bind)
+		matrices.append(mesh_from_skeleton * skeleton.get_bone_global_pose(bone) * skin.get_bind_pose(bind))
+	for surface in instance.mesh.get_surface_count():
+		var arrays := instance.mesh.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+		var influences: int = weights.size() / vertices.size()
+		var posed := PackedVector3Array()
+		posed.resize(vertices.size())
+		for vertex in vertices.size():
+			var position := Vector3.ZERO
+			for influence in influences:
+				var offset := vertex * influences + influence
+				position += (matrices[bones[offset]] * vertices[vertex]) * weights[offset]
+			posed[vertex] = position
+		surfaces.append(posed)
+	return surfaces
+
+
 func _prove_pose(skeleton: Skeleton3D, records: Array[Dictionary]) -> Dictionary:
-	var proof := {"skeleton": str(skeleton.name), "bones": skeleton.get_bone_count(), "bound_meshes": records.size()}
+	var proof := {"skeleton": str(skeleton.name), "bones": skeleton.get_bone_count(), "bound_meshes": records.size(),
+		"pose_method": "cpu_imported_skin" if DisplayServer.get_name() == "headless" else "engine_mesh_bake"}
 	var selected := -1
 	var best_score := -1.0
 	for bone in skeleton.get_bone_count():

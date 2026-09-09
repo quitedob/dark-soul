@@ -4,7 +4,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve, relative, join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { Matrix4, Quaternion, Vector3 } from '../build/glb-models/node_modules/three/build/three.module.js';
+import { Matrix3, Matrix4, Quaternion, Vector3 } from '../build/glb-models/node_modules/three/build/three.module.js';
 
 const COMPONENTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };
 const TYPES = {
@@ -256,7 +256,7 @@ function geometry(model, requireSkin) {
         result.groups.get(name).push(p);
         extend(result.bounds, p);
       }
-      result.records.push({ primitive, nodeIndex, skinIndex: node.skin, rest });
+      result.records.push({ primitive, nodeIndex, groupName: name, skinIndex: node.skin, rest });
     }
   }
   check(result.vertices > 0, 'Default scene has no visible mesh vertices');
@@ -283,6 +283,125 @@ function cloudError(source, target, tolerance) {
   }
   return { maxMatchedError: max, unmatchedVertices: missing };
 }
+
+function restTriangles(model, stats, materialSignatures) {
+  const groups = new Map();
+  for (const record of stats.records) {
+    const { primitive, nodeIndex, rest, groupName } = record;
+    const attrs = primitive.attributes;
+    const normal = attrs.NORMAL === undefined ? null : model.accessor(attrs.NORMAL);
+    const uvNames = Object.keys(attrs).filter((key) => /^TEXCOORD_\d+$/.test(key)).sort();
+    const uvSets = uvNames.map((key) => model.accessor(attrs[key]));
+    const material = primitive.material === undefined ? null : materialSignatures[primitive.material];
+    const key = JSON.stringify([groupName, material, !!normal, uvNames]);
+    if (!groups.has(key)) groups.set(key, { name: groupName, triangles: [] });
+    const skin = primitive.influences.length ? stats.skinData[record.skinIndex] : null;
+    const nodeNormal = new Matrix3().getNormalMatrix(model.world[nodeIndex]);
+    const corners = rest.map((position, vertex) => {
+      let worldNormal = null;
+      if (normal) {
+        let transform = nodeNormal;
+        if (skin) {
+          // Normals use the inverse transpose of the same blended rest transform as positions.
+          const blended = new Matrix4();
+          blended.elements.fill(0);
+          for (const { joints, weights } of primitive.influences) for (let c = 0; c < 4; c++) {
+            const offset = vertex * 4 + c, weight = weights.values[offset];
+            if (!weight) continue;
+            const matrix = skin.matrices[joints.values[offset]].elements;
+            for (let i = 0; i < 16; i++) blended.elements[i] += weight * matrix[i];
+          }
+          check(Math.abs(blended.determinant()) > 1e-20, `${primitive.label} has singular rest normal transform`);
+          transform = new Matrix3().getNormalMatrix(blended);
+        }
+        worldNormal = new Vector3().fromArray(normal.values, vertex * 3).applyMatrix3(transform).normalize().toArray();
+        check(finite(worldNormal), `${primitive.label} produces non-finite rest normals`);
+      }
+      return { position, normal: worldNormal, uvs: uvSets.flatMap((uv) => Array.from(uv.values.subarray(vertex * 2, vertex * 2 + 2))) };
+    });
+    const indices = primitive.indices === undefined ? null : model.accessor(primitive.indices).values;
+    const triangles = groups.get(key).triangles;
+    for (let i = 0; i < primitive.corners; i += 3) {
+      const triangle = [0, 1, 2].map((c) => corners[indices ? indices[i + c] : i + c]);
+      triangles.push({ corners: triangle, center: [0, 1, 2].map((axis) => triangle.reduce((sum, c) => sum + c.position[axis] / 3, 0)) });
+    }
+  }
+  return groups;
+}
+
+function matchTriangles(source, target, tolerance) {
+  const cell = (p) => p.map((v) => Math.floor(v / tolerance.position));
+  const grid = new Map();
+  target.forEach((triangle, i) => {
+    const key = cell(triangle.center).join(',');
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push(i);
+  });
+  const near = (a, b, limit) => Math.hypot(...a.map((v, i) => v - b[i])) <= limit;
+  const sameCorner = (a, b) => near(a.position, b.position, tolerance.position)
+    && (a.normal === null ? b.normal === null : b.normal !== null && near(a.normal, b.normal, tolerance.normal))
+    && a.uvs.length === b.uvs.length && a.uvs.every((v, i) => Math.abs(v - b.uvs[i]) <= tolerance.uv);
+  const sameTriangle = (a, b) => [0, 1, 2].some((rotation) =>
+    a.corners.every((corner, i) => sameCorner(corner, b.corners[(i + rotation) % 3])));
+  const candidates = new Map();
+  function choices(index) {
+    if (!candidates.has(index)) {
+      const triangle = source[index], c = cell(triangle.center), matches = [];
+      for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+        for (const other of grid.get(`${c[0] + x},${c[1] + y},${c[2] + z}`) ?? []) {
+          if (sameTriangle(triangle, target[other])) matches.push(other);
+        }
+      }
+      candidates.set(index, matches);
+    }
+    return candidates.get(index);
+  }
+  const sourceMatch = new Int32Array(source.length).fill(-1), targetMatch = new Int32Array(target.length).fill(-1);
+  let matched = 0;
+  // Augmenting paths preserve multiplicity without greedy failures near tolerance boundaries.
+  for (let start = 0; start < source.length; start++) {
+    const queue = [start], visitedSources = new Set(queue), parent = new Map();
+    let found = false;
+    for (let cursor = 0; cursor < queue.length && !found; cursor++) {
+      const index = queue[cursor];
+      for (const other of choices(index)) {
+        if (parent.has(other)) continue;
+        parent.set(other, index);
+        const owner = targetMatch[other];
+        if (owner < 0) {
+          let targetIndex = other;
+          while (targetIndex >= 0) {
+            const sourceIndex = parent.get(targetIndex), previous = sourceMatch[sourceIndex];
+            sourceMatch[sourceIndex] = targetIndex;
+            targetMatch[targetIndex] = sourceIndex;
+            targetIndex = previous;
+          }
+          matched++;
+          found = true;
+          break;
+        }
+        if (!visitedSources.has(owner)) { visitedSources.add(owner); queue.push(owner); }
+      }
+    }
+  }
+  return matched;
+}
+
+function compareRestTriangles(source, output, tolerance) {
+  const comparisons = new Map();
+  for (const key of new Set([...source.keys(), ...output.keys()])) {
+    const before = source.get(key), after = output.get(key), name = (before ?? after).name;
+    if (!comparisons.has(name)) comparisons.set(name, { name, sourceTriangles: 0, outputTriangles: 0, unmatchedSourceTriangles: 0, unmatchedOutputTriangles: 0 });
+    const original = before?.triangles ?? [], exported = after?.triangles ?? [];
+    const matched = matchTriangles(original, exported, tolerance), result = comparisons.get(name);
+    result.sourceTriangles += original.length;
+    result.outputTriangles += exported.length;
+    result.unmatchedSourceTriangles += original.length - matched;
+    result.unmatchedOutputTriangles += exported.length - matched;
+  }
+  return [...comparisons.values()];
+}
+
 function poseProof(model, output, scale) {
   return output.skinData.map((skin, skinIndex) => {
     const jointSet = new Set(skin.joints);
@@ -322,6 +441,24 @@ function materialSummary(model) {
     const view = json.bufferViews[image.bufferView];
     return { mimeType: image.mimeType, bytes: view.byteLength, sha256: createHash('sha256').update(bin.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength)).digest('hex') };
   });
+  const textureProperties = (info, slot) => {
+    const texture = json.textures?.[info.index];
+    check(texture && images[texture.source], `Invalid material texture ${info.index}`);
+    if (texture.sampler !== undefined) check(integer(texture.sampler) && json.samplers?.[texture.sampler], `Invalid sampler ${texture.sampler} for texture ${info.index}`);
+    const sampler = json.samplers?.[texture.sampler] ?? {};
+    return { ...info, ...(/normalTexture$/i.test(slot) ? { scale: info.scale ?? 1 } : {}),
+      ...(slot === 'occlusionTexture' ? { strength: info.strength ?? 1 } : {}),
+      index: undefined, texCoord: info.texCoord ?? 0,
+      imageSha256: images[texture.source].sha256,
+      sampler: { wrapS: sampler.wrapS ?? 10497, wrapT: sampler.wrapT ?? 10497,
+        magFilter: sampler.magFilter ?? null, minFilter: sampler.minFilter ?? null } };
+  };
+  const extensionProperties = (value) => {
+    if (Array.isArray(value)) return value.map(extensionProperties);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+      key.endsWith('Texture') ? textureProperties(item, key) : extensionProperties(item)]));
+  };
   return {
     materials: json.materials?.length ?? 0, images: images.length, textures: json.textures?.length ?? 0,
     materialExtensions: [...new Set((json.materials ?? []).flatMap((m) => Object.keys(m.extensions ?? {})))].sort(),
@@ -333,8 +470,8 @@ function materialSummary(model) {
       emission: (m.emissiveFactor ?? [0, 0, 0]).map((v) => v * (m.extensions?.KHR_materials_emissive_strength?.emissiveStrength ?? 1)),
       alphaMode: m.alphaMode ?? 'OPAQUE', alphaCutoff: m.alphaCutoff ?? 0.5, doubleSided: m.doubleSided ?? false,
       textureSlots: Object.keys(m).filter((key) => key.endsWith('Texture')).concat(Object.keys(m.pbrMetallicRoughness ?? {}).filter((key) => key.endsWith('Texture'))).sort(),
-      textureProperties: Object.fromEntries(Object.entries({ ...m, ...m.pbrMetallicRoughness }).filter(([key]) => key.endsWith('Texture')).map(([key, info]) => [key, { ...info, index: undefined, texCoord: info.texCoord ?? 0 }])),
-      extensions: m.extensions ?? {},
+      textureProperties: Object.fromEntries(Object.entries({ ...m, ...m.pbrMetallicRoughness }).filter(([key]) => key.endsWith('Texture')).map(([key, info]) => [key, textureProperties(info, key)])),
+      extensions: extensionProperties(m.extensions ?? {}),
     })),
   };
 }
@@ -385,13 +522,59 @@ function inspectPair(file, sourcePath, outputPath) {
     };
     const stable = (properties) => properties.map(({ index, name, extensions, ...p }) => JSON.stringify(canonical({ ...p,
       // Emissive strength is already folded into the effective emission above.
-      extensions: Object.fromEntries(Object.entries(extensions).filter(([key]) => key !== 'KHR_materials_emissive_strength')),
-    }))).sort();
-    const before = new Set(stable(report.materials.source.properties)), after = new Set(stable(report.materials.output.properties));
+      extensions: Object.fromEntries(Object.entries(extensions).filter(([key]) => key !== 'KHR_materials_emissive_strength').map(([key, value]) => [key,
+        key === 'KHR_materials_sheen' ? { sheenColorFactor: [0, 0, 0], sheenRoughnessFactor: 0, ...value } :
+          key === 'KHR_materials_clearcoat' ? { clearcoatFactor: 0, clearcoatRoughnessFactor: 0, ...value } : value])),
+    })));
+    const sourceSignatures = stable(report.materials.source.properties), outputSignatures = stable(report.materials.output.properties);
+    // Unit-normal distance 1e-3 is about 0.057 degrees, allowing export quantization.
+    report.triangleTolerances = { position: report.positionTolerance, uv: 1e-5, normal: 1e-3 };
+    report.restTriangleComparisons = compareRestTriangles(
+      restTriangles(sourceModel, source, sourceSignatures), restTriangles(outputModel, output, outputSignatures), report.triangleTolerances);
+    for (const comparison of report.restTriangleComparisons) {
+      if (comparison.unmatchedSourceTriangles || comparison.unmatchedOutputTriangles) {
+        report.failures.push(`Oriented rest triangle/corner data changed: ${comparison.name} (missing ${comparison.unmatchedSourceTriangles}, extra ${comparison.unmatchedOutputTriangles})`);
+      }
+    }
+    const before = new Set(sourceSignatures), after = new Set(outputSignatures);
     const lost = [...before].filter((p) => !after.has(p)), added = [...after].filter((p) => !before.has(p));
-    if (lost.length || added.length) report.semanticChanges.push({ field: 'materialProperties', missing: lost.map(JSON.parse), added: added.map(JSON.parse) });
+    if (lost.length || added.length) {
+      report.semanticChanges.push({ field: 'materialProperties', missing: lost.map(JSON.parse), added: added.map(JSON.parse) });
+      report.failures.push('Material properties, texture mapping or samplers changed');
+    }
+    // Reindexing/deduplication is harmless; assigning an unchanged material to another
+    // mesh is not. Compare effective materials on the actual named mesh geometry.
+    const assignments = (stats, signatures) => {
+      const groups = new Map();
+      for (const record of stats.records) {
+        if (!groups.has(record.groupName)) groups.set(record.groupName, new Map());
+        const materials = groups.get(record.groupName), signature = record.primitive.material === undefined ? null : signatures[record.primitive.material];
+        if (!materials.has(signature)) materials.set(signature, { triangles: 0, points: [] });
+        const assigned = materials.get(signature);
+        assigned.triangles += record.primitive.corners / 3;
+        for (const p of record.rest) assigned.points.push(p);
+      }
+      return groups;
+    };
+    const sourceAssignments = assignments(source, sourceSignatures), outputAssignments = assignments(output, outputSignatures);
+    report.changedMaterialMeshGroups = [];
+    for (const [name, originalMaterials] of sourceAssignments) {
+      const outputMaterials = outputAssignments.get(name);
+      if (!outputMaterials) continue; // Already reported as a missing mesh group.
+      let changed = originalMaterials.size !== outputMaterials.size;
+      for (const [signature, original] of originalMaterials) {
+        const exported = outputMaterials.get(signature);
+        if (!exported || exported.triangles !== original.triangles) { changed = true; continue; }
+        if (originalMaterials.size > 1 && (cloudError(original.points, exported.points, report.positionTolerance).unmatchedVertices || cloudError(exported.points, original.points, report.positionTolerance).unmatchedVertices)) changed = true;
+      }
+      if (changed) report.changedMaterialMeshGroups.push(name);
+    }
+    if (report.changedMaterialMeshGroups.length) report.failures.push(`Material assignment changed in mesh groups: ${report.changedMaterialMeshGroups.join(', ')}`);
     const beforeImages = new Set(report.materials.source.imagePayloads.map((i) => i.sha256)), afterImages = new Set(report.materials.output.imagePayloads.map((i) => i.sha256));
-    if ([...beforeImages].some((hash) => !afterImages.has(hash)) || [...afterImages].some((hash) => !beforeImages.has(hash))) report.semanticChanges.push({ field: 'imagePayloads', sourceUniqueImages: beforeImages.size, outputUniqueImages: afterImages.size, note: 'Encoded image bytes changed; visual equivalence requires image/viewport inspection.' });
+    if ([...beforeImages].some((hash) => !afterImages.has(hash)) || [...afterImages].some((hash) => !beforeImages.has(hash))) {
+      report.semanticChanges.push({ field: 'imagePayloads', sourceUniqueImages: beforeImages.size, outputUniqueImages: afterImages.size, note: 'Encoded image bytes changed; visual equivalence requires image/viewport inspection.' });
+      report.failures.push('Embedded image payloads changed');
+    }
     report.poseProofs = poseProof(outputModel, output, scale);
     report.maxPoseDisplacement = Math.max(...report.poseProofs.map((proof) => proof.maxDisplacement));
   } catch (error) {

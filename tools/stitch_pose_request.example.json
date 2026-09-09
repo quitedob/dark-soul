@@ -1,0 +1,21 @@
+{
+  "prefix": {
+    "scene": "res://assets/models/enemy/minnyquinn.glb",
+    "clip": "root-retreat",
+    "lower_trim": 0.0,
+    "upper_trim": 0.5,
+    "root_node_world_pos": {"x": 0, "y": 0, "z": 0},
+    "root_node_world_rot": {"x": 0, "y": 0, "z": 0, "w": 1},
+    "bones": {"pelvis": "DEF-hips", "left_hip": "DEF-thigh.L", "right_hip": "DEF-thigh.R"}
+  },
+  "suffix": {
+    "scene": "res://assets/models/enemy/minnyquinn.glb",
+    "clip": "root-retreat",
+    "lower_trim": 0.5,
+    "upper_trim": 0.9,
+    "root_node_world_pos": {"x": 0, "y": 0, "z": 1},
+    "root_node_world_rot": {"x": 0, "y": 0, "z": 0, "w": 1},
+    "bones": {"pelvis": "DEF-hips", "left_hip": "DEF-thigh.L", "right_hip": "DEF-thigh.R"}
+  },
+  "stitch_duration": 1.0
+}

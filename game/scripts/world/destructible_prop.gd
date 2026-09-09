@@ -5,6 +5,8 @@ extends StaticBody3D
 
 signal broken(source_position: Vector3)
 
+const EmbeddedActions = preload("res://scripts/core/embedded_model_actions.gd")
+
 @export var part_group := "pillJar"
 @export var model_scale := 1.5
 @export var health := 1
@@ -14,6 +16,7 @@ signal broken(source_position: Vector3)
 
 var _model: Node3D = null
 var _group_node: Node3D = null
+var _selected_meshes: Array = []
 var _collision: CollisionShape3D = null
 var _broken := false
 var _bounds := AABB()
@@ -74,17 +77,25 @@ func _prepare_model() -> void:
 	if _model == null:
 		_fallback_bounds()
 		return
-	var found: Array = _model.find_children(part_group, "Node3D", true, false)
-	if found.is_empty():
-		push_warning("DestructibleProp: GLB 里找不到分组 %s" % part_group)
+	var selection := EmbeddedActions.select_part(_model, part_group)
+	if not bool(selection["ok"]):
+		push_warning("DestructibleProp: cannot select model part %s" % part_group)
 		_fallback_bounds()
 		return
-	_group_node = found[0] as Node3D
-	for sibling in _group_node.get_parent().get_children():
-		if sibling is Node3D and sibling != _group_node:
-			sibling.visible = false
+	_selected_meshes = selection["meshes"]
+	var found: Array = _model.find_children(part_group, "Node3D", true, false)
+	_group_node = found[0] as Node3D if not found.is_empty() else null
+	# Legacy unskinned groups can still be hidden as a subtree. Skinned meshes
+	# share a skeleton outside these groups, so selection hides meshes only.
+	if _group_node != null and _model.find_children("*", "Skeleton3D", true, false).is_empty():
+		for sibling in _group_node.get_parent().get_children():
+			if sibling is Node3D and sibling != _group_node:
+				sibling.visible = false
 	_model.scale = Vector3.ONE * model_scale
-	_bounds = _subtree_bounds(_group_node, Transform3D(_model.global_transform.basis, Vector3.ZERO))
+	_bounds = _selected_bounds()
+	if _bounds.size.length_squared() <= 0.001:
+		_fallback_bounds()
+		return
 	if _bounds.size.length_squared() > 0.001:
 		# 落地对齐：分组最低点贴到本地原点
 		var offset := -_bounds.position.y
@@ -96,6 +107,7 @@ func _prepare_model() -> void:
 	_collision.shape = shape
 	_collision.position = _bounds.get_center()
 	add_child(_collision)
+	EmbeddedActions.bind(_model, _model, "")
 
 
 ## 找不到分组时兜底：小盒碰撞（保持可破坏、不出错）
@@ -169,30 +181,29 @@ func _spawn_shards(host: Node, source_position: Vector3) -> void:
 
 ## 取药罐首个表面材质作碎屑颜色；取不到回退陶土色
 func _debris_color() -> Color:
-	if _group_node != null:
-		var meshes: Array = _group_node.find_children("*", "MeshInstance3D", true, false)
-		for node in meshes:
-			var mesh_instance := node as MeshInstance3D
-			if mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() < 1:
-				continue
-			var mat := mesh_instance.get_active_material(0)
-			if mat is StandardMaterial3D:
-				return (mat as StandardMaterial3D).albedo_color
+	for node in _selected_meshes:
+		var mesh_instance := node as MeshInstance3D
+		if not is_instance_valid(mesh_instance) or mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() < 1:
+			continue
+		var mat := mesh_instance.get_active_material(0)
+		if mat is StandardMaterial3D:
+			return (mat as StandardMaterial3D).albedo_color
 	return Color(0.72, 0.5, 0.34)
 
 
-## 递归累计分组子树世界无关包围盒（相对本物件原点）
-func _subtree_bounds(node: Node3D, accumulated: Transform3D) -> AABB:
+## Rest bounds use selected geometry, not the now-empty original GLB groups.
+func _selected_bounds() -> AABB:
 	var result := AABB()
-	var node_transform := accumulated * node.transform
-	if node is MeshInstance3D:
+	var first := true
+	for node in _selected_meshes:
 		var mesh_instance := node as MeshInstance3D
-		if mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 0:
-			result = node_transform * mesh_instance.get_aabb()
-	for child in node.get_children():
-		if child is Node3D:
-			var child_aabb := _subtree_bounds(child as Node3D, node_transform)
-			if child_aabb.size.length_squared() > 0.001:
-				result = result if result.size.length_squared() > 0.001 else child_aabb
-				result = result.merge(child_aabb)
+		var local := Transform3D.IDENTITY
+		var current: Node = mesh_instance
+		while current != self and current != null:
+			if current is Node3D:
+				local = current.transform * local
+			current = current.get_parent()
+		var bounds := local * mesh_instance.mesh.get_aabb()
+		result = bounds if first else result.merge(bounds)
+		first = false
 	return result

@@ -76,6 +76,7 @@ const ExecutionSolverScript = preload("res://scripts/combat/execution_solver.gd"
 const ExecutionProfileScript = preload("res://scripts/combat/data/execution_profile.gd")
 const ExecutionPairedDirectorScript = preload("res://scripts/combat/execution_paired_director.gd")
 const PlayerAnimationBridgeScript = preload("res://scripts/combat/player_animation_bridge.gd")
+const EmbeddedModelActions = preload("res://scripts/core/embedded_model_actions.gd")
 const StatusEffectScript = preload("res://scripts/combat/data/status_effect.gd")
 const TalentDataScript = preload("res://scripts/player/talent_data.gd")
 const TalentSystemScript = preload("res://scripts/player/talent_system.gd")
@@ -579,6 +580,7 @@ func _tick_g06_time_dilation(delta: float) -> void:
 	var dilation := _g06_dilation()
 	if _anim_bridge != null and _anim_bridge.enabled:
 		_anim_bridge.set_speed_scale(dilation)
+	_sync_embedded_animation_speed()
 
 
 func _update_landing_and_safe_transform() -> void:
@@ -659,6 +661,7 @@ func respawn_at(at: Vector3) -> void:
 	visual_root.rotation = Vector3.ZERO
 	if body_yaw != null:
 		body_yaw.rotation.y = PlayerVisuals.BODY_YAW
+	EmbeddedModelActions.reset(body_mesh)
 	_change_state(State.LOCOMOTION)
 	last_safe_transform = global_transform
 	_emit_stats()
@@ -1598,6 +1601,20 @@ func _update_locomotion(delta: float) -> void:
 			_anim_bridge.travel_locomotion(true, true, Vector2(local_x, local_y))
 		else:
 			_anim_bridge.travel_locomotion(direction.length_squared() > 0.01, false)
+	_update_embedded_locomotion(direction, sprinting)
+
+
+func _update_embedded_locomotion(direction: Vector3, sprinting: bool) -> void:
+	if state != State.LOCOMOTION or _visual_frozen or not EmbeddedModelActions.available(body_mesh):
+		return
+	var action := "idle"
+	if direction.length_squared() > 0.01:
+		action = "run" if sprinting else "walk"
+		if is_instance_valid(lock_target):
+			var local_direction := global_transform.basis.inverse() * direction
+			if absf(local_direction.x) > absf(local_direction.z):
+				action = "strafe_right" if local_direction.x > 0.0 else "strafe_left"
+	EmbeddedModelActions.play_action(body_mesh, action)
 
 
 func _try_execution() -> bool:
@@ -2916,6 +2933,53 @@ func _change_state(new_state: State, duration: float = 0.0) -> void:
 			_execution_director = null
 	elif state == State.EXECUTE_WINDUP:
 		combat_area.end_swing()
+	_play_embedded_state_action(new_state, duration)
+
+
+func _play_embedded_state_action(new_state: State, duration: float) -> void:
+	if not EmbeddedModelActions.available(body_mesh):
+		return
+	var action := ""
+	var clip_duration := duration
+	match new_state:
+		State.LOCOMOTION, State.CHARGE_HEAVY:
+			action = "idle"
+		State.ATTACK_WINDUP, State.LEAP_WINDUP:
+			action = "special" if new_state == State.LEAP_WINDUP else "attack_heavy" if attack_heavy else "attack_light"
+			if _current_attack != null:
+				clip_duration += _current_attack.active_seconds + _current_attack.recovery_seconds
+			elif new_state == State.LEAP_WINDUP:
+				clip_duration += _style_data().leap_active + _style_data().leap_recovery
+			else:
+				clip_duration += _style_value(&"active", attack_heavy) + _style_value(&"recovery", attack_heavy)
+		State.CAST:
+			action = "cast"
+		State.GUARD_THRUST, State.PARRY, State.EXECUTE_WINDUP:
+			action = "special"
+		State.DODGE:
+			action = "dodge"
+		State.STAGGER, State.GUARD_BROKEN, State.GRABBED:
+			action = "hit"
+		State.DEAD:
+			action = "death"
+		_:
+			return  # Active/recovery continue the clip started at windup.
+	var restart := action not in ["idle", "death"]
+	if EmbeddedModelActions.play_action(body_mesh, action, restart, clip_duration):
+		if visual_root != null:
+			visual_root.rotation = Vector3.ZERO
+		_sync_embedded_animation_speed()
+
+
+func _sync_embedded_body_action() -> void:
+	# Called only for a newly built BodyRoot, never for a same-class no-op.
+	EmbeddedModelActions.reset(body_mesh)
+	_play_embedded_state_action(state, state_duration)
+	_sync_embedded_animation_speed()
+
+
+func _sync_embedded_animation_speed() -> void:
+	EmbeddedModelActions.set_speed(body_mesh, 0.0 if _visual_frozen else _g06_dilation())
 
 
 func _movement_mode_for_state(s: State) -> int:
@@ -3298,7 +3362,8 @@ func _die() -> void:
 	velocity = Vector3.ZERO
 	_set_lock_target(null)
 	body_collision.set_deferred("disabled", true)
-	visual_root.rotation.z = 1.35
+	if not EmbeddedModelActions.available(body_mesh):
+		visual_root.rotation.z = 1.35
 	_play_audio("death", -3.0, 1.0)
 	died.emit(global_position)
 
@@ -3371,6 +3436,7 @@ func _update_real_body_motion(delta: float) -> void:
 
 func set_visual_frozen(frozen: bool) -> void:
 	_visual_frozen = frozen
+	_sync_embedded_animation_speed()
 
 
 func _update_weapon_trail() -> void:

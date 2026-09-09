@@ -12,6 +12,7 @@ const CombatAreaScript = preload("res://scripts/combat_area.gd")
 const WeaponTrailProfileScript = preload("res://scripts/fx/weapon_trail_profile.gd")
 const ModelFx = preload("res://scripts/fx/model_fx.gd")
 const ModelMotionProfiles = preload("res://scripts/data/model_motion_profiles.gd")
+const EmbeddedModelActions = preload("res://scripts/core/embedded_model_actions.gd")
 
 const MAX_TRAIL_POINTS := 12
 ## 手骨 rest 锚点（mannyquin 骨架 model-space rest 位置，yaw 无关）：武器/盾挂到真实手。
@@ -183,6 +184,7 @@ func rebuild_body(class_id: String) -> void:
 	var resolved_class := _resolve_body_class(class_id)
 	if resolved_class == _active_class_id and _has_body():
 		return
+	EmbeddedModelActions.reset(_player.body_mesh)
 	# 移除旧身体（真模型 BodyRoot 或程序化身体网格），保留其余 body_yaw 子节点
 	for child in _player.body_yaw.get_children():
 		if child.is_in_group(BODY_GROUP):
@@ -241,6 +243,7 @@ func _refresh_body_references() -> void:
 		_player.body_mesh.add_to_group(BODY_GROUP)
 	_player.cloak_mesh = _player.body_mesh
 	_player.head_mesh = _player.body_mesh
+	_player._sync_embedded_body_action()
 
 
 func _has_body() -> bool:
@@ -279,7 +282,8 @@ func update_real_body_motion(delta: float, class_id: String) -> void:
 	var resolver_id := "player/body/class_%s" % class_id if not class_id.is_empty() else "player/body"
 	var profile := ModelMotionProfiles.profile_for(resolver_id)
 	var vfx: Dictionary = profile.get("vfx", {})
-	ModelFx.apply_movement(model_root, _body_model_base_y, profile.get("movement", {}), delta)
+	if not EmbeddedModelActions.available(_player.body_mesh):
+		ModelFx.apply_movement(model_root, _body_model_base_y, profile.get("movement", {}), delta)
 	ModelFx.ensure_ambient(_player.body_yaw, vfx.get("ambient", {}))
 	if vfx.has("aura"):
 		ModelFx.ensure_aura(_player.body_yaw, vfx["aura"])
@@ -390,6 +394,8 @@ func update_visual_pose() -> void:
 			_player.visual_root.rotation.z = sin(_player.state_time * 28.0) * 0.12
 		_:
 			_player.visual_root.rotation.x = move_toward(_player.visual_root.rotation.x, 0.0, 0.12)
+	if EmbeddedModelActions.available(_player.body_mesh):
+		_player.visual_root.rotation = Vector3.ZERO
 	update_weapon_trail()
 
 

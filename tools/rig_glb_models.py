@@ -10,6 +10,7 @@ import io
 import json
 import re
 import shutil
+import importlib.util
 from collections import defaultdict
 
 import bpy
@@ -24,6 +25,21 @@ STAGED = WORK / 'staged'
 REPORTS = WORK / 'reports'
 BLENDS = WORK / 'blend'
 STATE = {'built': [], 'pages': []}
+_sampler_spec = importlib.util.spec_from_file_location('glb_sampler_preservation', ROOT / 'tools/preserve_glb_samplers.py')
+_sampler_tools = importlib.util.module_from_spec(_sampler_spec)
+_sampler_spec.loader.exec_module(_sampler_tools)
+_props_spec = importlib.util.spec_from_file_location('glb_prop_rigging', ROOT / 'tools/rig_glb_props.py')
+_props_tools = importlib.util.module_from_spec(_props_spec)
+_props_spec.loader.exec_module(_props_tools)
+_normals_spec = importlib.util.spec_from_file_location('glb_exact_normals', ROOT / 'tools/preserve_blender_normals.py')
+_normals_tools = importlib.util.module_from_spec(_normals_spec)
+_normals_spec.loader.exec_module(_normals_tools)
+_creatures_spec = importlib.util.spec_from_file_location('glb_creature_rigging', ROOT / 'tools/rig_glb_creatures.py')
+_creatures_tools = importlib.util.module_from_spec(_creatures_spec)
+_creatures_spec.loader.exec_module(_creatures_tools)
+_humanoids_spec = importlib.util.spec_from_file_location('glb_humanoid_rigging', ROOT / 'tools/rig_glb_humanoids.py')
+_humanoids_tools = importlib.util.module_from_spec(_humanoids_spec)
+_humanoids_spec.loader.exec_module(_humanoids_tools)
 
 
 def prepare():
@@ -43,7 +59,7 @@ def prepare():
 
 
 def norm(name):
-    name = re.sub(r'\.\d{3}$', '', name)
+    name = re.sub(r'\.\d{3,}$', '', name)
     name = re.sub(r'([a-z])([A-Z])', r'\1_\2', name)
     return name.lower().replace('-', '_')
 
@@ -77,7 +93,7 @@ class Workbench:
         self.rel = rel
         self.scene = bpy.data.scenes.new(Path(rel).stem)
         bpy.context.window.scene = self.scene
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), _normals_tools.capture_import():
             bpy.ops.import_scene.gltf(filepath=str(ORIGINALS / rel))
         bpy.context.view_layer.update()
         self.objects = list(self.scene.objects)
@@ -113,6 +129,17 @@ class Workbench:
         return name
 
     def side(self, obj):
+        # Some authored wings use numeric sides and their outer feathers cross X=0.
+        for item in self.chains[obj][1:]:
+            if item.type == 'EMPTY' and self.names[item].startswith('wing'):
+                x = item.matrix_world.translation.x
+                if abs(x) > self.size * .001:
+                    return 'L' if x * self.side_sign > 0 else 'R'
+        if has(self.names[obj], r'pauldron.*rivet'):
+            plates = [p for p in self.parts if has(self.names[p], r'^pauldron')
+                      and 'rivet' not in self.names[p]]
+            if plates:
+                return self.side(min(plates, key=lambda p: np.linalg.norm(self.center[p] - self.center[obj])))
         for item in self.chains[obj]:
             n = self.names[item]
             if has(n, r'^(?:l_|left_)|_(?:l|left)(?:_|$)|(?:arm|leg)l[uf]$'):
@@ -128,6 +155,26 @@ class Workbench:
         combined = ' '.join(self.names[o] for o in chain)
         n = self.names[obj]
         s = self.side(obj)
+        if has(n, r'^(?:wind_(?:blade|ring|disc|stream|mote)|miasma_ring|scorch_ring|lift_|wisp|ground|pool|ripple|dust|spark|mote|aura|hover)'):
+            return 'root'
+        if 'Generals-Personal-Guard' in self.rel:
+            if n.startswith('beast_'):
+                return 'upper_arm.' + s
+            if n == 'army_insignia':
+                return 'chest'
+        if self.rel.startswith('enemies/02-blood-iron/') and any(
+                self.names[a] in ('back_flag', 'banner') for a in chain[1:-1]):
+            return 'chest'
+        if self.family == 'bird' and has(n, r'claw|talon'):
+            return 'foot.' + s
+        if self.family == 'bird' and has(n, r'beak|crest'):
+            return 'head'
+        if self.family == 'insect' and has(n, r'^eye_spot'):
+            wings = [o for o in self.parts if self.names[o] == 'wing']
+            wing = min(wings, key=lambda o: np.linalg.norm(self.center[o] - self.center[obj]))
+            return self.label(wing)
+        if self.family == 'insect' and has(n, r'^abd|tail_fork'):
+            return 'hips'
         if self.family == 'insect' and n in ('leg', 'wing'):
             similar = [o for o in self.parts if self.names[o] == n and self.side(o) == s]
             return ('wing.' if n == 'wing' else 'thigh.') + s + '.%02d' % (similar.index(obj) + 1)
@@ -166,11 +213,11 @@ class Workbench:
             return 'hand.' + s
         if has(n, r'forearm|fore_arm|vambrace|elbow|bracer|arm_lower|arm_[lr]f|arm[lr]f'):
             return 'forearm.' + s
-        if has(n, r'upperarm|upper_arm|shoulder|pauldron|(?:^|_)arm|sleeve'):
+        if has(n, r'upperarm|upper_arm|shoulder|pauldron|(?:^|_)arm(?:_|$)|sleeve'):
             return 'upper_arm.' + s
         if 'Blood-General' in self.rel and has(n, r'eye|mouth|tooth|tattoo|face'):
             return 'chest'
-        if has(n, r'head|mask|face|skull|muzzle|helm|snout|nose|(?:^|_)eye|(?:^|_)ear|whisker|hair|bun|crown|hood|beard|fang|forehead|urna'):
+        if has(n, r'head|mask|face|skull|muzzle|helm|snout|nose|cheek|(?:^|_)eye|(?:^|_)ear|whisker|hair|bun|crown|hood|beard|fang|forehead|urna'):
             return 'head'
         if has(n, r'neck|throat|collar'):
             return 'neck'
@@ -202,8 +249,15 @@ class Workbench:
         mid = (self.low + self.high) / 2
         bottom = np.array([mid[0], mid[1], self.low[2]])
         self.add('root', '', bottom)
-        hips = self.anchor([r'pelvis', r'hips', r'waist', r'belt', r'rump'], mid)
         chest = self.anchor([r'torso', r'body', r'chest', r'body_bulk', r'thorax'], mid)
+        hips_fallback = mid.copy()
+        if self.family == 'humanoid':
+            bodies = [o for o in self.parts if self.names[o] in ('body', 'torso')]
+            if bodies:
+                body_points = np.concatenate([self.points[o] for o in bodies])
+                hips_fallback = chest.copy()
+                hips_fallback[2] = body_points[:, 2].min() + np.ptp(body_points[:, 2]) * .2
+        hips = self.anchor([r'pelvis', r'hips', r'waist', r'belt', r'rump'], hips_fallback)
         self.add('hips', 'root', hips, chest)
         self.add('spine', 'hips', hips + (chest - hips) * .4, chest)
         self.bones['root']['head'][:2] = hips[:2]
@@ -238,6 +292,10 @@ class Workbench:
             primary = max(grouped[label], key=quality)
             near = self.bones[parent]['head']
             start, end = self.endpoint(primary, near)
+            if has(self.names[primary], r'knee|elbow|joint|ring'):
+                # A joint ring marks its center, not either rim of its major axis.
+                start = self.center[primary].copy()
+                end = start + np.array([0, 0, -self.size * .06])
             # Authored empties are exact shoulder/elbow/hand pivot landmarks.
             landmarks = [o for o in self.objects if o.type == 'EMPTY' and self.side(o) == suffix and
                          ((segment == 'upper_arm' and has(self.names[o], r'^(?:[lr]_)?arm$')) or
@@ -245,9 +303,58 @@ class Workbench:
                           (segment == 'hand' and self.names[o] == 'hand'))]
             if landmarks:
                 start = np.asarray(landmarks[0].matrix_world.translation)
+            if segment == 'wing':
+                wing_roots = [a for a in self.chains[primary][1:] if a.type == 'EMPTY'
+                              and self.names[a].startswith('wing')]
+                if wing_roots:
+                    start = np.asarray(wing_roots[0].matrix_world.translation)
+            # Single-piece limbs still need an elbow/knee between their end joints.
+            if segment in ('hand', 'foot'):
+                upper = ('upper_arm.' if segment == 'hand' else 'thigh.') + suffix
+                lower = ('forearm.' if segment == 'hand' else 'shin.') + suffix
+                if lower not in self.bones and upper in self.bones:
+                    joint = (self.bones[upper]['head'] + start) * .5
+                    self.add(lower, upper, joint, start)
+                    self.bones[upper]['tail'] = joint.copy()
+                    parent = lower
             self.add(label, parent, start, end)
             if segment in ('forearm', 'hand', 'shin') and parent in self.bones:
                 self.bones[parent]['tail'] = np.asarray(start)
+        for upper in list(self.bones):
+            if not upper.startswith('upper_arm.'):
+                continue
+            suffix = upper.split('.', 1)[1]
+            hand, forearm = 'hand.' + suffix, 'forearm.' + suffix
+            if hand not in self.bones:
+                wrist = self.bones.get(forearm, self.bones[upper])['tail'].copy()
+                grips = [o for o in self.parts if labels[o] == 'held.' + suffix
+                         and has(self.names[o], r'grip|handle|shaft|haft')]
+                if grips:
+                    grip = min(grips, key=lambda o: np.linalg.norm(self.center[o] - wrist))
+                    if np.linalg.norm(self.center[grip] - wrist) < self.size * .25:
+                        wrist = self.center[grip].copy()
+                if forearm not in self.bones:
+                    elbow = (self.bones[upper]['head'] + wrist) * .5
+                    self.add(forearm, upper, elbow, wrist)
+                    self.bones[upper]['tail'] = elbow.copy()
+                self.add(hand, forearm, wrist)
+                self.bones[forearm]['tail'] = wrist.copy()
+        weapon_groups = {}
+        for obj in self.parts:
+            group = next((a for a in self.chains[obj][1:-1] if a.type == 'EMPTY'
+                          and has(self.names[a], r'sword|spear|glaive|shield|mace|hammer|weapon|(?:^|_)bow(?:_|$)')), None)
+            if group is not None:
+                weapon_groups.setdefault(group, []).append(obj)
+        held_groups = {}
+        for group, objects in weapon_groups.items():
+            hands = [b for b in grouped if b.startswith('hand.') and b in self.bones]
+            if not hands:
+                hands = [b for b in self.bones if b.startswith('hand.')]
+            if hands:
+                grips = [o for o in objects if has(self.names[o], r'grip|handle|shaft|haft')]
+                grip = np.mean([self.center[o] for o in (grips or objects)], axis=0)
+                hand = min(hands, key=lambda b: np.linalg.norm(grip - self.bones[b]['head']))
+                held_groups.update({o: hand for o in objects})
         for obj, label in labels.items():
             if label and label.startswith('held.'):
                 hands = [b for b in self.bones if b.startswith('hand.')]
@@ -261,8 +368,16 @@ class Workbench:
                     anchors = [p for p in self.parts if labels[p] in self.bones]
                     nearest = min(anchors, key=lambda p: np.linalg.norm(self.center[p] - self.center[obj])) if anchors else None
                     label = labels[nearest] if nearest else 'chest'
-            self.assignment[obj] = label
+            self.assignment[obj] = held_groups.get(obj, label)
         self.soft_parts()
+        for obj in self.parts:
+            label = labels[obj]
+            if not label:
+                continue
+            if label.startswith(('thigh.', 'upper_arm.')) and re.fullmatch(r'(?:leg|arm)_(?:[lr]|[fbh][lr])', self.names[obj]):
+                lower = label.replace('thigh.', 'shin.').replace('upper_arm.', 'forearm.')
+                if lower in self.bones:
+                    self.blends[obj] = ('chain', [label, lower], self.bones[label]['head'], self.bones[lower]['tail'])
 
     def soft_parts(self):
         # Independent tails retain the original numbered ancestor; never merge nine tails.
@@ -273,20 +388,88 @@ class Workbench:
             n = names[0]
             if root:
                 tailsets[root].append(obj)
+            elif self.family == 'bird' and 'tail' in names:
+                tailsets['tail'].append(obj)
             elif re.fullmatch(r'tail\d*', n) and self.family in ('quadruped', 'humanoid'):
                 tailsets[n].append(obj)
+        for obj in self.parts:
+            if has(self.names[obj], r'^tail_?(?:tip|tuft)') and tailsets and not any(obj in ps for ps in tailsets.values()):
+                closest = min(tailsets, key=lambda key: min(np.min(np.linalg.norm(self.points[p] - self.center[obj], axis=1)) for p in tailsets[key]))
+                tailsets[closest].append(obj)
         for name, parts in tailsets.items():
-            self.chain(name.replace('tail_root_', 'tail.'), parts, 'hips', 3)
+            if 'NineTails.glb' in self.rel:
+                self.fox_tail(name.replace('tail_root_', 'tail.'), parts)
+            elif any(x in self.rel for x in ('MindLost-Fox-Demon', 'Maze-Guardian', 'War-Dog')):
+                self.curved_tail(name, parts)
+            else:
+                self.chain(name.replace('tail_root_', 'tail.'), parts, 'hips', 3)
         # Robes/capes and elongated single-piece limbs receive real blended weights.
         for obj in self.parts:
             n = self.names[obj]
-            if has(n, r'^(?:robe|skirt|cape|cloak|streamer|sash_tail|hair_strand)') and not has(n, r'ring|trim|brooch|plate|buckle'):
-                parent = 'head' if n.startswith('hair') and 'head' in self.bones else 'chest' if has(n, r'^cape|^cloak') else 'hips'
+            if has(n, r'^(?:robe|skirt|(?:back_)?cape|cloak|streamer|sash(?:_|$)|hair_strand|cloth_tatter)') and not has(n, r'ring|trim|brooch|plate|buckle|belt'):
+                parent = 'head' if n.startswith('hair') and 'head' in self.bones else 'chest' if has(n, r'^(?:back_)?cape|^cloak') else 'hips'
                 self.chain('cloth.' + re.sub(r'[^a-z0-9_]', '_', obj.name.lower()), [obj], parent, 2, vertical=True)
             elif n in ('torso', 'body') and self.family == 'humanoid':
                 zs = self.points[obj][:, 2]
                 lo, hi = float(zs.min()), float(zs.max())
                 self.blends[obj] = ('vertical', ['spine', 'chest'], lo, hi)
+
+    def tube_centers(self, obj):
+        """Recover the authored tube centerline from longitudinal UV rings."""
+        uv = obj.data.uv_layers.active
+        if uv is None:
+            raise RuntimeError('Tube centerline requires UVs: ' + obj.name)
+        rings = defaultdict(set)
+        for loop in obj.data.loops:
+            rings[round(uv.data[loop.index].uv.x, 5)].add(loop.vertex_index)
+        if len(rings) < 4:
+            raise RuntimeError('Insufficient tube rings: ' + obj.name)
+        return np.array([np.unique(np.round(self.points[obj][list(rings[u])], 6), axis=0).mean(0)
+                         for u in sorted(rings)])
+
+    def fox_tail(self, name, parts):
+        base = next(o for o in parts if self.names[o] == 'tail_base')
+        tip = next(o for o in parts if self.names[o] == 'tail_tip')
+        a, b = self.tube_centers(base), self.tube_centers(tip)
+        # The two authored tubes overlap; join where the smaller tip begins.
+        join = int(np.argmin(np.linalg.norm(a - b[0], axis=1)))
+        curve = np.concatenate([a[:join + 1], b])
+        lengths = np.r_[0., np.cumsum(np.linalg.norm(np.diff(curve, axis=0), axis=1))]
+        knots = np.linspace(0, lengths[-1], 7)
+        joints = np.array([np.interp(knots, lengths, curve[:, axis]) for axis in range(3)]).T
+        names = []
+        parent = 'hips'
+        for i in range(6):
+            bn = name + '.%02d' % (i + 1)
+            self.add(bn, parent, joints[i], joints[i + 1])
+            names.append(bn)
+            parent = bn
+        for obj in parts:
+            self.assignment[obj] = names[-1] if self.names[obj] == 'tail_tuft' else names[0]
+            if self.names[obj] in ('tail_base', 'tail_tip'):
+                self.blends[obj] = ('curve', names, curve, lengths)
+
+    def curved_tail(self, name, parts):
+        base = next(o for o in parts if re.fullmatch(r'tail\d*', self.names[o]))
+        curve = self.tube_centers(base)
+        tips = [o for o in parts if self.names[o] == 'tail_tip']
+        if tips:
+            tip = self.tube_centers(tips[0])
+            join = int(np.argmin(np.linalg.norm(curve - tip[0], axis=1)))
+            curve = np.concatenate([curve[:join + 1], tip])
+        lengths = np.r_[0., np.cumsum(np.linalg.norm(np.diff(curve, axis=0), axis=1))]
+        knots = np.linspace(0, lengths[-1], 5)
+        joints = np.array([np.interp(knots, lengths, curve[:, axis]) for axis in range(3)]).T
+        names, parent = [], 'hips'
+        for i in range(4):
+            bn = name + '.%02d' % (i + 1)
+            self.add(bn, parent, joints[i], joints[i + 1])
+            names.append(bn)
+            parent = bn
+        for obj in parts:
+            self.assignment[obj] = names[-1] if self.names[obj] == 'tail_tuft' else names[0]
+            if self.names[obj] != 'tail_tuft':
+                self.blends[obj] = ('curve', names, curve, lengths)
 
     def chain(self, name, parts, parent, count, vertical=False):
         pts = np.concatenate([self.points[o] for o in parts])
@@ -329,9 +512,11 @@ class Workbench:
 
     def bind(self):
         if self.family in ('prop', 'mechanism'):
-            self.props()
+            _props_tools.build_props(self)
         else:
             self.anatomy()
+            _creatures_tools.refine(self)
+            _humanoids_tools.refine(self)
         armdata = bpy.data.armatures.new('Skeleton')
         arm = bpy.data.objects.new('Skeleton', armdata)
         self.scene.collection.objects.link(arm)
@@ -363,6 +548,14 @@ class Workbench:
                 mode, names, a, b = self.blends[obj]
                 if mode == 'vertical':
                     t = np.clip((self.points[obj][:, 2] - a) / max(b - a, 1e-8), 0, 1)
+                elif mode == 'curve':
+                    delta = np.diff(a, axis=0)
+                    offset = self.points[obj][:, None, :] - a[:-1]
+                    projection = np.clip(np.sum(offset * delta, axis=2) / np.sum(delta * delta, axis=1), 0, 1)
+                    distance = np.linalg.norm(offset - projection[:, :, None] * delta, axis=2)
+                    segment = np.argmin(distance, axis=1)
+                    along = b[segment] + projection[np.arange(len(segment)), segment] * np.diff(b)[segment]
+                    t = np.clip(along / b[-1], 0, 1)
                 else:
                     axis = b - a
                     t = np.clip((self.points[obj] - a) @ axis / max(float(axis @ axis), 1e-8), 0, 1)
@@ -396,10 +589,11 @@ class Workbench:
     def export(self):
         dest = STAGED / self.rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), _normals_tools.exact_export():
             bpy.ops.export_scene.gltf(filepath=str(dest), export_format='GLB', use_active_scene=True,
                                       export_skins=True, export_animations=False, export_extras=True,
                                       export_yup=True, export_image_format='AUTO', export_materials='EXPORT')
+        _sampler_tools.preserve(ORIGINALS / self.rel, dest)
         report = {'file': self.rel, 'family': self.family, 'bones': len(self.bones), 'meshes': len(self.parts),
                   'blended_meshes': len(self.blends), 'vertices': sum(len(o.data.vertices) for o in self.parts),
                   'bind_error': self.rest_error, 'pose_displacement': self.pose_move,
@@ -432,6 +626,7 @@ def batch(paths, columns=3):
         reports.append({k: report[k] for k in ('file', 'family', 'bones', 'meshes', 'blended_meshes', 'bind_error', 'pose_displacement')})
     show_grid(built, columns)
     STATE['current'] = built
+    (WORK / 'current-batch.json').write_text(json.dumps([w.rel for w in built]), encoding='utf8')
     return reports
 
 

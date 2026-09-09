@@ -6,6 +6,23 @@
 
 ## 日期索引
 
+### 2026-09-09
+
+- [86 个模型转换完成状态复核：发布文件、清单哈希与 Godot 导入再次全部通过](2026-09-09/01-model-conversion-recheck.md)
+
+### 2026-09-08
+
+- [动作拼接前置：Godot 世界姿态采样、yaw 约定和 1 米连接验证](2026-09-08/05-motion-stitch-pose-prerequisites.md)
+- [Blender 内嵌骨架全部完成：86/86 已发布，严格校验与 Godot 导入全部通过](2026-09-08/03-complete-skinned-library.md)
+- [Blender 第 009-023 批：49 项转换与 19 项修复的逐模型发布记录](2026-09-08/04-complete-library-publications.md)
+- [Blender 内嵌骨架续作：37/86 阶段历史记录](2026-09-08/01-blender-skinning-continuation.md)
+- [Blender 第 007/008 批：逐模型发布、截图和改进记录](2026-09-08/02-blender-conversion-publications.md)
+
+### 2026-09-06
+
+- [Blender MCP 内嵌蒙皮骨架重建（首轮历史记录，最新状态见 2026-09-08）](2026-09-06/01-blender-embedded-skeleton-rebuild.md)
+- [Blender 九尾修复与续作发布（累计 25/86 的历史记录）](2026-09-06/02-blender-conversion-continuation.md)
+
 ### 2026-08-24
 
 - [**Three.js GLB 三视图截图管线修复与重拍验证**](2026-08-24/01-three-view-capture-repair-and-validation.md)
@@ -91,4 +108,3 @@
 - [Responsive UI/UX Refresh](2026-07-29/04-responsive-ui-ux-refresh.md)
 - [Vertical Slice Created](2026-07-29/05-vertical-slice-created.md)
 - [Godot-First Implementation Handoff](2026-07-29/06-godot-first-implementation-handoff.md)
-
