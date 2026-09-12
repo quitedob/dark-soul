@@ -4,6 +4,15 @@ extends RefCounted
 ## Composition helper — takes a world node reference for add_child / brazier access.
 
 const MaterialUtils = preload("res://scripts/core/procedural_utils.gd")
+const ThemeFactory = preload("res://scripts/world/level_theme_factory.gd")
+const PhaseEnvironment = preload("res://scripts/fx/phase_environment.gd")
+const THEME_LIGHTING_KEYS := {
+	&"theme_spirit_ruins": "cool_blue_moonlight",
+	&"theme_blood_iron": "blood_sunset_dim",
+	&"theme_jade_veil": "silver_moonlight_soft",
+	&"theme_celestial_fall": "eternal_sunset_gold",
+	&"theme_ember_abyss": "shifting_light_dark_cycle",
+}
 
 var _world: Node3D
 
@@ -19,7 +28,16 @@ func create_environment() -> void:
 	var env_node := WorldEnvironment.new()
 	env_node.name = "NightEnvironment"
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
+	environment.background_mode = Environment.BG_SKY
+	var sky := Sky.new()
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color("101c25")
+	sky_material.sky_horizon_color = Color("354d58")
+	sky_material.ground_bottom_color = Color("07101a")
+	sky_material.ground_horizon_color = Color("354d58")
+	sky_material.sun_angle_max = 8.0
+	sky.sky_material = sky_material
+	environment.sky = sky
 	environment.background_color = Color("07101a")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("526882")
@@ -72,6 +90,34 @@ func create_environment() -> void:
 	fill_light.light_indirect_energy = 0.25
 	fill_light.shadow_enabled = false
 	_world.add_child(fill_light)
+
+
+func apply_theme(theme_id: StringName) -> void:
+	# One live WorldEnvironment owns the level baseline and boss-phase transitions.
+	var world_env := _world.get_node_or_null("NightEnvironment") as WorldEnvironment
+	var moon := _world.get_node_or_null("Moonlight") as DirectionalLight3D
+	if world_env == null or world_env.environment == null or moon == null:
+		return
+	var colors: Dictionary = ThemeFactory.THEMES.get(theme_id, ThemeFactory.THEMES[&"theme_spirit_ruins"])
+	var profile: Dictionary = PhaseEnvironment.LIGHTING_TABLE[THEME_LIGHTING_KEYS.get(theme_id, "cool_blue_moonlight")]
+	var environment := world_env.environment
+	environment.background_color = colors["sky"]
+	var sky_material := environment.sky.sky_material as ProceduralSkyMaterial
+	sky_material.sky_top_color = colors["sky"]
+	sky_material.sky_horizon_color = profile["fog"]
+	sky_material.ground_bottom_color = colors["sky"]
+	sky_material.ground_horizon_color = profile["fog"]
+	environment.fog_light_color = profile["fog"]
+	environment.fog_density = profile["fog_density"]
+	environment.fog_light_energy = profile["fog_energy"]
+	environment.ambient_light_color = profile["amb"]
+	environment.ambient_light_energy = profile["amb_energy"]
+	environment.adjustment_saturation = profile["sat"]
+	environment.adjustment_contrast = profile["contrast"]
+	environment.glow_intensity = profile["glow"]
+	moon.light_color = profile["moon"]
+	moon.light_energy = profile["moon_energy"]
+	world_env.set_meta("theme_id", theme_id)
 
 
 func create_materials() -> Dictionary:

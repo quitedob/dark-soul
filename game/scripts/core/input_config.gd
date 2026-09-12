@@ -33,6 +33,8 @@ static func configure_inputs() -> void:
 	_add_key_action("special_attack", KEY_F)
 	_add_key_action("cast_spell", KEY_G)
 	_add_key_action("cycle_style", KEY_TAB)
+	_add_key_action("cycle_weapon", KEY_X)
+	_add_key_action("equipment", KEY_I)
 	_add_key_action("toggle_grip", KEY_T)
 	_add_key_action("style_1", KEY_1)
 	_add_key_action("style_2", KEY_2)
@@ -68,6 +70,8 @@ static func configure_inputs() -> void:
 	_add_joy_button_action("special_attack", JOY_BUTTON_B)
 	_add_joy_button_action("parry", JOY_BUTTON_X)
 	_add_joy_button_action("cycle_style", JOY_BUTTON_DPAD_RIGHT)
+	_add_joy_button_action("cycle_weapon", JOY_BUTTON_DPAD_LEFT)
+	_add_joy_button_action("equipment", JOY_BUTTON_DPAD_DOWN)
 
 
 static func _add_key_action(action: StringName, keycode: Key) -> void:

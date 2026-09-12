@@ -24,6 +24,22 @@ const SUCCESS_MARKER := "REAL_ROOT_MOTION_CONTRACTS_OK"
 var _failures: Array[String] = []
 
 
+## The bridge can evaluate combat method tracks while blending. A bare body
+## lacks these callbacks and used to log deferred errors after the success marker.
+class MotionProbeBody extends CharacterBody3D:
+	var hitbox_events: Array[bool] = []
+	var impulses: Array[float] = []
+
+	func anim_event_hitbox_on() -> void:
+		hitbox_events.append(true)
+
+	func anim_event_hitbox_off() -> void:
+		hitbox_events.append(false)
+
+	func anim_event_push_forward(amount: float = 0.0) -> void:
+		impulses.append(amount)
+
+
 ## 测试体要 add_child 节点并读取树内状态/根运动，必须延后到首帧 idle（同 L-19 deferred 模式）。
 func _initialize() -> void:
 	call_deferred("_run_all")
@@ -72,7 +88,7 @@ func _test_committed_lib_leap_has_forward_root() -> void:
 
 ## 2) 注入校验负例：被剔除的 colossal_leap 永不指向 real/<clip>。
 func _test_stripped_leap_falls_back_to_combat() -> void:
-	var body := CharacterBody3D.new()
+	var body := MotionProbeBody.new()
 	root.add_child(body)
 	var skel := _make_def_skeleton()
 	body.add_child(skel)
@@ -109,7 +125,7 @@ func _test_stripped_leap_falls_back_to_combat() -> void:
 
 ## 3) 合成根运动：可用真根轨 → consume_root_motion 非零且前向。
 func _test_real_root_motion_drives_consume() -> void:
-	var body := CharacterBody3D.new()
+	var body := MotionProbeBody.new()
 	root.add_child(body)
 	var skel := _make_def_skeleton()
 	body.add_child(skel)

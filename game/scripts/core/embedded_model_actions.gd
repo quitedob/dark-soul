@@ -143,7 +143,7 @@ static func _driver(root: Node) -> EmbeddedModelActions:
 		return null
 	if root is EmbeddedModelActions:
 		return root if is_instance_valid(root._animation_player) else null
-	var cached := root.get_meta(DRIVER_META, null) as WeakRef
+	var cached := root.get_meta(DRIVER_META) as WeakRef if root.has_meta(DRIVER_META) else null
 	if cached != null:
 		var driver := cached.get_ref() as EmbeddedModelActions
 		if is_instance_valid(driver) and root.is_ancestor_of(driver) and not driver.is_queued_for_deletion():
@@ -283,7 +283,7 @@ func _configure(instance: Node3D, entry: Dictionary) -> bool:
 				data["clip"] = clip
 				resolved[action_name] = data
 		var default_action := String(entry.get("default_action", ""))
-		if not resolved.has(default_action):
+		if resolved.is_empty() or (not default_action.is_empty() and not resolved.has(default_action)):
 			continue
 		_animation_player = candidate
 		_actions = resolved
@@ -292,7 +292,8 @@ func _configure(instance: Node3D, entry: Dictionary) -> bool:
 		break
 	if _animation_player == null:
 		return false
-	_animation_player.autoplay = ""
+	if not _animation_player.is_inside_tree():
+		_animation_player.autoplay = ""
 	_animation_player.stop()
 	# Imported AnimationLibrary resources are shared by PackedScene instances.
 	for library_name in _animation_player.get_animation_library_list():

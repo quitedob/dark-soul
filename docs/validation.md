@@ -1,5 +1,37 @@
 # Validation
 
+The current story-specific expansion of all 29 scenes and eight distinct boss
+arenas is tracked in [the 2026-09-10 story encounter log](devlog/2026-09-10/01-story-scene-encounters.md).
+That log preserves the per-level and per-boss scope, replaces superseded native
+results, and separates real keyboard play from inspection visits and injected
+boss damage. This implementation and its documented native/Chrome acceptance
+are complete. Final-package portrait resize, camera recovery, weapon input,
+maze/lake egress and fresh-context normal startup passed. The normal page has no
+audit arguments or bridge; real input acquires Pointer Lock without startup
+rejections. The responsive HUD contract has 75 checks. These scoped checks do
+not claim a manual new-save playthrough of all 29 levels or eight boss victories.
+
+The [native evidence aggregate](../build/story-campaign-20260910/aggregate-native-final.json)
+records exact log hashes, markers and diagnostics. Focused checks pass; GUT is
+**PASS_WITH_WARNINGS**: 96 tests / 394 assertions / 13 suites, with 2,834 unresolved
+AnimationMixer track warnings also present in the earlier temple validation.
+These warnings and editor exit diagnostics are not a clean-runtime claim.
+
+For the earlier 2026-09-10 validation of all 29 modeled environments, independent
+weapon slots, responsive Chinese UI and 8 bosses with 13 HP arena phases, see
+[the modeled campaign and boss interaction handoff](devlog/2026-09-09/05-weapon-loadout-temple-redesign.md).
+Those earlier Chrome results do not replace the new story-specific acceptance.
+
+For the 2026-09-09 weapon grip, swing timing and buffered-combo fixes, see
+[the weapon validation handoff](devlog/2026-09-09/04-weapon-swing-visual-timing.md).
+
+For the 2026-09-09 Chrome gameplay, camera, all-29-level environment and UI fixes,
+see [the browser validation handoff](devlog/2026-09-09/03-browser-gameplay-camera-environment.md).
+
+For the 2026-09-09 animated-model integration checks, current commands, exact
+markers and rendered evidence, see [the runtime handoff](devlog/2026-09-09/02-animated-library-runtime-integration.md).
+The dated results below describe earlier validation runs.
+
 Validated on **2026-08-11** using Godot 4.7.1. Project root for all `--path` arguments is `game/` (this repository: `e:/godot/darksoul/game`).
 
 ## Engine

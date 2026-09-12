@@ -5,32 +5,32 @@ extends Node
 
 const LIGHTING_TABLE := {
 	# 章节 1 / chapter 1
-	"cool_blue_moonlight": {"fog": Color("26405a"), "fog_density": 0.010, "fog_energy": 0.42, "amb": Color("526882"), "amb_energy": 0.28, "sat": 0.95, "contrast": 1.08, "glow": 0.55, "moon": Color("a8c2de"), "moon_energy": 1.05},
-	"flickering_fire_orange": {"fog": Color("3a1f14"), "fog_density": 0.026, "fog_energy": 0.55, "amb": Color("6b4a2a"), "amb_energy": 0.42, "sat": 1.06, "contrast": 1.14, "glow": 0.80, "moon": Color("ff9a55"), "moon_energy": 0.75},
+	"cool_blue_moonlight": {"fog": Color("354d58"), "fog_density": 0.0035, "fog_energy": 0.42, "amb": Color("526882"), "amb_energy": 0.62, "sat": 0.95, "contrast": 1.05, "glow": 0.55, "moon": Color("a8c2de"), "moon_energy": 1.05},
+	"flickering_fire_orange": {"fog": Color("554139"), "fog_density": 0.007, "fog_energy": 0.55, "amb": Color("a09186"), "amb_energy": 0.52, "sat": 0.95, "contrast": 1.08, "glow": 0.80, "moon": Color("f5cfa8"), "moon_energy": 0.95},
 	# 章节 2 / chapter 2
-	"blood_sunset_dim": {"fog": Color("451c16"), "fog_density": 0.018, "fog_energy": 0.48, "amb": Color("5a3430"), "amb_energy": 0.32, "sat": 1.00, "contrast": 1.10, "glow": 0.65, "moon": Color("d98a6a"), "moon_energy": 0.85},
-	"crimson_rage_glow": {"fog": Color("520f16"), "fog_density": 0.030, "fog_energy": 0.60, "amb": Color("6b2a26"), "amb_energy": 0.40, "sat": 1.10, "contrast": 1.16, "glow": 0.85, "moon": Color("ff5544"), "moon_energy": 0.80},
-	"deep_crimson_darkness": {"fog": Color("3a0c11"), "fog_density": 0.045, "fog_energy": 0.72, "amb": Color("4d1a18"), "amb_energy": 0.34, "sat": 1.14, "contrast": 1.22, "glow": 1.00, "moon": Color("c23028"), "moon_energy": 0.60},
+	"blood_sunset_dim": {"fog": Color("494047"), "fog_density": 0.0038, "fog_energy": 0.48, "amb": Color("858590"), "amb_energy": 0.56, "sat": 0.88, "contrast": 1.06, "glow": 0.65, "moon": Color("f2d0b8"), "moon_energy": 1.00},
+	"crimson_rage_glow": {"fog": Color("50383e"), "fog_density": 0.008, "fog_energy": 0.60, "amb": Color("978990"), "amb_energy": 0.52, "sat": 0.95, "contrast": 1.08, "glow": 0.85, "moon": Color("ffd0c6"), "moon_energy": 0.96},
+	"deep_crimson_darkness": {"fog": Color("382c39"), "fog_density": 0.012, "fog_energy": 0.72, "amb": Color("817480"), "amb_energy": 0.55, "sat": 0.95, "contrast": 1.08, "glow": 1.00, "moon": Color("efbcc4"), "moon_energy": 0.95},
 	# 章节 3 / chapter 3
-	"silver_moonlight_soft": {"fog": Color("3d4a5c"), "fog_density": 0.011, "fog_energy": 0.45, "amb": Color("5c6e84"), "amb_energy": 0.30, "sat": 0.92, "contrast": 1.06, "glow": 0.60, "moon": Color("c8d6e8"), "moon_energy": 1.10},
+	"silver_moonlight_soft": {"fog": Color("3a5252"), "fog_density": 0.0040, "fog_energy": 0.45, "amb": Color("729c96"), "amb_energy": 0.50, "sat": 0.92, "contrast": 1.06, "glow": 0.60, "moon": Color("ccdce4"), "moon_energy": 1.00},
 	"shifting_foxfire_colors": {"fog": Color("2e4a48"), "fog_density": 0.016, "fog_energy": 0.50, "amb": Color("4a6a66"), "amb_energy": 0.36, "sat": 1.04, "contrast": 1.10, "glow": 0.70, "moon": Color("8affd9"), "moon_energy": 0.95},
-	"dim_cyan_desperation": {"fog": Color("1e3c40"), "fog_density": 0.034, "fog_energy": 0.55, "amb": Color("3a5a5c"), "amb_energy": 0.30, "sat": 1.02, "contrast": 1.18, "glow": 0.75, "moon": Color("6ee8d8"), "moon_energy": 0.65},
+	"dim_cyan_desperation": {"fog": Color("2e464c"), "fog_density": 0.009, "fog_energy": 0.55, "amb": Color("789592"), "amb_energy": 0.52, "sat": 0.95, "contrast": 1.08, "glow": 0.75, "moon": Color("abe5dc"), "moon_energy": 0.95},
 	# 章节 4 / chapter 4
-	"angry_red_glow": {"fog": Color("4d1a14"), "fog_density": 0.020, "fog_energy": 0.55, "amb": Color("6b3a2a"), "amb_energy": 0.38, "sat": 1.08, "contrast": 1.12, "glow": 0.75, "moon": Color("ff7040"), "moon_energy": 0.85},
-	"intense_crimson": {"fog": Color("520f16"), "fog_density": 0.032, "fog_energy": 0.62, "amb": Color("6e2622"), "amb_energy": 0.42, "sat": 1.12, "contrast": 1.18, "glow": 0.90, "moon": Color("ff4433"), "moon_energy": 0.75},
+	"angry_red_glow": {"fog": Color("55403e"), "fog_density": 0.007, "fog_energy": 0.55, "amb": Color("a08f88"), "amb_energy": 0.52, "sat": 0.95, "contrast": 1.08, "glow": 0.75, "moon": Color("f6ccc0"), "moon_energy": 0.98},
+	"intense_crimson": {"fog": Color("503039"), "fog_density": 0.01, "fog_energy": 0.62, "amb": Color("9a7b89"), "amb_energy": 0.55, "sat": 0.95, "contrast": 1.08, "glow": 0.90, "moon": Color("f8c1bf"), "moon_energy": 0.95},
 	"cold_blue_white": {"fog": Color("4a5a70"), "fog_density": 0.013, "fog_energy": 0.48, "amb": Color("64788e"), "amb_energy": 0.34, "sat": 0.90, "contrast": 1.08, "glow": 0.60, "moon": Color("d8e6f5"), "moon_energy": 1.15},
-	"deep_frozen_blue": {"fog": Color("2c3e58"), "fog_density": 0.028, "fog_energy": 0.55, "amb": Color("4a5e7a"), "amb_energy": 0.30, "sat": 0.88, "contrast": 1.12, "glow": 0.70, "moon": Color("a8c8f0"), "moon_energy": 0.90},
-	"eternal_sunset_gold": {"fog": Color("5a3a1a"), "fog_density": 0.018, "fog_energy": 0.55, "amb": Color("7a5a34"), "amb_energy": 0.38, "sat": 1.08, "contrast": 1.10, "glow": 0.80, "moon": Color("ffc478"), "moon_energy": 0.95},
-	"radiant_gold_white": {"fog": Color("6a5a3a"), "fog_density": 0.020, "fog_energy": 0.62, "amb": Color("8a7a4e"), "amb_energy": 0.44, "sat": 1.05, "contrast": 1.10, "glow": 0.95, "moon": Color("ffe8b0"), "moon_energy": 1.20},
-	"chaotic_gold_darkness": {"fog": Color("3a2e14"), "fog_density": 0.040, "fog_energy": 0.70, "amb": Color("5a4a26"), "amb_energy": 0.32, "sat": 1.10, "contrast": 1.24, "glow": 1.00, "moon": Color("ffcc55"), "moon_energy": 0.55},
+	"deep_frozen_blue": {"fog": Color("33465d"), "fog_density": 0.009, "fog_energy": 0.55, "amb": Color("8091ab"), "amb_energy": 0.5, "sat": 0.95, "contrast": 1.08, "glow": 0.70, "moon": Color("bad5f4"), "moon_energy": 1},
+	"eternal_sunset_gold": {"fog": Color("696671"), "fog_density": 0.0035, "fog_energy": 0.50, "amb": Color("9da3b1"), "amb_energy": 0.35, "sat": 0.90, "contrast": 1.06, "glow": 0.60, "moon": Color("dce2e5"), "moon_energy": 0.72},
+	"radiant_gold_white": {"fog": Color("817567"), "fog_density": 0.007, "fog_energy": 0.62, "amb": Color("b1aa9d"), "amb_energy": 0.52, "sat": 0.95, "contrast": 1.08, "glow": 0.95, "moon": Color("fff0d6"), "moon_energy": 1.1},
+	"chaotic_gold_darkness": {"fog": Color("46404e"), "fog_density": 0.011, "fog_energy": 0.70, "amb": Color("958890"), "amb_energy": 0.52, "sat": 0.95, "contrast": 1.08, "glow": 1.00, "moon": Color("e7d4b8"), "moon_energy": 0.95},
 	# 章节 5 / chapter 5
-	"shifting_light_dark_cycle": {"fog": Color("3a3a4a"), "fog_density": 0.016, "fog_energy": 0.45, "amb": Color("565a68"), "amb_energy": 0.32, "sat": 0.98, "contrast": 1.10, "glow": 0.65, "moon": Color("b8c0d8"), "moon_energy": 1.00},
-	"focused_spotlight_tracking": {"fog": Color("2a2a34"), "fog_density": 0.024, "fog_energy": 0.38, "amb": Color("44444e"), "amb_energy": 0.22, "sat": 0.94, "contrast": 1.20, "glow": 0.60, "moon": Color("f0f0ff"), "moon_energy": 1.30},
-	"chaotic_multicolor_void": {"fog": Color("2e1e3e"), "fog_density": 0.038, "fog_energy": 0.66, "amb": Color("4a3a5e"), "amb_energy": 0.34, "sat": 1.16, "contrast": 1.20, "glow": 1.00, "moon": Color("c08aff"), "moon_energy": 0.80},
-	"dim_dying_ember_glow": {"fog": Color("2a1408"), "fog_density": 0.052, "fog_energy": 0.55, "amb": Color("4a2e1a"), "amb_energy": 0.26, "sat": 1.05, "contrast": 1.26, "glow": 0.85, "moon": Color("ff7733"), "moon_energy": 0.50},
+	"shifting_light_dark_cycle": {"fog": Color("373445"), "fog_density": 0.0045, "fog_energy": 0.45, "amb": Color("79758d"), "amb_energy": 0.55, "sat": 0.94, "contrast": 1.08, "glow": 0.65, "moon": Color("cbc9e3"), "moon_energy": 1.00},
+	"focused_spotlight_tracking": {"fog": Color("303240"), "fog_density": 0.008, "fog_energy": 0.38, "amb": Color("8a8b99"), "amb_energy": 0.44, "sat": 0.95, "contrast": 1.08, "glow": 0.60, "moon": Color("e0e3fc"), "moon_energy": 1.1},
+	"chaotic_multicolor_void": {"fog": Color("3e324e"), "fog_density": 0.009, "fog_energy": 0.66, "amb": Color("9486aa"), "amb_energy": 0.52, "sat": 0.95, "contrast": 1.08, "glow": 1.00, "moon": Color("d8b8f2"), "moon_energy": 0.95},
+	"dim_dying_ember_glow": {"fog": Color("382d32"), "fog_density": 0.012, "fog_energy": 0.55, "amb": Color("79675f"), "amb_energy": 0.55, "sat": 0.95, "contrast": 1.08, "glow": 0.85, "moon": Color("f0caa3"), "moon_energy": 1},
 	# 隐藏 Boss / optional bosses
 	"moonlight_through_arrow_slits": {"fog": Color("243448"), "fog_density": 0.014, "fog_energy": 0.46, "amb": Color("46586c"), "amb_energy": 0.26, "sat": 0.92, "contrast": 1.12, "glow": 0.60, "moon": Color("bcd0e8"), "moon_energy": 1.20},
-	"darkness_ember_only": {"fog": Color("1c100a"), "fog_density": 0.048, "fog_energy": 0.50, "amb": Color("3a2416"), "amb_energy": 0.18, "sat": 1.00, "contrast": 1.24, "glow": 0.90, "moon": Color("ff8844"), "moon_energy": 0.35},
+	"darkness_ember_only": {"fog": Color("2d2830"), "fog_density": 0.012, "fog_energy": 0.50, "amb": Color("766762"), "amb_energy": 0.55, "sat": 0.95, "contrast": 1.08, "glow": 0.90, "moon": Color("f5ceaa"), "moon_energy": 0.85},
 }
 
 var active_key := ""

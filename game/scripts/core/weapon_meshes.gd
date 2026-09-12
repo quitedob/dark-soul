@@ -16,6 +16,7 @@ const _THEMED_SHAPE_WEAPON := {
 	# 玩家默认剑用模板剑（templateweapons.glb Sword，与 player/shield 同库同族），
 	# 避免把起始"guardian_sword"实例化成 XuanXiao BOSS 大剑导致武器/盾美术错位。
 	"sword":        "player/weapon/sword",
+	"greatsword":   "weapon/08-XuanXiao-Falling-Star",
 	"bow":          "weapon/01-WindHunter-Bow",
 	"axe_right":    "player/weapon/axe_right",
 	"axe_left":     "player/weapon/axe_left",

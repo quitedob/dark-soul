@@ -95,8 +95,31 @@ func _run() -> void:
 
 	_expect(boss_defeated == 8, "expected 8 total bosses, got %d" % boss_defeated)
 
-	# 触发 5-5 出口 → 终局分支 → 分结局尾声（替代 "THE PATH ENDS HERE"）
-	_world._on_campaign_exit_requested(&"level_05_05")
+	# Use the optional arena's real return exit first, then traverse its parent
+	# chapter back to the terminal arena. An exit ID cannot stand in for loading
+	# that level: the production handler uses the active level's return metadata.
+	var return_level := StringName(campaign_runtime.get_level_data().get("return_level_id", ""))
+	_expect(not return_level.is_empty(), "optional boss arena must declare its return level")
+	_world._on_campaign_exit_requested(StringName(campaign_runtime.current_level_id))
+	await process_frame
+	await process_frame
+	_expect(campaign_runtime.current_level_id == return_level, "optional boss exit did not return to its entrance level")
+	var return_steps := 0
+	while campaign_runtime.current_level_id != &"level_05_05" and return_steps < campaign_runtime.registry.get_levels().size():
+		return_steps += 1
+		var from_level := StringName(campaign_runtime.current_level_id)
+		var next: Dictionary = campaign_runtime.registry.get_next_level(from_level)
+		if next.is_empty():
+			_expect(false, "optional return cannot reach final arena from %s" % from_level)
+			break
+		_world._on_campaign_exit_requested(from_level)
+		await process_frame
+		await process_frame
+		_expect(campaign_runtime.current_level_id == StringName(next["id"]),
+			"return transition did not reach %s" % next["id"])
+	_expect(campaign_runtime.current_level_id == &"level_05_05", "terminal exit requires the active final arena")
+	if campaign_runtime.current_level_id == &"level_05_05":
+		_world._on_campaign_exit_requested(StringName(campaign_runtime.current_level_id))
 	var hud = _world.get("hud")
 	_expect(
 		hud != null and hud.epilogue_overlay != null and hud.epilogue_overlay.visible,

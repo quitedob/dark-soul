@@ -21,7 +21,9 @@ func _physics_process(_delta: float) -> void:
 		if int(entry["frames"]) > 0:
 			_remaining_frames[instance_id] = entry
 			continue
-		var node: Node = entry["node"]
+		# Keep the stored reference as Variant until its lifetime is checked:
+		# assigning an already-freed instance to a typed Node raises first.
+		var node: Variant = entry["node"]
 		if is_instance_valid(node) and node.has_method("set_visual_frozen"):
 			node.call("set_visual_frozen", false)
 		_remaining_frames.erase(instance_id)
@@ -29,7 +31,7 @@ func _physics_process(_delta: float) -> void:
 
 func clear() -> void:
 	for entry in _remaining_frames.values():
-		var node: Node = entry["node"]
+		var node: Variant = entry["node"]
 		if is_instance_valid(node) and node.has_method("set_visual_frozen"):
 			node.call("set_visual_frozen", false)
 	_remaining_frames.clear()

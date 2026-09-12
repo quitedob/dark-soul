@@ -4,6 +4,12 @@ Date: 2026-09-08. Scope: verified Godot motion-pose sampling and local JSON expo
 No remote stitch service was called, no example plugin was installed, and no
 character model or animation library was modified.
 
+Continuation: [2026-09-09 runtime integration](../2026-09-09/02-animated-library-runtime-integration.md)
+installs the separately baked 761 original in-place clips into the game's 86
+converted models and demonstrates this sampler on the animated warrior. The
+static `build/glb-models/out` conversion baseline remains unchanged. The following
+no-motion statements describe the September 8 prerequisite stage.
+
 ## What the Example Provides
 
 Read `example/Godot-Mixamo-Animation-Retargeter`, including its README, addon script,

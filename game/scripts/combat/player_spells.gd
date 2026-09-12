@@ -38,6 +38,14 @@ func try_cast_for_style(combat_style: int) -> String:
 
 
 func begin_cast(cast_id: StringName, focus_cost: float, duration: float) -> bool:
+	# Bow shots share CAST timing but are physical attacks, not spells/prayers.
+	if _player.is_story_cast_locked() and cast_id not in [&"bow_quick_shot", &"bow_power_shot"]:
+		_player._show_message(preload("res://scripts/ui/hud_theme.gd").copy("噤声尚未消退", "Silence still binds your spells"), 1.2)
+		return false
+	var healing_config: Dictionary = CombatData.SPELL_CONFIG.get(String(cast_id), {})
+	if _player.is_story_healing_locked() and float(healing_config.get("heal", 0.0)) > 0.0:
+		_player._show_message(preload("res://scripts/ui/hud_theme.gd").copy("断念试炼中无法治疗", "Healing is sealed during the Thought-Breaker trial"), 1.2)
+		return false
 	# L-11：冷却中禁止施法（不扣专注）
 	if _is_on_cooldown(cast_id):
 		return false
@@ -94,10 +102,10 @@ func resolve_cast(pending_cast: StringName) -> void:
 			_player._play_audio("heavy", -5.0, 0.9)
 		&"ember_rite":
 			var heal_amount: float = config.get("heal", 28.0)
-			var aoe_damage: float = config.get("aoe_damage", 22.0)
-			var aoe_stagger: float = config.get("aoe_stagger", 20.0)
+			var aoe_damage: float = float(config.get("aoe_damage", 22.0)) * _player.story_blessing_multiplier("damage")
+			var aoe_stagger: float = float(config.get("aoe_stagger", 20.0)) * _player.story_blessing_multiplier("stagger")
 			var aoe_range: float = config.get("aoe_range", 6.0)
-			_player.health = minf(_player.health + heal_amount, _player.max_health)
+			_player.heal(heal_amount)
 			_player._emit_stats()
 			if _world_node != null and _world_node.has_method("get_target_candidates"):
 				for candidate in _world_node.get_target_candidates():
@@ -110,13 +118,13 @@ func resolve_cast(pending_cast: StringName) -> void:
 			_player._play_audio("rest", -4.0, 0.82)
 		# -- L-11 法术 --
 		&"restful_prayer":
-			_player.health = minf(_player.health + float(config.get("heal", 40.0)), _player.max_health)
+			_player.heal(float(config.get("heal", 40.0)))
 			_player._emit_stats()
 			_player._show_message("RESTFUL PRAYER", 0.75)
 			_player._play_audio("rest", -4.0, 0.9)
 		&"stop_bleed", &"mind_clearing":
 			# 状态（流血/净化）目标系统未实现：诚实降级为治疗 + 提示
-			_player.health = minf(_player.health + float(config.get("heal", 15.0)), _player.max_health)
+			_player.heal(float(config.get("heal", 15.0)))
 			_player._emit_stats()
 			_player._show_message("STOP BLEED" if pending_cast == &"stop_bleed" else "MIND CLEARING", 0.7)
 			_player._play_audio("rest", -4.0, 0.85)
@@ -129,7 +137,7 @@ func resolve_cast(pending_cast: StringName) -> void:
 			_player._play_audio("heavy", -4.0, 0.9)
 		&"iron_skin", &"furnace_oath", &"divine_soldier", &"immortality_mantra":
 			if float(config.get("heal", 0.0)) > 0.0:
-				_player.health = minf(_player.health + float(config["heal"]), _player.max_health)
+				_player.heal(float(config["heal"]))
 				_player._emit_stats()
 			_apply_armor_buff(
 				float(config.get("pdr_boost", 0.2)),
@@ -221,7 +229,7 @@ func resolve_cast(pending_cast: StringName) -> void:
 			)
 			_player._play_audio("heavy", -4.0, 0.9)
 		&"ksitigarbha_vow":
-			_player.health = minf(_player.health + float(config.get("heal", 25.0)), _player.max_health)
+			_player.heal(float(config.get("heal", 25.0)))
 			_player._emit_stats()
 			var revived_count := 0
 			for summon in _active_summons:
@@ -265,7 +273,7 @@ func resolve_cast(pending_cast: StringName) -> void:
 				spawn_spell_projectile(bolt_cfg, "scripture_scroll")
 				_player._show_message("SCROLL: BOLT", 0.7)
 			elif scroll_roll < 8:
-				_player.health = minf(_player.health + float(config.get("heal", 30.0)), _player.max_health)
+				_player.heal(float(config.get("heal", 30.0)))
 				_player._emit_stats()
 				_player._show_message("SCROLL: HEAL", 0.7)
 			else:
@@ -347,12 +355,12 @@ func spawn_spell_projectile(config: Dictionary, action_id: String, override_dire
 		)
 		cast_direction = (
 			target_point
-			- (_player.global_position + Vector3.UP * 1.25)
+			- (_player.global_position + _player.up_direction * 1.25)
 		).normalized()
 
 	var item_id: String = _player.right_hand_item
-	var proj_damage: float = config.get("damage", 28.0)
-	var proj_stagger: float = config.get("stagger", 18.0)
+	var proj_damage: float = float(config.get("damage", 28.0)) * _player.story_blessing_multiplier("damage")
+	var proj_stagger: float = float(config.get("stagger", 18.0)) * _player.story_blessing_multiplier("stagger")
 
 	var homing: Node3D = null
 	if bool(config.get("homing", false)) and lock_target != null and is_instance_valid(lock_target):
@@ -383,7 +391,7 @@ func spawn_spell_projectile(config: Dictionary, action_id: String, override_dire
 		else _player.get_tree().current_scene
 	)
 	projectile_parent.add_child(projectile)
-	projectile.global_position = _player.global_position + Vector3.UP * 1.25 + cast_direction * 0.8
+	projectile.global_position = _player.global_position + _player.up_direction * 1.25 + cast_direction * 0.8
 
 	var message_key := _display_name(StringName(action_id))
 	if action_id == "bow_quick_shot" or action_id == "bow_power_shot":
@@ -401,28 +409,12 @@ func spawn_spell_projectile(config: Dictionary, action_id: String, override_dire
 
 func try_arcane_barrage() -> bool:
 	var cfg: Dictionary = CombatData.SPELL_CONFIG["arcane_barrage"]
-	if _player.focus < cfg["focus_cost"]:
-		_player._show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
-		return false
-	_player.focus = maxf(_player.focus - cfg["focus_cost"], 0.0)
-	_player._emit_focus()
-	_player._pending_cast = &"arcane_barrage"
-	_player._cast_resolved = false
-	_player._change_state(_player.State.CAST, 0.55)
-	return true
+	return begin_cast(&"arcane_barrage", float(cfg["focus_cost"]), .55)
 
 
 func try_divine_smite() -> bool:
 	var cfg: Dictionary = CombatData.SPELL_CONFIG["divine_smite"]
-	if _player.focus < cfg["focus_cost"]:
-		_player._show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
-		return false
-	_player.focus = maxf(_player.focus - cfg["focus_cost"], 0.0)
-	_player._emit_focus()
-	_player._pending_cast = &"divine_smite"
-	_player._cast_resolved = false
-	_player._change_state(_player.State.CAST, 0.68)
-	return true
+	return begin_cast(&"divine_smite", float(cfg["focus_cost"]), .68)
 
 
 # -- L-06 召唤物 API ---------------------------------------------------------
@@ -444,15 +436,7 @@ func try_summon(spell_id: StringName) -> bool:
 	if cfg.is_empty():
 		return false
 	var cost := float(cfg.get("focus_cost", 30.0))
-	if _player.focus < cost:
-		_player._show_message(LocalizationScript.text("NOT ENOUGH FOCUS"), 0.8)
-		return false
-	_player.focus = maxf(_player.focus - cost, 0.0)
-	_player._emit_focus()
-	_player._pending_cast = spell_id
-	_player._cast_resolved = false
-	_player._change_state(_player.State.CAST, float(cfg.get("cast_time", 0.7)))
-	return true
+	return begin_cast(spell_id, cost, float(cfg.get("cast_time", .7)))
 
 
 ## 遣散全部在场召唤物（保留占用返还）
@@ -603,7 +587,7 @@ func _aoe_damage(aoe_range: float, damage: float, stagger: float) -> void:
 		hit_dir.y = 0.0
 		if hit_dir.length_squared() < 0.001:
 			hit_dir = -_player.global_transform.basis.z
-		candidate.receive_hit(damage, stagger, hit_dir.normalized(), _player)
+		candidate.receive_hit(damage * _player.story_blessing_multiplier("damage"), stagger * _player.story_blessing_multiplier("stagger"), hit_dir.normalized(), _player)
 
 
 ## 延迟 AoE（在施法原点，施法后再起跳）
@@ -625,7 +609,7 @@ func _aoe_damage_delayed(delay: float, aoe_range: float, damage: float, stagger:
 			hit_dir.y = 0.0
 			if hit_dir.length_squared() < 0.001:
 				hit_dir = -_player.global_transform.basis.z
-			candidate.receive_hit(damage, stagger, hit_dir.normalized(), _player)
+			candidate.receive_hit(damage * _player.story_blessing_multiplier("damage"), stagger * _player.story_blessing_multiplier("stagger"), hit_dir.normalized(), _player)
 	)
 
 

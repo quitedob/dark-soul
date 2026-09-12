@@ -5,6 +5,8 @@ const _ProcUtils = preload("res://scripts/core/procedural_utils.gd")
 const EnemyScene = preload("res://scenes/actors/enemy.tscn")
 const EnemyScript = preload("res://scripts/enemy.gd")
 const HudScene = preload("res://scenes/ui/hud.tscn")
+const HudThemeScript = preload("res://scripts/ui/hud_theme.gd")
+const LevelModuleVisuals = preload("res://scripts/levels/procedural_level_modules.gd")
 const CheckpointScene = preload("res://scenes/interactables/ember_shrine.tscn")
 const ShortcutScene = preload("res://scenes/interactables/shortcut_lever.tscn")
 const LostEchoScene = preload("res://scenes/interactables/lost_echo.tscn")
@@ -31,6 +33,11 @@ const BossPhasePolisherScript = preload("res://scripts/boss/boss_phase_polisher.
 const ImpactVfxScript = preload("res://scripts/fx/impact_vfx.gd")
 const PhaseEnvironmentScript = preload("res://scripts/fx/phase_environment.gd")
 const ArenaDirectorScript = preload("res://scripts/world/arena_director.gd")
+const BossEncounterBoundaryScript = preload("res://scripts/world/boss_encounter_boundary.gd")
+const CampaignEncounterLayoutScript = preload("res://scripts/world/campaign_encounter_layout.gd")
+const CampaignSceneDressingScript = preload("res://scripts/data/campaign_scene_dressing.gd")
+const CampaignStoryProgressionScript = preload("res://scripts/world/campaign_story_progression.gd")
+const CampaignStoryMechanismsScript = preload("res://scripts/world/campaign_story_mechanisms.gd")
 const BossFlowControllerScript = preload("res://scripts/boss/boss_flow_controller.gd")
 const FateChoiceOverlayScript = preload("res://scripts/ui/fate_choice_overlay.gd")
 const FateCatalog = preload("res://scripts/combat/data/boss_fate_catalog.gd")
@@ -84,6 +91,8 @@ var _phase_polisher = null  # G-04 Boss 相变抛光
 var _impact_vfx = null  # L-24 命中冲击粒子池（GPU 一次性爆发）
 var _phase_environment = null  # L-24 相变环境漂移（雾/光/调色渐变）
 var _arena_director = null  # L-26 Boss 场地互动导演（塌陷环 / 药罐 / 相变塌陷）
+var _boss_boundary = null
+var _boss_aftermath_pending := false
 var _fate_overlay = null
 var _dialogue_overlay = null
 var _pending_fate_boss = null
@@ -92,6 +101,8 @@ var _level_transition_locked := false
 var _shrine_npcs: Array = []
 var _fast_travel_overlay = null
 var _inventory_overlay = null
+var _restoring_run_state := false
+var _systems_ready := false
 # L-09：当前聚焦经脉（任脉起；休息时自动尝试升级，可被 set_meridian_focus 轮转）
 var _meridian_focus := 0
 # L-15：道行/魂器加成已应用到玩家的登记等级（幂等增量用）
@@ -113,12 +124,18 @@ func _ready() -> void:
 	add_child(campaign_runtime)
 	campaign_runtime.load_level(&"level_01_01")
 	_update_level_markers()
+	_apply_level_environment()
 	_create_systems()
 	_load_initial_state()
+	_systems_ready = true
 	_wire_destructible_rewards()
 	call_deferred("_generate_navigation")
 	if "--smoke-test" in OS.get_cmdline_user_args():
 		get_tree().create_timer(2.0).timeout.connect(_run_smoke_test)
+	if OS.is_debug_build() and OS.has_feature("web") and "--browser-audit" in OS.get_cmdline_user_args():
+		var browser_audit = load("res://tests/tools/browser_gameplay_audit.gd").new()
+		browser_audit.name = "BrowserGameplayAudit"
+		add_child(browser_audit)
 
 
 func _load_campaign_level(level_id: StringName) -> bool:
@@ -127,7 +144,10 @@ func _load_campaign_level(level_id: StringName) -> bool:
 	var level_root := campaign_runtime.load_level(level_id)
 	if level_root == null:
 		return false
+	_clear_level_runtime()
 	_update_level_markers()
+	_apply_level_environment()
+	call_deferred("_generate_navigation")
 	_spawn_shrine_npc()
 	if checkpoint != null:
 		checkpoint.position = _checkpoint_position()
@@ -138,12 +158,94 @@ func _load_campaign_level(level_id: StringName) -> bool:
 		# 不再用跨关卡共享的全局 victory 位，避免第二章及以后 Boss 关误判。
 		var boss_id := _current_boss_id()
 		victory = _is_boss_defeated(boss_id)
+		var resume_escape := victory and boss_id == "boss_xuan_xiao" and not bool(run_state.get_choice_flag("aftermath_complete_" + boss_id, false))
+		_boss_aftermath_pending = resume_escape
 		if victory and guardian != null and is_instance_valid(guardian):
+			if is_instance_valid(_boss_boundary):
+				_boss_boundary.mark_cleared()
 			guardian.queue_free()
 			guardian = null
 			_open_boss_victory_exit()
 		player.respawn_at(respawn_position)
+		if resume_escape and is_instance_valid(_arena_director):
+			if not _arena_director.begin_aftermath(StringName(run_state.get_choice_flag("ch4_xuanxiao_fate", "remembered"))):
+				push_error("Saved celestial victory requires its unfinished escape course")
 	return true
+
+
+func _clear_level_runtime() -> void:
+	if is_instance_valid(player):
+		player.clear_traversal_up()
+		player.set_story_healing_locked(false)
+		player.set_story_cast_locked(false)
+		player.set_story_blessing_modifiers({})
+	# Generated level children have just been freed. Stop world-owned encounter
+	# controllers and invalidate their transient HUD messages before new setup.
+	_clear_enemies()
+	_arena_director = null
+	_boss_boundary = null
+	_boss_aftermath_pending = false
+	if _module_runtime != null:
+		_module_runtime.clear()
+	if _phase_polisher != null:
+		_phase_polisher.reset()
+	for child in get_children():
+		if String(child.name).begins_with("ArenaPhaseVfx_"):
+			remove_child(child)
+			child.queue_free()
+	_samsara_queue.clear()
+	_pending_fate_boss = null
+	interaction_candidates.clear()
+	_interaction_refresh = 0.0
+	if hud != null:
+		hud.show_message("", 0.0)
+		hud.set_prompt("")
+		hud.hide_boss()
+		hud.set_lock_target(null)
+
+
+func _apply_level_environment() -> void:
+	# Cancel the previous boss tween before taking the next chapter's baseline.
+	if _phase_environment != null:
+		_phase_environment.restore_defaults(0.0)
+	_env_setup.apply_theme(StringName(campaign_runtime.get_level_data().get("theme_id", &"theme_spirit_ruins")))
+	if campaign_runtime.current_level_id == &"level_01_01":
+		var environment := world_environment.environment
+		environment.fog_density = 0.0035
+		environment.background_color = Color("101c25")
+		environment.fog_light_color = Color("354d58")
+		environment.ambient_light_energy = 0.62
+		environment.adjustment_contrast = 1.05
+		for x in [-19.0, 19.0]:
+			var light_name := "PavilionLightWest" if x < 0.0 else "PavilionLightEast"
+			if campaign_runtime.current_level.has_node(light_name):
+				continue
+			var light := OmniLight3D.new()
+			light.name = light_name
+			light.position = Vector3(x, 4.3, -116.0)
+			light.light_color = Color("ffb56a")
+			light.light_energy = 1.7
+			light.omni_range = 10.0
+			light.shadow_enabled = true
+			campaign_runtime.current_level.add_child(light)
+		for point in [Vector3(-42, 4.6, -57), Vector3(-42, 4.6, -75), Vector3(42, 4.6, -69), Vector3(42, 4.6, -87)]:
+			var light_name := "CloisterLight_%d_%d" % [int(point.x), int(point.z)]
+			if campaign_runtime.current_level.has_node(light_name):
+				continue
+			var light := OmniLight3D.new()
+			light.name = light_name
+			light.position = point
+			light.light_color = Color("d8ab75")
+			light.light_energy = 0.85
+			light.omni_range = 14.0
+			campaign_runtime.current_level.add_child(light)
+	_update_hud_location()
+	if _phase_environment != null:
+		_phase_environment.bind(world_environment, _find_key_light())
+	var blank := get_node_or_null("BlankTestArea")
+	if blank != null:
+		remove_child(blank)
+		blank.queue_free()
 
 
 func _update_level_markers() -> void:
@@ -162,11 +264,13 @@ func _update_level_markers() -> void:
 		shrine_fill.position = checkpoint_position + Vector3(0.0, 1.2, 1.5)
 		shrine_fill.light_energy = 0.9
 	if shortcut != null and is_instance_valid(shortcut):
-		shortcut.position = checkpoint_position + Vector3(-6.0, 0.0, -2.0)
+		shortcut.position = _supported_campaign_position(checkpoint_position + Vector3(-6.0, 0.0, -2.0), 0.7, 0.0)
 	if shortcut_gate != null and is_instance_valid(shortcut_gate):
 		var exit_marker := campaign_runtime.get_exit_marker()
 		if exit_marker != null:
-			shortcut_gate.position = exit_marker.global_position + Vector3(0.0, 1.5, 2.0)
+			shortcut_gate.position = _supported_campaign_position(exit_marker.global_position + Vector3(0.0, 0.0, 2.0), 1.0, 1.5)
+			if shortcut != null and is_instance_valid(shortcut):
+				shortcut.setup(shortcut_gate, self)
 
 
 func _checkpoint_position() -> Vector3:
@@ -174,6 +278,36 @@ func _checkpoint_position() -> Vector3:
 		return Vector3(0.0, 0.0, 6.0)
 	var marker := campaign_runtime.get_checkpoint_marker()
 	return marker.global_position if marker != null else Vector3(0.0, 0.0, 6.0)
+
+
+func _update_hud_location() -> void:
+	if hud == null or campaign_runtime == null:
+		return
+	var data := campaign_runtime.get_level_data()
+	for chapter in CampaignContentScript.chapters():
+		if chapter["id"] == data.get("chapter_id"):
+			hud.set_location(String(chapter["display_name"]), String(data.get("display_name", "")))
+			break
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("equipment") and not event.is_echo():
+		if hud != null and hud.open_equipment():
+			get_viewport().set_input_as_handled()
+
+
+func _on_equipment_requested() -> void:
+	hud.open_equipment()
+
+
+func _on_inventory_equipment_requested() -> void:
+	_inventory_overlay.close()
+	hud.open_equipment()
+
+
+func _on_weapon_loadout_changed() -> void:
+	if _systems_ready and not _restoring_run_state:
+		_save_run("weapon_loadout")
 
 
 func _process(delta: float) -> void:
@@ -191,7 +325,24 @@ func _process(delta: float) -> void:
 		return
 	_interaction_refresh = 0.1
 	_update_interaction_target()
+	_update_scene_objective()
 	_update_brazier_flicker(delta)
+
+
+func _update_scene_objective() -> void:
+	if hud == null:
+		return
+	var mechanisms := _story_mechanisms()
+	var objective := String(mechanisms.exit_block_reason()) if is_instance_valid(mechanisms) else ""
+	if is_instance_valid(mechanisms):
+		var state: Dictionary = mechanisms.snapshot()
+		if not String(state.get("trial", "")).is_empty():
+			var remaining_seconds := ceili(float(state.get("trial_remaining", 0.0)))
+			if String(state.get("trial", "")) == "gate_keeper":
+				objective = HudThemeScript.copy("试炼进行中 · 第 %d 波 · %d 秒", "Trial in progress · Wave %d · %d s") % [maxi(1, int(state.get("trial_wave", 1))), remaining_seconds]
+			else:
+				objective = HudThemeScript.copy("试炼进行中 · %d 秒", "Trial in progress · %d s") % remaining_seconds
+	hud.set_scene_objective(objective)
 
 
 func _update_brazier_flicker(delta: float) -> void:
@@ -244,10 +395,11 @@ func teleport_player_to_blank(player: Node3D) -> void:
 		col.shape = shape
 		floor.add_child(col)
 		blank.add_child(floor)
-		var light := DirectionalLight3D.new()
+		var light := OmniLight3D.new()
 		light.name = "KeyLight"
-		light.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
-		light.light_energy = 1.6
+		light.position = Vector3(0.0, 8.0, 0.0)
+		light.omni_range = 24.0
+		light.light_energy = 5.0
 		blank.add_child(light)
 	player.global_position = blank.position + Vector3(0.0, 1.5, 0.0)
 	if player is CharacterBody3D:
@@ -279,6 +431,7 @@ func _create_systems() -> void:
 	if hud.has_signal("combat_tip_mode_requested"):
 		hud.combat_tip_mode_requested.connect(_on_hud_combat_tip_mode_requested)
 	hud.play_started.connect(_on_play_started)
+	hud.equipment_requested.connect(_on_equipment_requested)
 	if hud.has_signal("epilogue_finished"):
 		hud.epilogue_finished.connect(_on_epilogue_finished)
 
@@ -293,12 +446,14 @@ func _create_systems() -> void:
 	player.lock_target_changed.connect(hud.set_lock_target)
 	player.combat_style_changed.connect(hud.set_combat_style)
 	player.hands_changed.connect(hud.set_hands)
+	player.weapon_loadout_changed.connect(_on_weapon_loadout_changed)
 	if player.has_signal("charge_progress_changed"):
 		player.charge_progress_changed.connect(hud.update_charge_progress)
 	player.healing_started.connect(_on_player_healing)
 	add_child(player)
 	player.combat_area.hit_landed.connect(_on_player_hit_landed)
 	hud.setup(player)
+	_update_hud_location()
 	_hit_stop_manager = HitStopManagerScript.new()
 	_hit_stop_manager.name = "HitStopManager"
 	add_child(_hit_stop_manager)
@@ -340,6 +495,7 @@ func _create_systems() -> void:
 	_inventory_overlay.name = "InventoryOverlay"
 	add_child(_inventory_overlay)
 	_inventory_overlay.inventory_closed.connect(_on_inventory_closed)
+	_inventory_overlay.equipment_requested.connect(_on_inventory_equipment_requested)
 	if player.has_signal("execution_started"):
 		player.execution_started.connect(_on_player_execution_started)
 	_create_interaction_sensor()
@@ -354,10 +510,10 @@ func _create_systems() -> void:
 	_spawn_shrine_npc()
 
 	var exit_marker := campaign_runtime.get_exit_marker() if campaign_runtime != null else null
-	var gate_pos := exit_marker.global_position + Vector3(0.0, 1.5, 2.0) if exit_marker != null else Vector3(0.0, 1.5, -5.6)
+	var gate_pos := _supported_campaign_position(exit_marker.global_position + Vector3(0.0, 0.0, 2.0), 1.0, 1.5) if exit_marker != null else Vector3(0.0, 1.5, -5.6)
 	shortcut_gate = _create_gate(gate_pos)
 	shortcut = ShortcutScene.instantiate()
-	shortcut.position = _checkpoint_position() + Vector3(-6.0, 0.0, -2.0)
+	shortcut.position = _supported_campaign_position(_checkpoint_position() + Vector3(-6.0, 0.0, -2.0), 0.7, 0.0)
 	shortcut.setup(shortcut_gate, self)
 	shortcut.opened.connect(_on_shortcut_opened)
 	add_child(shortcut)
@@ -402,9 +558,8 @@ func _on_interaction_area_exited(area: Area3D) -> void:
 
 func _show_intro() -> void:
 	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
-	var level_name := String(level_data.get("display_name", "ASHEN HOLLOW"))
-	var purpose := String(level_data.get("purpose", "explore"))
-	hud.show_message(LocalizationScript.text("%s\nLearn the hollow: %s") % [level_name, purpose], 4.0)
+	var level_name := HudThemeScript.readable_name(String(level_data.get("display_name", "ASHEN HOLLOW")), game_settings.locale)
+	hud.show_message(level_name, 3.0)
 
 
 func _on_play_started() -> void:
@@ -415,13 +570,36 @@ func _activate_campaign_modules() -> void:
 	# 激活当前关卡模块行为
 	if _module_runtime == null or campaign_runtime == null:
 		return
-	_module_runtime.activate(campaign_runtime.current_level)
+	var level_root := campaign_runtime.current_level
+	var id := String(campaign_runtime.current_level_id)
+	var suppressed := CampaignStoryMechanismsScript.suppressed_modules(id)
+	var modules := level_root.get_node_or_null("Modules")
+	if modules != null:
+		for module in modules.get_children():
+			if StringName(module.get_meta("module_id", &"")) in suppressed:
+				modules.remove_child(module)
+				module.free()
+	_module_runtime.activate(level_root, suppressed)
+	if not suppressed.is_empty() and not level_root.has_node("StoryMechanisms"):
+		var mechanisms := CampaignStoryMechanismsScript.new()
+		mechanisms.name = "StoryMechanisms"
+		level_root.add_child(mechanisms)
+		mechanisms.setup(self, id)
+	player.set_story_blessing_modifiers(CampaignStoryMechanismsScript.final_battle_modifiers(run_state) if id == "level_05_05" else {})
 
 
 func _clear_enemies() -> void:
 	# 清除旧遭遇战敌人
 	for enemy in enemies:
 		if is_instance_valid(enemy):
+			# A deferred boss-flow initializer can otherwise display its warning
+			# after a same-frame level change, before queue_free is flushed.
+			var flow: Node = enemy.get_node_or_null("FlowController")
+			if flow != null and "flow_boss" in flow:
+				flow.set("flow_boss", null)
+			enemy.process_mode = Node.PROCESS_MODE_DISABLED
+			if enemy.get_parent() != null:
+				enemy.get_parent().remove_child(enemy)
 			enemy.queue_free()
 	enemies.clear()
 	guardian = null
@@ -434,6 +612,8 @@ func _update_hub_props() -> void:
 	for prop in get_tree().get_nodes_in_group("hub_props"):
 		if prop is Node3D and is_instance_valid(prop):
 			prop.visible = is_start_level
+			if prop is CollisionObject3D:
+				prop.collision_layer = 1 if is_start_level else 0
 
 
 ## L-25：可破坏物奖励接线（hub 静态药罐 + 场地导演生成的药罐），幂等可重入
@@ -457,6 +637,56 @@ func _on_destructible_broken(_source_position: Vector3, prop) -> void:
 
 
 func _spawn_chapter_encounters() -> void:
+	_spawn_chapter_encounter_roster()
+	_distribute_modeled_encounters()
+	var level_root: Node3D = campaign_runtime.current_level
+	var clues := CampaignStoryProgressionScript.new()
+	clues.name = "CampaignStoryProgression"
+	level_root.add_child(clues)
+	clues.setup(self, String(campaign_runtime.current_level_id))
+	var expansion: Dictionary = level_root.get_meta("expansion", {})
+	if not expansion.is_empty():
+		var district = load("res://scripts/world/campaign_expansion_runtime.gd").new()
+		district.name = "CampaignExpansionRuntime"
+		level_root.add_child(district)
+		district.setup(self, level_root, expansion)
+
+
+func _distribute_modeled_encounters() -> void:
+	if campaign_runtime == null or campaign_runtime.current_level == null:
+		return
+	var level_root := campaign_runtime.current_level
+	var field_enemies: Array = enemies.filter(func(enemy): return is_instance_valid(enemy) and not enemy.guardian)
+	if field_enemies.is_empty():
+		return
+	var roster: Array = []
+	for enemy in field_enemies:
+		roster.append({"content_id": enemy.content_id, "body_radius": enemy.chapter_content.get("body_radius", 0.6)})
+	var layout: Dictionary = level_root.get_meta("story_layout", level_root.get_meta("modeled_layout", {}))
+	if layout.is_empty():
+		layout["cells"] = level_root.get_node("NavigationSurface").get_meta("walkable_cells", []) if level_root.has_node("NavigationSurface") else []
+	var plans := CampaignEncounterLayoutScript.assign_encounters(String(campaign_runtime.current_level_id), layout, roster)
+	if plans.size() != field_enemies.size():
+		push_error("Authored encounter roster/placement missing for " + String(campaign_runtime.current_level_id))
+		return
+	for plan: Dictionary in plans:
+		var enemy = field_enemies[int(plan["source_index"])]
+		var content: Dictionary = enemy.chapter_content
+		var radius := float(content.get("body_radius", 0.6))
+		var clearance := maxf(0.05, float(content.get("body_height", 1.9)) * 0.5 - float(content.get("body_y", 0.95)) + 0.05)
+		enemy.position = _supported_campaign_position(to_local(level_root.to_global(plan["position"] + Vector3.UP * clearance)), radius, clearance)
+		enemy.spawn_origin = enemy.global_position
+		enemy.velocity = Vector3.ZERO
+		enemy.navigation_refresh = 0.0
+		var runtime_plan := plan.duplicate(true)
+		var patrol: Array[Vector3] = []
+		for point: Vector3 in plan.get("patrol_points", []):
+			patrol.append(level_root.to_global(point))
+		runtime_plan["patrol_points"] = patrol
+		enemy.assign_campaign_encounter(runtime_plan)
+
+
+func _spawn_chapter_encounter_roster() -> void:
 	# 相对标记点生成第一章教程遭遇
 	_clear_enemies()
 	_update_hub_props()
@@ -494,10 +724,12 @@ func _spawn_chapter_encounters() -> void:
 		return
 	match level_id:
 		&"level_01_01":
-			# 苏醒之庭：2× 失魂 + 1× 烬影伏击者（G-03）
-			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -14.0), roster[0])
-			_spawn_content_enemy(origin + Vector3(3.2, 0.95, -17.5), roster[0])
-			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -20.0), _chapter1_skirmisher(roster))
+			var layout: Dictionary = campaign_runtime.current_level.get_meta("awakening_temple_layout", {})
+			var encounters: Array = layout.get("encounters", [])
+			for index in encounters.size():
+				var point: Array = encounters[index]
+				var content := _chapter1_skirmisher(roster) if index in [2, 3] else roster[1] if index == 5 else roster[0]
+				_spawn_content_enemy(Vector3(float(point[0]), float(point[1]) + 0.95, float(point[2])), content)
 		&"level_01_02":
 			# 守门廊：3× 失魂 + 1× 庙卫
 			_spawn_content_enemy(origin + Vector3(-3.0, 0.95, -5.0), roster[0])
@@ -734,11 +966,12 @@ func _spawn_chapter3_encounters(origin: Vector3, level_id: StringName) -> void:
 			if not elite_03.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -17.0), elite_03)
 		&"level_03_04":
-			# 镜花水月亭：镜花精 ×2 + 回声灵 + 精英·镜湖织梦者 + 支线·贪烬鬼/供茶/茶魂
+			# 镜花水月亭：岸边镜花精 ×2、真实石路水月灵 ×3、湖后精英与供茶支线。
 			var mirror_flower := _chapter_enemy_by_id(roster, "mirror_flower_spirit")
 			_spawn_content_enemy(origin + Vector3(-3.5, 0.95, -6.0), mirror_flower)
 			_spawn_content_enemy(origin + Vector3(3.5, 0.95, -9.0), mirror_flower)
-			_spawn_content_enemy(origin + Vector3(0.0, 0.95, -12.0), _chapter_enemy_by_id(roster, "echo_spirit"))
+			for index in 3:
+				_spawn_content_enemy(origin + Vector3(-3.0 + index * 3.0, .95, -12.0 - index * 3.0), _chapter_enemy_by_id(roster, "water_moon_spirit"))
 			var elite_04 := _chapter_elite_for(Chapter3ContentScript, level_id)
 			if not elite_04.is_empty():
 				_spawn_content_enemy(origin + Vector3(0.0, 1.0, -16.0), elite_04)
@@ -881,6 +1114,8 @@ func _spawn_chapter5_encounters(origin: Vector3, level_id: StringName) -> void:
 
 func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guardian := false):
 	# 用章节内容生成敌人
+	if is_guardian and campaign_runtime.current_level.has_meta("boss_spawn"):
+		spawn_position = to_local(campaign_runtime.current_level.to_global(campaign_runtime.current_level.get_meta("boss_spawn")))
 	var payload := content.duplicate(true)
 	if is_guardian and not payload.has("body_type"):
 		match String(payload.get("id", "")):
@@ -943,6 +1178,11 @@ func _spawn_content_enemy(spawn_position: Vector3, content: Dictionary, is_guard
 	enemy.name = String(payload.get("id", "ChapterEnemy"))
 	enemy.position = spawn_position
 	enemy.setup_from_content(self, player, audio, spawn_position, payload, is_guardian)
+	var body_radius := float(enemy.chapter_content.get("body_radius", 0.6))
+	var feet_clearance := maxf(0.05, float(enemy.chapter_content.get("body_height", 1.9)) * 0.5
+		- float(enemy.chapter_content.get("body_y", 0.95)) + 0.05)
+	enemy.position = _supported_campaign_position(spawn_position, body_radius, feet_clearance)
+	enemy.spawn_origin = enemy.position
 	_wire_enemy_signals(enemy)
 	add_child(enemy)
 	enemies.append(enemy)
@@ -958,10 +1198,28 @@ func _setup_boss_arena(boss_enemy) -> void:
 		_arena_director.queue_free()
 	_arena_director = ArenaDirectorScript.new()
 	_arena_director.name = "ArenaDirector"
-	add_child(_arena_director)
-	_arena_director.setup(self)
+	var level_root := campaign_runtime.current_level
+	level_root.add_child(_arena_director)
+	_arena_director.setup(level_root)
 	_arena_director.set_trauma_shake(_trauma_shake)
-	_arena_director.build_arena(boss_enemy.global_position)
+	_arena_director.navigation_changed.connect(request_navigation_refresh.bind(level_root))
+	var center: Vector3 = level_root.to_global(level_root.get_meta("boss_arena_center", level_root.to_local(boss_enemy.global_position)))
+	var radius := float(level_root.get_meta("boss_arena_radius", 12.0))
+	_arena_director.build_arena(center, {"boss": boss_enemy, "floor_y": center.y,
+		"ring_radius": maxf(5.0, radius * 0.7), "arena_radius": radius})
+	_boss_boundary = BossEncounterBoundaryScript.new()
+	_boss_boundary.name = "BossEncounterBoundary"
+	level_root.add_child(_boss_boundary)
+	_boss_boundary.setup(boss_enemy, player, center, radius)
+	_boss_boundary.navigation_changed.connect(request_navigation_refresh.bind(level_root))
+	if _arena_director.has_method("bind_encounter"):
+		_arena_director.bind_encounter(_boss_boundary)
+	if _arena_director.has_method("can_begin_encounter"):
+		_boss_boundary.admission_check = Callable(_arena_director, "can_begin_encounter")
+		_boss_boundary.admission_denied = Callable(_arena_director, "on_entry_denied")
+	var flow_host: Node = boss_enemy.get_node_or_null("BossFlowController")
+	if flow_host != null and flow_host.has_method("bind_encounter"):
+		flow_host.bind_encounter(_boss_boundary)
 	_wire_destructible_rewards()
 
 
@@ -1000,6 +1258,19 @@ func _wire_enemy_signals(enemy) -> void:
 func _on_campaign_exit_requested(from_level_id: StringName) -> void:
 	# 出口交互 → 推进下一关并记完成
 	if _level_transition_locked:
+		return
+	var mechanisms := _story_mechanisms()
+	if mechanisms != null:
+		var reason: String = mechanisms.exit_block_reason()
+		if not reason.is_empty():
+			hud.show_message(reason, 3.0)
+			return
+	if _boss_aftermath_pending:
+		hud.show_message(HudThemeScript.copy("先穿过正在坠落的断桥", "Cross the falling causeway first"), 2.5)
+		return
+	var boss_id := _current_boss_id()
+	if not boss_id.is_empty() and not _is_boss_defeated(boss_id):
+		hud.show_message(HudThemeScript.copy("守护者的裁决尚未结束", "The guardian's judgement is unfinished"), 2.5)
 		return
 	var current_id := from_level_id
 	if current_id.is_empty() and campaign_runtime != null:
@@ -1047,6 +1318,19 @@ func _on_epilogue_finished() -> void:
 	get_tree().reload_current_scene()
 
 
+func _supported_campaign_position(candidate: Vector3, radius := 0.6, clearance := 0.05) -> Vector3:
+	if campaign_runtime == null or campaign_runtime.current_level == null:
+		return candidate
+	var level_root := campaign_runtime.current_level
+	var navigation := level_root.get_node_or_null("NavigationSurface")
+	if navigation == null:
+		return candidate
+	var local_candidate := level_root.to_local(to_global(candidate))
+	var supported := CampaignLevelRuntimeScript.Builder.supported_spawn(
+		navigation.get_meta("walkable_cells", []), local_candidate, radius, clearance)
+	return to_local(level_root.to_global(supported))
+
+
 func _spawn_enemy(spawn_position: Vector3, is_guardian: bool, enemy_type = -1):
 	var enemy = EnemyScene.instantiate()
 	enemy.name = "HollowSentinel" if not is_guardian else "CinderGuardian"
@@ -1063,6 +1347,13 @@ func _spawn_enemy(spawn_position: Vector3, is_guardian: bool, enemy_type = -1):
 
 
 func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> void:
+	if _boss_aftermath_pending or is_instance_valid(_pending_fate_boss) or (is_instance_valid(_boss_boundary) and _boss_boundary.combat_is_active()):
+		hud.show_message(HudThemeScript.copy("当前遭遇结束后才能休息", "Finish the encounter before resting"), 2.0)
+		return
+	var mechanisms := _story_mechanisms()
+	if mechanisms != null and not String(mechanisms.trial_mode).is_empty():
+		hud.show_message(HudThemeScript.copy("试炼仍在进行", "The trial is still in progress"), 2.0)
+		return
 	respawn_position = _resolve_respawn_position(shrine.global_position + Vector3(0.0, 1.1, 2.0))
 	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
 	run_state.checkpoint_id = String(level_data.get("checkpoint_id", "ember_shrine"))
@@ -1072,10 +1363,12 @@ func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> voi
 	_try_vessel_upgrade()
 	_try_meridian_upgrade()
 	for enemy in enemies:
-		if is_instance_valid(enemy):
+		if _can_reset_enemy(enemy):
 			enemy.reset_enemy()
 	if _phase_polisher != null:
 		_phase_polisher.reset()
+	if _phase_environment != null:
+		_phase_environment.restore_defaults()
 	audio.play_cue("rest", -4.0)
 	hud.show_message(LocalizationScript.text("EMBER RESTORED\nEnemies return to the hollow."), 2.5)
 	_save_run("checkpoint_rest")
@@ -1488,6 +1781,14 @@ func _on_lost_echo_recovered(amount: int, recovering_player: Node) -> void:
 
 
 func _on_player_died(death_position: Vector3) -> void:
+	var level_at_death: Node = campaign_runtime.current_level
+	var aftermath_at_death := _boss_aftermath_pending
+	if is_instance_valid(_pending_fate_boss):
+		_pending_fate_boss = null
+		if _fate_overlay != null and _fate_overlay.is_open():
+			_fate_overlay.close()
+		if _camera_director != null:
+			_camera_director.release()
 	var lost_amount: int = int(player.lose_embers())
 	if lost_echo != null and is_instance_valid(lost_echo):
 		lost_echo.queue_free()
@@ -1497,13 +1798,26 @@ func _on_player_died(death_position: Vector3) -> void:
 		run_state.lost_echo_amount = lost_amount
 		run_state.lost_echo_position = lost_echo.global_position
 	_save_run("player_death")
-	for enemy in enemies:
-		if is_instance_valid(enemy):
-			enemy.reset_enemy()
-	if _phase_polisher != null:
-		_phase_polisher.reset()
+	if not aftermath_at_death:
+		for enemy in enemies:
+			if _can_reset_enemy(enemy):
+				enemy.reset_enemy()
+		if _phase_polisher != null:
+			_phase_polisher.reset()
+		if _phase_environment != null:
+			_phase_environment.restore_defaults()
 	hud.show_death()
 	await get_tree().create_timer(2.2).timeout
+	if not is_instance_valid(level_at_death) or campaign_runtime.current_level != level_at_death:
+		return
+	if aftermath_at_death and _boss_aftermath_pending and is_instance_valid(_arena_director) and _arena_director.retry_aftermath():
+		if is_instance_valid(lost_echo):
+			lost_echo.global_position = player.global_position + Vector3(1., .35, 0)
+			run_state.lost_echo_position = lost_echo.global_position
+			_save_run("escape_echo_recovery")
+		hud.clear_death()
+		hud.show_message(HudThemeScript.copy("断桥再临 · 玄霄已解脱", "Return to the causeway · Xuan Xiao remains at rest"), 2.5)
+		return
 	respawn_position = _resolve_respawn_position(respawn_position)
 	player.respawn_at(respawn_position)
 	hud.clear_death()
@@ -1537,6 +1851,10 @@ func _resolve_respawn_position(candidate: Vector3) -> Vector3:
 
 
 func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
+	if is_instance_valid(enemy) and bool(enemy.get_meta("story_trial_owned", false)):
+		return
+	if is_guardian and _is_boss_defeated(_boss_id_for_enemy(enemy)):
+		return
 	player.add_embers(reward)
 	if is_guardian:
 		var boss_id := _boss_id_for_enemy(enemy)
@@ -1559,14 +1877,26 @@ func _on_enemy_defeated(enemy, reward: int, is_guardian: bool) -> void:
 			_save_run("guardian_defeated")
 			# Boss 胜后解封并打开通往下一关出口
 			_open_boss_victory_exit()
+			call_deferred("_spawn_shrine_npc")
 	else:
 		hud.show_message(LocalizationScript.text("EMBER CLAIMED  +%d") % reward, 1.2)
 		# L-10：精锐击败时确定性小概率掉落一件物品（同一精锐 → 同一次结果/同一掉落，扩充图鉴）
 		var content_id := _enemy_content_id(enemy)
+		if content_id == "elite_memory_eater":
+			run_state.set_choice_flag("story_memory_thief_defeated", true)
+			_save_run("memory_thief_defeated")
 		if content_id.begins_with("elite") and not ELITE_LOOT_POOL.is_empty():
 			var seed := absi(content_id.hash())
 			if seed % 100 < 35:
 				_grant_loot(ELITE_LOOT_POOL[seed % ELITE_LOOT_POOL.size()])
+
+
+func _can_reset_enemy(enemy: Node) -> bool:
+	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion():
+		return false
+	if bool(enemy.get_meta("story_trial_owned", false)):
+		return false
+	return not bool(enemy.get("guardian")) or not _is_boss_defeated(_boss_id_for_enemy(enemy))
 
 
 ## 取当前关卡注册的 Boss id（非 Boss 关返回空串）
@@ -1611,6 +1941,8 @@ func _grant_loot(item_id: String) -> void:
 
 
 func _open_boss_victory_exit() -> void:
+	if _boss_aftermath_pending:
+		return
 	# 解封竞技场并生成通往下一章的出口交互
 	if _module_runtime != null:
 		_module_runtime.release_arena_seals()
@@ -1619,18 +1951,18 @@ func _open_boss_victory_exit() -> void:
 
 
 func on_boss_escaped() -> void:
-	# 玄霄逃出（90s 未击杀）：boss 未发 defeated → 无胜利/战利品；
-	# 但解封竞技场 + 开放出口，避免玩家被困崩塌竞技场（软锁）。
-	_open_boss_victory_exit()
+	# Legacy flow entry must obey the same actual route judgement as the course.
+	if _boss_aftermath_pending and is_instance_valid(_arena_director):
+		_arena_director.complete_aftermath()
 
 
 func _boss_display_name(enemy) -> String:
-	# 优先章节内容中文名
+	# Use the same locale-aware bilingual name selection as equipment.
 	if enemy != null and is_instance_valid(enemy) and "chapter_content" in enemy:
 		var content: Dictionary = enemy.chapter_content
 		var display := String(content.get("display_name", ""))
 		if not display.is_empty():
-			return display.split(" / ")[0] if " / " in display else display
+			return HudThemeScript.readable_name(display, game_settings.locale if game_settings != null else "")
 	return LocalizationScript.text("CINDER GUARDIAN")
 
 
@@ -1658,13 +1990,27 @@ func _on_boss_story_threshold(story_flag: StringName, health_ratio: float, enemy
 	# 可选 Boss 兜底：空命运旗标永不可触发剧情冻结/命运覆盖（致死击杀）
 	if String(story_flag).is_empty():
 		return
-	hud.show_message(
-		LocalizationScript.text("STORY THRESHOLD\n%s  %.0f%%") % [String(story_flag), health_ratio * 100.0],
-		1.6
-	)
+	if not is_instance_valid(enemy) or enemy != guardian or health_ratio < 0.0:
+		return
+	if is_instance_valid(_arena_director) and _arena_director.has_method("defer_story_judgement"):
+		if _arena_director.defer_story_judgement(story_flag):
+			return
+	start_boss_scene_judgement(enemy, story_flag)
+
+
+func start_boss_scene_judgement(enemy: Node3D, story_flag: StringName) -> void:
+	if enemy != guardian or not is_instance_valid(enemy) or enemy.boss_break_profile == null:
+		return
+	if StringName(enemy.boss_break_profile.story_flag) != story_flag or _is_boss_defeated(_boss_id_for_enemy(enemy)):
+		return
 	if enemy != null and is_instance_valid(enemy) and enemy.has_method("enter_story_resolution"):
 		enemy.enter_story_resolution()
 		_pending_fate_boss = enemy
+	if is_instance_valid(_arena_director) and _arena_director.has_method("on_story_judgement"):
+		if _arena_director.on_story_judgement(story_flag):
+			if _camera_director != null:
+				_camera_director.release()
+			return
 	if _camera_director != null:
 		_camera_director.play_shot_id(&"fate_halfbody", enemy if enemy != null else guardian)
 	if _fate_overlay != null and FateCatalog.entry_for_flag(story_flag).size() > 0:
@@ -1699,6 +2045,8 @@ func _on_fate_choice_made(story_flag: StringName, value: String) -> void:
 		_camera_director.release()
 	# L-01：命运抉择闭环 —— 非致死终结 Boss 并开出口（defeated 信号 → 奖励/存档/解封）
 	if _pending_fate_boss != null and is_instance_valid(_pending_fate_boss):
+		if is_instance_valid(_arena_director) and _arena_director.has_method("begin_aftermath"):
+			_boss_aftermath_pending = _arena_director.begin_aftermath(StringName(value))
 		if String(story_flag) == "ending_state":
 			if guardian == _pending_fate_boss:
 				run_state.guardian_defeated = true
@@ -1711,8 +2059,75 @@ func _on_fate_choice_made(story_flag: StringName, value: String) -> void:
 	_pending_fate_boss = null
 	if hud != null:
 		hud.hide_boss()
-	hud.show_message(LocalizationScript.text("FATE SEALED\n%s → %s") % [String(story_flag), value], 2.4)
+	var fate: Dictionary = FateCatalog.entry_for_flag(story_flag)
+	var choice_label := value
+	for option: Dictionary in fate.get("options", []):
+		if String(option.get("id", "")) == value:
+			choice_label = String(option.get("label", value))
+	hud.show_message("%s\n%s" % [String(fate.get("title", HudThemeScript.copy("裁决已定", "Judgement made"))), choice_label], 2.4)
 	audio.play_cue("rest", -5.0, 0.9)
+
+
+func has_story_item(item_id: String) -> bool:
+	return run_state != null and int(run_state.inventory.get(item_id, 0)) > 0
+
+
+func commit_boss_scene_action(boss: Node3D, flag: StringName, value: String, actor: Node3D, source: Node3D) -> bool:
+	if not is_instance_valid(boss) or boss != guardian or boss != _pending_fate_boss or not boss.is_in_story_resolution():
+		return false
+	if actor != player or not is_instance_valid(source) or actor.global_position.distance_to(source.global_position) > 4.0:
+		return false
+	if not is_instance_valid(_arena_director) or not "story_props" in _arena_director:
+		return false
+	var props: Node = _arena_director.story_props
+	if not is_instance_valid(props) or not (props == source or props.is_ancestor_of(source)):
+		return false
+	var action: Dictionary = source.get_meta("boss_scene_action", {})
+	if String(action.get("flag", "")) != String(flag) or String(action.get("value", "")) != value:
+		return false
+	if boss.boss_break_profile == null or StringName(boss.boss_break_profile.story_flag) != flag:
+		return false
+	if flag == &"ending_state":
+		if StringName(value) not in EndingResolverScript.reachable(run_state):
+			return false
+	elif not FateCatalog.is_valid_choice(flag, value):
+		return false
+	if flag == &"ch3_nine_tails_fate" and value == "redeemed" and not has_story_item("true_mirror"):
+		return false
+	_on_fate_choice_made(flag, value)
+	return true
+
+
+func finish_boss_aftermath(boss_id: String) -> void:
+	if not _boss_aftermath_pending or boss_id != _current_boss_id() or not _is_boss_defeated(boss_id):
+		return
+	_boss_aftermath_pending = false
+	run_state.set_choice_flag("aftermath_complete_" + boss_id, true)
+	_save_run("boss_aftermath")
+	_open_boss_victory_exit()
+	var current := campaign_runtime.current_level
+	var exit_area := current.find_child("VictoryExitInteract", true, false) as Area3D
+	if exit_area == null:
+		exit_area = current.find_child("GateExitInteract", true, false) as Area3D
+	if exit_area != null:
+		# The safe end of the collapsed causeway is the actual chapter exit.
+		exit_area.global_position = player.global_position
+		for shape: CollisionShape3D in exit_area.find_children("*", "CollisionShape3D", true, false):
+			shape.position = Vector3.UP * 1.2
+		LevelModuleVisuals.add_story_visual(exit_area, "memory_rings", _current_visual_theme())
+
+
+func filter_boss_player_hit(payload: Dictionary) -> Dictionary:
+	if is_instance_valid(_arena_director) and is_instance_valid(_boss_boundary) and _boss_boundary.combat_is_active():
+		if _arena_director.has_method("filter_incoming_player_damage"):
+			return _arena_director.filter_incoming_player_damage(payload)
+	return payload
+
+
+func filter_boss_incoming_hit(boss: Node, payload: Dictionary) -> Dictionary:
+	if boss == guardian and is_instance_valid(_arena_director) and _arena_director.has_method("filter_incoming_boss_damage"):
+		return _arena_director.filter_incoming_boss_damage(payload)
+	return payload
 
 
 ## L-01：命运抉择副作用 —— 兑现 boss_fate_catalog 选项承诺。
@@ -1770,11 +2185,11 @@ func _apply_fate_boon(story_flag: StringName, value: String) -> void:
 
 ## L-05：烬龛旁按章节生成跨章 NPC（云游/铁心/忆姬/玄霄残识/寂灭）
 const SHRINE_NPC_PRESETS := [
-	{"npc_id": &"npc_cloud_wanderer", "prompt": "与云游交谈", "min_chapter": 1, "offset": Vector3(2.4, 0.0, 1.8)},
-	{"npc_id": &"npc_iron_heart", "prompt": "与铁心交谈（锻造）", "min_chapter": 2, "offset": Vector3(2.4, 0.0, 4.2)},
-	{"npc_id": &"npc_lady_of_memories", "prompt": "与忆姬交谈", "min_chapter": 3, "offset": Vector3(5.0, 0.0, 1.8)},
-	{"npc_id": &"npc_xuanxiao_remnant", "prompt": "与玄霄残识交谈", "min_chapter": 4, "offset": Vector3(5.0, 0.0, 4.2)},
-	{"npc_id": &"npc_silence_bringer", "prompt": "与寂灭交谈", "min_chapter": 5, "offset": Vector3(7.6, 0.0, 1.8)},
+	{"npc_id": &"npc_cloud_wanderer", "prompt": "与云游交谈", "min_chapter": 1, "offset": Vector3(1.5, 0.0, 1.8)},
+	{"npc_id": &"npc_iron_heart", "prompt": "与铁心交谈（锻造）", "min_chapter": 2, "offset": Vector3(-1.5, 0.0, 1.8)},
+	{"npc_id": &"npc_lady_of_memories", "prompt": "与忆姬交谈", "min_chapter": 3, "offset": Vector3(1.5, 0.0, -1.8)},
+	{"npc_id": &"npc_xuanxiao_remnant", "prompt": "与玄霄残识交谈", "min_chapter": 4, "offset": Vector3(-1.5, 0.0, -1.8)},
+	{"npc_id": &"npc_silence_bringer", "prompt": "与寂灭交谈", "min_chapter": 5, "offset": Vector3(1.5, 0.0, -4.2)},
 ]
 
 func _spawn_shrine_npc() -> void:
@@ -1789,6 +2204,9 @@ func _spawn_shrine_npc() -> void:
 	var chapter_num := _current_chapter_number()
 	for preset in SHRINE_NPC_PRESETS:
 		if int(preset.get("min_chapter", 99)) > chapter_num:
+			continue
+		var npc_id := String(preset["npc_id"])
+		if not _story_npc_available(npc_id):
 			continue
 		var npc = ShrineNpcInteractScript.new()
 		npc.name = "ShrineNpc_%s" % String(preset["npc_id"])
@@ -1806,7 +2224,13 @@ func _spawn_shrine_npc() -> void:
 		shape.shape = sphere
 		shape.position = Vector3(0.0, 1.0, 0.0)
 		npc.add_child(shape)
-		npc.position = base + preset["offset"]
+		var offset: Vector3 = preset["offset"]
+		var story_anchor := _story_npc_anchor(npc_id)
+		if not story_anchor.is_empty():
+			npc.position = _story_anchor_position(story_anchor, base + offset)
+			npc.set_meta("story_anchor", story_anchor)
+		else:
+			npc.position = _supported_shrine_position(base + offset)
 		add_child(npc)
 		# 真实 NPC 模型(npc/<id>)优先;未注册时退回胶囊占位体
 		if not RealModelResolver.try_instance("npc/%s" % String(preset["npc_id"]), npc):
@@ -1818,6 +2242,65 @@ func _spawn_shrine_npc() -> void:
 			mesh.position = Vector3(0.0, 0.9, 0.0)
 			npc.add_child(mesh)
 		_shrine_npcs.append(npc)
+
+
+func _story_npc_available(npc_id: String) -> bool:
+	var level_id := String(campaign_runtime.current_level_id)
+	match npc_id:
+		"npc_cloud_wanderer":
+			return _is_boss_defeated("boss_giant_gate")
+		"npc_iron_heart":
+			return level_id == "level_02_03" or bool(run_state.get_choice_flag("npc_iron_heart_met", false))
+		"npc_lady_of_memories":
+			return level_id == "level_03_02" or bool(run_state.get_choice_flag("npc_lady_of_memories_met", false))
+		"npc_xuanxiao_remnant":
+			return level_id == "level_04_03" or (has_story_item("xuanxiao_record") and _is_boss_defeated("boss_xuan_xiao_wrath") and _is_boss_defeated("boss_xuan_xiao_obsession"))
+		"npc_silence_bringer":
+			return level_id == "level_05_04" or bool(run_state.get_choice_flag("npc_silence_bringer_met", false))
+	return false
+
+
+func _story_npc_anchor(npc_id: String) -> String:
+	var anchors := CampaignSceneDressingScript.story_anchors(String(campaign_runtime.current_level_id))
+	var key := ""
+	match npc_id:
+		"npc_iron_heart":
+			if not bool(run_state.get_choice_flag("npc_iron_heart_met", false)):
+				key = "iron_heart_cage"
+		"npc_lady_of_memories":
+			if not bool(run_state.get_choice_flag("npc_lady_of_memories_met", false)):
+				key = "memory_keeper"
+		"npc_xuanxiao_remnant":
+			key = "xuanxiao_remnant"
+		"npc_silence_bringer":
+			key = "silence_threshold"
+	return key if anchors.has(key) else ""
+
+
+func _story_anchor_position(key: String, fallback: Vector3) -> Vector3:
+	var anchors := CampaignSceneDressingScript.story_anchors(String(campaign_runtime.current_level_id))
+	if not anchors.has(key):
+		return fallback
+	return to_local(campaign_runtime.current_level.to_global(anchors[key]))
+
+
+func _supported_shrine_position(candidate: Vector3) -> Vector3:
+	var best := _supported_campaign_position(candidate, 1.1, 0.0)
+	var best_distance := INF
+	# Narrow or diagonal paths can project two slots onto one tile edge. Reserve
+	# a distinct supported slot for each NPC, including the widest spirit model.
+	for x_offset in [0.0, -3.0, 3.0, -6.0, 6.0]:
+		for z_offset in [0.0, -3.0, 3.0, -6.0, 6.0]:
+			var point := _supported_campaign_position(candidate + Vector3(x_offset, 0.0, z_offset), 1.1, 0.0)
+			var clear := true
+			for existing: Node3D in _shrine_npcs:
+				if point.distance_to(existing.position) < 2.2:
+					clear = false
+			var distance := point.distance_squared_to(candidate)
+			if clear and distance < best_distance:
+				best = point
+				best_distance = distance
+	return best
 
 
 ## 支线·桥头的供茶：茶魂 NPC（桥头茶摊守者，被怨魂归罪）
@@ -1847,8 +2330,8 @@ func _spawn_bridge_tea_npc(at: Vector3) -> void:
 		mesh.mesh = cap
 		mesh.position = Vector3(0.0, 0.9, 0.0)
 		npc.add_child(mesh)
-	npc.position = at
-	add_child(npc)
+	npc.position = _grounded_campaign_prop(_story_anchor_position("tea_soul", at), 0.6)
+	_add_level_prop(npc)
 
 
 ## 可选 Boss 隐藏入口：无目钟塔（镜花水月亭桥头侧道，任一烬龛侧道亦可延展）
@@ -1869,21 +2352,9 @@ func _spawn_bell_tower_entrance(at: Vector3) -> void:
 	shape.shape = sphere
 	shape.position = Vector3(0.0, 1.0, 0.0)
 	entrance.add_child(shape)
-	# 简易门洞占位体（烬色微光标识入口）
-	var door_mesh := MeshInstance3D.new()
-	var door := BoxMesh.new()
-	door.size = Vector3(2.2, 3.2, 0.4)
-	door_mesh.mesh = door
-	door_mesh.position = Vector3(0.0, 1.6, 0.0)
-	var door_mat := StandardMaterial3D.new()
-	door_mat.albedo_color = Color(0.35, 0.3, 0.22)
-	door_mat.emission_enabled = true
-	door_mat.emission = Color(0.85, 0.6, 0.2)
-	door_mat.emission_energy_multiplier = 1.6
-	door_mesh.material_override = door_mat
-	entrance.add_child(door_mesh)
-	entrance.position = at
-	add_child(entrance)
+	LevelModuleVisuals.add_story_visual(entrance, "bell_portal", _current_visual_theme())
+	entrance.position = _grounded_campaign_prop(_story_anchor_position("bell_tower_entrance", at), 1.3)
+	_add_level_prop(entrance)
 
 
 ## 无目钟塔入口交互 → 传送至 level_05_06（走 _travel_to_level 的统一锁门）
@@ -1907,10 +2378,46 @@ func _on_shrine_npc_talk(npc: Node, _player: Node) -> void:
 	if _dialogue_overlay == null or _dialogue_overlay.is_open():
 		return
 	var npc_id: StringName = npc.npc_id if "npc_id" in npc else &"npc_cloud_wanderer"
+	if npc_id == &"npc_silence_bringer":
+		var mechanisms := _story_mechanisms()
+		if mechanisms != null and mechanisms.interact_silence(_player):
+			return
+	var requirement := _story_npc_requirement(npc_id)
+	if not requirement.is_empty():
+		_dialogue_overlay.open_lines(&"story_evidence_hint", [requirement])
+		return
 	var lines := DialogueRunnerScript.resolve_lines(npc_id, run_state)
 	if lines.is_empty():
 		return
 	_dialogue_overlay.open_lines(npc_id, lines)
+
+
+func _story_mechanisms() -> Node:
+	if campaign_runtime == null or not is_instance_valid(campaign_runtime.current_level):
+		return null
+	return campaign_runtime.current_level.get_node_or_null("StoryMechanisms")
+
+
+func _story_npc_requirement(npc_id: StringName) -> String:
+	if npc_id == &"npc_iron_heart" and not bool(run_state.get_choice_flag("npc_iron_heart_met", false)):
+		var keys := 0
+		for index in range(1, 4):
+			if has_story_item("cage_key_" + str(index)):
+				keys += 1
+		if keys < 3:
+			return HudThemeScript.copy("铁心：三道军印锁住了炉火。替我找到营地的三把笼钥（%d/3）。" % keys, "Iron Heart: Three military seals bind this forge. Find the camp's three cage keys (%d/3)." % keys)
+		if not bool(run_state.get_choice_flag("iron_forge_seal_broken", false)):
+			return HudThemeScript.copy("铁心：钥匙齐了。请先解开门上的强制锻造印。", "Iron Heart: You have the keys. Break the forced-forge seal on the door.")
+	if npc_id == &"npc_lady_of_memories" and not bool(run_state.get_choice_flag("npc_lady_of_memories_met", false)):
+		var memories := 0
+		for index in range(1, 4):
+			if has_story_item("true_memory_" + str(index)):
+				memories += 1
+		if memories < 3 or not bool(run_state.get_choice_flag("story_memory_thief_defeated", false)):
+			return HudThemeScript.copy("忆姬：三段记忆都属于别人。辨认真相，并击败记忆窃贼，我才能离开这片苔（%d/3）。" % memories, "Lady of Memories: These memories belong to other souls. Identify all three and defeat the memory thief to release me (%d/3)." % memories)
+	if npc_id == &"npc_xuanxiao_remnant" and not (has_story_item("xuanxiao_record") and _is_boss_defeated("boss_xuan_xiao_wrath") and _is_boss_defeated("boss_xuan_xiao_obsession")):
+		return HudThemeScript.copy("残识：这里保存着未经篡改的记录。带走实录，平息嗔念与执念，再来听玄霄真正的声音。", "Remnant: This record remains unaltered. Take it and calm Wrath and Obsession to hear Xuan Xiao's true voice.")
+	return ""
 
 
 ## L-04：第五章 5-1..5-4 各刷一红晶证物（隐藏结局"共铸新炉"链）
@@ -1933,20 +2440,9 @@ func _spawn_furnace_memory(at: Vector3, memory_key: String) -> void:
 	shape.shape = sphere
 	shape.position = Vector3(0.0, 1.0, 0.0)
 	crystal.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	var cube := BoxMesh.new()
-	cube.size = Vector3(0.5, 0.5, 0.5)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.9, 0.1, 0.05)
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.2, 0.05)
-	mat.emission_energy_multiplier = 4.0
-	cube.material = mat
-	mesh.mesh = cube
-	mesh.position = Vector3(0.0, 1.0, 0.0)
-	crystal.add_child(mesh)
-	crystal.position = at
-	add_child(crystal)
+	LevelModuleVisuals.add_story_visual(crystal, "crystal_shrine", _current_visual_theme())
+	crystal.position = _grounded_campaign_prop(_story_anchor_position("furnace_memory", at), 0.8)
+	_add_level_prop(crystal)
 
 
 ## 5-3 轮回歧路·因果回放交互节点
@@ -1966,20 +2462,9 @@ func _spawn_samsara_review(at: Vector3) -> void:
 	shape.shape = sphere
 	shape.position = Vector3(0.0, 1.0, 0.0)
 	node.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	var cube := BoxMesh.new()
-	cube.size = Vector3(0.6, 0.6, 0.6)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.2, 0.5)
-	mat.emission_enabled = true
-	mat.emission = Color(0.5, 0.35, 0.85)
-	mat.emission_energy_multiplier = 2.0
-	cube.material = mat
-	mesh.mesh = cube
-	mesh.position = Vector3(0.0, 1.0, 0.0)
-	node.add_child(mesh)
-	node.position = at
-	add_child(node)
+	LevelModuleVisuals.add_story_visual(node, "memory_rings", _current_visual_theme())
+	node.position = _grounded_campaign_prop(_story_anchor_position("samsara_replay", at), 1.0)
+	_add_level_prop(node)
 
 
 func _on_samsara_review(_node: Node, _player: Node) -> void:
@@ -2018,20 +2503,10 @@ func _spawn_soul_forger_communion(at: Vector3) -> void:
 	shape.shape = sphere
 	shape.position = Vector3(0.0, 1.0, 0.0)
 	node.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	var cube := BoxMesh.new()
-	cube.size = Vector3(0.6, 0.6, 0.6)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.2, 0.3, 0.4)
-	mat.emission_enabled = true
-	mat.emission = Color(0.3, 0.5, 0.7)
-	mat.emission_energy_multiplier = 2.0
-	cube.material = mat
-	mesh.mesh = cube
-	mesh.position = Vector3(0.0, 1.0, 0.0)
-	node.add_child(mesh)
-	node.position = at
-	add_child(node)
+	# The nine named memorials are imported scene architecture. This area gives
+	# that actual ring its conversation; do not add a second set of graves.
+	node.position = _grounded_campaign_prop(_story_anchor_position("nine_forgers_memorial", at), 1.0)
+	_add_level_prop(node)
 
 
 ## 支线·桥头的供茶：桥头栏杆上一盏仍温的供茶（烬茶倌未及送出的那杯）
@@ -2054,20 +2529,36 @@ func _spawn_tea_offering(at: Vector3) -> void:
 	shape.shape = sphere
 	shape.position = Vector3(0.0, 1.0, 0.0)
 	crystal.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	var cube := BoxMesh.new()
-	cube.size = Vector3(0.45, 0.45, 0.45)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.95, 0.55, 0.2)
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.55, 0.1)
-	mat.emission_energy_multiplier = 4.0
-	cube.material = mat
-	mesh.mesh = cube
-	mesh.position = Vector3(0.0, 1.0, 0.0)
-	crystal.add_child(mesh)
-	crystal.position = at
-	add_child(crystal)
+	LevelModuleVisuals.add_story_visual(crystal, "tea_cup", _current_visual_theme())
+	crystal.position = _grounded_campaign_prop(_story_anchor_position("tea_offering", at), 0.5)
+	_add_level_prop(crystal)
+
+
+func _current_visual_theme() -> String:
+	return String(campaign_runtime.get_level_data().get("theme_id", &"theme_spirit_ruins"))
+
+
+func _grounded_campaign_prop(candidate: Vector3, radius: float) -> Vector3:
+	# Character spawn support preserves authored height; static plinths must
+	# explicitly snap to the terrain before the new physics space is published.
+	var point := _supported_campaign_position(candidate, radius, 0.0)
+	var level_root := campaign_runtime.current_level
+	var local := level_root.to_local(to_global(point))
+	var navigation := level_root.get_node("NavigationSurface")
+	var floor_y := CampaignLevelRuntimeScript.Builder._tile_floor_at(navigation.get_meta("walkable_cells", []), local)
+	if is_finite(floor_y):
+		local.y = floor_y
+	return to_local(level_root.to_global(local))
+
+
+func _add_level_prop(prop: Node3D) -> void:
+	# Story props belong to the level that spawned them. Unloading that root
+	# removes visuals, interaction areas, and their callbacks together.
+	var level_root := campaign_runtime.current_level
+	prop.position = level_root.to_local(to_global(prop.position))
+	prop.add_to_group("campaign_level_props")
+	prop.set_meta("level_id", campaign_runtime.current_level_id)
+	level_root.add_child(prop)
 
 
 ## 支线·桥头的供茶：拾取 → 开启 quest_bridge_tea
@@ -2127,6 +2618,8 @@ func _furnace_memories_found() -> int:
 func _on_dialogue_finished(dialogue_id: StringName) -> void:
 	DialogueRunnerScript.apply_aftermath(dialogue_id, run_state)
 	_save_run("dialogue_finished")
+	if dialogue_id in [&"npc_iron_heart", &"npc_lady_of_memories", &"npc_xuanxiao_remnant", &"npc_silence_bringer"]:
+		call_deferred("_spawn_shrine_npc")
 	if dialogue_id == &"npc_iron_heart":
 		_try_iron_heart_forge()
 	# 支线·桥头的供茶：茶魂倾诉后开启月圆之判（任务进行中且未落笔）
@@ -2305,6 +2798,7 @@ func _load_initial_state() -> void:
 func _apply_run_state(state) -> void:
 	if state == null:
 		return
+	_restoring_run_state = true
 	run_state = state
 	if not _load_campaign_level(StringName(run_state.level_id)):
 		_load_campaign_level(&"level_01_01")
@@ -2317,16 +2811,10 @@ func _apply_run_state(state) -> void:
 		player.embers = run_state.embers
 		player.embers_changed.emit(player.embers)
 	player.set_focus(run_state.focus)
-	if player.has_method("set_hand_loadout") and not player.set_hand_loadout(run_state.right_hand, run_state.left_hand):
-		player.set_combat_style(run_state.combat_style)
-	elif not player.has_method("set_hand_loadout"):
-		player.set_combat_style(run_state.combat_style)
-	# L-18：混合职业身体模型覆盖 → 玩家运行时。player_visuals._resolve_body_class 在重建时
-	# 优先读 run_state.body_class_override（存档权威），装载后触发一次幂等重建使覆盖体观生效。
-	if run_state.has_method("get_body_class_override"):
-		var body_override = run_state.get_body_class_override()
-		if not body_override.is_empty() and player.has_method("apply_body_class_override"):
-			player.apply_body_class_override()
+	# Restore identity before equipment; the selected weapon must not infer a new body.
+	player.set_combat_style(run_state.combat_style)
+	player.apply_body_class_override()
+	player.restore_weapon_loadout(run_state)
 	if player.has_method("set_upgrade_tier"):
 		player.set_upgrade_tier(run_state.upgrade_tier)
 	if player.has_method("set_forge_level"):
@@ -2343,8 +2831,16 @@ func _apply_run_state(state) -> void:
 	# 有已激活祠堂时，重生点回到 checkpoint marker 而非出生点
 	if not String(run_state.checkpoint_id).is_empty():
 		respawn_position = _resolve_respawn_position(_checkpoint_position() + Vector3(0.0, 1.1, 2.0))
-	player.respawn_at(respawn_position)
-	hud.show_message(LocalizationScript.text("THE HOLLOW REMEMBERS"), 1.8)
+	if _boss_aftermath_pending and is_instance_valid(_arena_director):
+		# Full save/host restore applies identity and upgrades after loading the
+		# level. Its final spawn must return to the unfinished course, not the shrine.
+		_arena_director.retry_aftermath()
+		if is_instance_valid(lost_echo):
+			lost_echo.global_position = player.global_position + Vector3(1., .35, 0)
+	else:
+		player.respawn_at(respawn_position)
+		hud.show_message(LocalizationScript.text("THE HOLLOW REMEMBERS"), 1.8)
+	_restoring_run_state = false
 
 
 func _snapshot_run_state() -> Dictionary:
@@ -2359,6 +2855,7 @@ func _snapshot_run_state() -> Dictionary:
 		var hand_loadout: Dictionary = player.get_hand_loadout()
 		run_state.right_hand = String(hand_loadout.get("right_hand", run_state.right_hand))
 		run_state.left_hand = String(hand_loadout.get("left_hand", run_state.left_hand))
+	player.snapshot_weapon_loadout(run_state)
 	if player.has_method("get_upgrade_tier"):
 		run_state.upgrade_tier = player.get_upgrade_tier()
 	# Ch.1 兼容位：仅当巨阙已被记录进 defeated_bosses 时才为真，defeated_bosses 才是权威来源
@@ -2489,6 +2986,8 @@ func _apply_settings() -> void:
 		player.apply_game_settings(game_settings.to_dictionary())
 	if hud != null and hud.has_method("apply_accessibility_settings"):
 		hud.apply_accessibility_settings(game_settings.to_dictionary())
+	if _inventory_overlay != null:
+		_inventory_overlay.apply_accessibility_settings(game_settings.to_dictionary())
 	var master_index := AudioServer.get_bus_index("Master")
 	if master_index >= 0:
 		var linear_volume: float = maxf(
@@ -2578,31 +3077,83 @@ func _create_gate(at: Vector3) -> Node3D:
 	return gate
 
 
+func request_navigation_refresh(level_root: Node3D) -> void:
+	if not is_instance_valid(level_root) or campaign_runtime.current_level != level_root:
+		return
+	var region := level_root.get_node_or_null("NavigationSurface") as NavigationRegion3D
+	if region == null:
+		return
+	region.set_meta("geometry_dirty", true)
+	if bool(region.get_meta("refresh_queued", false)):
+		return
+	region.set_meta("refresh_queued", true)
+	# Node-owned method callables disconnect when the world is freed. A weak
+	# level reference also permits a transition while this frame is pending.
+	_queue_navigation_step(_begin_navigation_bake.bind(weakref(level_root)))
+
+
+func _queue_navigation_step(step: Callable) -> void:
+	if not is_inside_tree() or not step.is_valid():
+		return
+	# Each refresh owns its next physics tick. Reusing SceneTree.physics_frame
+	# one-shots lost pending callbacks when field cleanup and new-level setup
+	# queued work in the same frame, leaving refresh_queued permanently latched.
+	var next_tick := get_tree().create_timer(1.0 / Engine.physics_ticks_per_second, true, true)
+	next_tick.timeout.connect(step, CONNECT_ONE_SHOT)
+
+
+func _begin_navigation_bake(level_ref: WeakRef) -> void:
+	var level_root := level_ref.get_ref() as Node3D
+	if level_root == null or campaign_runtime.current_level != level_root:
+		return
+	var region := level_root.get_node_or_null("NavigationSurface") as NavigationRegion3D
+	if region == null or region.navigation_mesh == null:
+		return
+	if region.is_baking():
+		_queue_navigation_step(_begin_navigation_bake.bind(level_ref))
+		return
+	region.set_meta("geometry_dirty", false)
+	region.set_meta("bake_requested", true)
+	region.set_meta("bake_complete", false)
+	var initial_iteration := NavigationServer3D.map_get_iteration_id(region.get_navigation_map())
+	region.bake_finished.connect(_on_navigation_baked.bind(level_ref, initial_iteration), CONNECT_ONE_SHOT)
+	region.bake_navigation_mesh(false)
+
+
 func _generate_navigation() -> void:
-	var nav_region := NavigationRegion3D.new()
-	nav_region.name = "NavRegion"
-	add_child(nav_region)
+	if campaign_runtime == null or campaign_runtime.current_level == null:
+		return
+	var level_root := campaign_runtime.current_level
+	var region := level_root.get_node_or_null("NavigationSurface") as NavigationRegion3D
+	if region == null or bool(region.get_meta("bake_requested", false)) or bool(region.get_meta("refresh_queued", false)):
+		return
+	request_navigation_refresh(level_root)
 
-	var nav_mesh := NavigationMesh.new()
-	nav_mesh.agent_radius = 0.5
-	nav_mesh.agent_height = 2.0
-	nav_mesh.agent_max_climb = 0.5
-	nav_mesh.agent_max_slope = 45.0
-	nav_mesh.cell_size = 0.25
-	nav_mesh.cell_height = 0.25
-	nav_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	nav_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
-	nav_region.navigation_mesh = nav_mesh
 
-	var walkable_mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(30.0, 50.0)
-	walkable_mesh.mesh = plane
-	walkable_mesh.position = Vector3(0.0, 0.01, -12.0)
-	nav_region.add_child(walkable_mesh)
+func _on_navigation_baked(level_ref: WeakRef, initial_iteration: int) -> void:
+	var level_root := level_ref.get_ref() as Node3D
+	if level_root == null or campaign_runtime.current_level != level_root:
+		return
+	var region := level_root.get_node("NavigationSurface") as NavigationRegion3D
+	region.set_meta("bake_complete", true)
+	region.set_meta("baked_polygon_count", region.navigation_mesh.get_polygon_count())
+	_queue_navigation_step(_publish_navigation.bind(level_ref, initial_iteration, 90))
 
-	await get_tree().process_frame
-	nav_region.bake_navigation_mesh(false)
+
+func _publish_navigation(level_ref: WeakRef, initial_iteration: int, frames_left: int) -> void:
+	var level_root := level_ref.get_ref() as Node3D
+	if level_root == null or campaign_runtime.current_level != level_root:
+		return
+	var region := level_root.get_node("NavigationSurface") as NavigationRegion3D
+	if frames_left > 0 and NavigationServer3D.map_get_iteration_id(region.get_navigation_map()) == initial_iteration:
+		_queue_navigation_step(_publish_navigation.bind(level_ref, initial_iteration, frames_left - 1))
+		return
+	# Publish after the initial empty-map update so it cannot overwrite the bake.
+	NavigationServer3D.region_set_navigation_mesh(region.get_rid(), region.navigation_mesh)
+	region.set_meta("geometry_revision", int(region.get_meta("geometry_revision", 0)) + 1)
+	region.set_meta("refresh_queued", false)
+	if bool(region.get_meta("geometry_dirty", false)):
+		request_navigation_refresh(level_root)
 
 
 func _run_smoke_test() -> void:

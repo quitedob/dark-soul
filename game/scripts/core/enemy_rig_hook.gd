@@ -1,16 +1,15 @@
 class_name EnemyRigHook
 extends RefCounted
-## Runtime PartRig hook for enemy bodies. After the enemy visual is built,
-## builds a PartRigBuilder skeleton over the body root for a small whitelist of
-## riggable enemies, so the enemy can be posed by BONES (not just whole-node
-## transforms). Non-listed enemies are untouched (zero blast radius).
+## Runtime rig hook for enemy bodies. Reuses an imported Skeleton3D or builds a
+## PartRigBuilder skeleton for legacy unskinned bodies in the whitelist.
+## Non-listed enemies are untouched.
 ##
 ## Enemy ids are the `enemy/body/by_id/<id>` resolver keys. The proof enemy is
 ## 01-Lost-Soul-Soldier (early campaign humanoid); a couple more are included
 ## to make the rig usable where its parts are a good fit.
 const PartRigBuilder = preload("res://scripts/core/part_rig_builder.gd")
 
-## Enemy ids that get a runtime rig. Everything else stays static.
+## Enemy ids whose skeleton is exposed through this hook.
 const RIGGABLE_ENEMY_IDS := {
 	"lost_soul_soldier": true,      # 01-spirit-ruins/01 — proof enemy
 	"temple_guardian_warrior": true,
@@ -30,17 +29,12 @@ static func ensure_rig(body_visual_root: Node3D, enemy_id: String) -> Skeleton3D
 	var model_root := body_visual_root.get_node_or_null("ModelRoot") as Node3D
 	if model_root == null:
 		# Some builds hang the model directly under body_visual_root.
-		if body_visual_root.get_child_count() == 0 or _has_skeleton(body_visual_root):
-			return null
 		model_root = body_visual_root
 	# If the GLB already carries a real skeleton, don't stack a second one.
-	if _has_skeleton(model_root):
-		return _find_skeleton(model_root)
+	var existing := _find_skeleton(model_root)
+	if existing != null:
+		return existing
 	return PartRigBuilder.build(model_root)
-
-
-static func _has_skeleton(n: Node) -> bool:
-	return _find_skeleton(n) != null
 
 
 static func _find_skeleton(n: Node) -> Skeleton3D:

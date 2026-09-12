@@ -160,7 +160,7 @@ static func elites() -> Array[Dictionary]:
 
 static func boss() -> Dictionary:
 	return {
-		"id": "boss_nine_tails",
+		"id": "boss_nine_tails", "story_arena": true,
 		"display_name": "玉面狐·九尾 / Jade-Faced Fox · Nine-Tails",
 		"max_health": 450.0, "reward": 550,
 		"arena": "moonlit_terrace_garden",
@@ -173,13 +173,15 @@ static func boss() -> Dictionary:
 					{"name": "foxfire_bolt", "windup": 0.52, "active": 0.18, "recovery": 0.48, "damage": 20.0, "stagger": 16.0, "lunge": 0.0, "type": "homing_projectile"},
 					{"name": "tail_sweep", "windup": 0.65, "active": 0.28, "recovery": 0.58, "damage": 24.0, "stagger": 28.0, "lunge": 0.0, "type": "radial_aoe", "range": 3.5},
 					{"name": "illusion_dash_strike", "windup": 0.35, "active": 0.15, "recovery": 0.35, "damage": 18.0, "stagger": 20.0, "lunge": 4.5, "type": "teleport_after"},
-					{"name": "clone_spawn", "windup": 0.72, "active": 0.0, "recovery": 0.48, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "type": "summon", "clone_count": 2},
+					{"name": "clone_spawn", "windup": 0.72, "active": 0.0, "recovery": 0.48, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "type": "summon", "clone_count": 3, "clone_health": 1.0, "clone_reflect": 10.0},
 				],
 				"vfx": "ethereal_foxfire_cyan",
 				"lighting": "silver_moonlight_soft",
 			},
 			"2": {
 				"threshold": 0.7,
+				"arena_effects": [{"kind": "jade", "color": "48bca4", "warning": 1.2, "radius": 1.9, "lifetime": 0.0, "interval": 1.0, "layout": "ring", "count": 4, "blocker": true, "width": 3.0, "damage": 0.0}],
+				"arena_event": "illusion_maze",
 				"description": "Nine Tails revealed — all tails active, arena floods with illusions, confusing mist",
 				"attacks": [
 					{"name": "nine_tail_barrage", "windup": 0.72, "active": 0.55, "recovery": 0.65, "damage": 8.0, "stagger": 8.0, "lunge": 0.0, "type": "multi_projectile", "count": 9},
@@ -192,11 +194,13 @@ static func boss() -> Dictionary:
 			},
 			"3": {
 				"threshold": 0.3,
+				"arena_effects": [{"kind": "jade", "color": "48bca4", "warning": 1.2, "radius": 1.9, "lifetime": 0.0, "interval": 1.0, "layout": "ring", "count": 3, "blocker": true, "width": 3.0, "damage": 0.0, "rotation": 0.0}, {"kind": "jade", "color": "48bca4", "warning": 1.2, "radius": 1.2, "lifetime": 18.0, "interval": 1.0, "layout": "ring", "count": 3, "rotation": 1.04, "damage": 6.0}],
+				"arena_event": "illusion_shift",
 				"description": "Wounded fox — desperate, rapid teleport chains, arena becomes maze of illusions",
 				"attacks": [
 					{"name": "desperate_teleport_flurry", "windup": 0.22, "active": 0.12, "recovery": 0.22, "damage": 25.0, "stagger": 28.0, "lunge": 3.5, "type": "chain_teleport", "chain_count": 4},
 					{"name": "final_foxfire_nova", "windup": 1.05, "active": 0.55, "recovery": 1.2, "damage": 35.0, "stagger": 42.0, "lunge": 0.0, "type": "stage_wide_aoe", "range": 10.0},
-					{"name": "illusion_wall", "windup": 0.55, "active": 0.0, "recovery": 0.42, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "type": "arena_modify"},
+					{"name": "illusion_wall", "windup": 0.55, "active": 0.0, "recovery": 0.42, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "type": "arena_modify", "arena_effect": {"kind": "jade", "color": "48bca4", "warning": 1.2, "radius": 2.0, "lifetime": 12.0, "interval": 1.0, "origin": "target", "blocker": true, "width": 3.5, "damage": 0.0}},
 				],
 				"vfx": "desperate_flickering_form",
 				"lighting": "dim_cyan_desperation",

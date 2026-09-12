@@ -4,11 +4,13 @@ signal locale_requested(locale: String)
 signal play_started
 signal combat_tip_mode_requested(enabled: bool)
 signal epilogue_finished
+signal equipment_requested
 
 const MobileControlsScript = preload("res://scripts/ui/mobile_controls.gd")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
-const InterfaceFont = preload("res://assets/fonts/NotoSansCJKsc-AshenHollow.otf")
+const InterfaceFont = preload("res://assets/fonts/NotoSansSC-AshenHollow.ttf")
 const HudThemeScript = preload("res://scripts/ui/hud_theme.gd")
+const EquipmentPanelScript = preload("res://scripts/ui/equipment_panel.gd")
 
 const COLOR_SURFACE := Color(0.022, 0.027, 0.035, 0.94)
 const COLOR_SURFACE_SOFT := Color(0.035, 0.04, 0.048, 0.9)
@@ -88,6 +90,19 @@ var _high_contrast := false
 var _control_opacity := 0.78
 var _mobile_controls_requested := false
 var _theme: HudTheme
+var equipment_panel: Control
+var weapon_dock: MarginContainer
+var weapon_slot_buttons: Array[Button] = []
+var location_label: Label
+var scene_objective_label: Label
+var _weapon_hint: Button
+var _bottom_spacer: Control
+var _equipment_was_paused := false
+var _equipment_was_help := false
+var _equipment_previous_mouse := Input.MOUSE_MODE_CAPTURED
+var _chapter_name := ""
+var _location_name := ""
+var _diagnostics_visible := false
 
 
 func _ready() -> void:
@@ -105,6 +120,8 @@ func setup(new_player: Node) -> void:
 	player = new_player
 	if player == null:
 		return
+	if player.has_signal("weapon_loadout_changed") and not player.is_connected("weapon_loadout_changed", refresh_weapon_slots):
+		player.connect("weapon_loadout_changed", refresh_weapon_slots)
 	var health := _read_number(player, [&"health", &"current_health"], 1.0)
 	var max_health := _read_number(player, [&"max_health", &"maximum_health"], maxf(health, 1.0))
 	var stamina := _read_number(player, [&"stamina", &"current_stamina"], 1.0)
@@ -121,6 +138,7 @@ func setup(new_player: Node) -> void:
 			String(loadout.get("left_hand", "")),
 			player.get_hand_action_labels()
 		)
+	refresh_weapon_slots()
 
 
 func update_stats(
@@ -207,16 +225,8 @@ func set_combat_style(style_id: int, display_name: String) -> void:
 
 
 func set_hands(right_hand_item: String, left_hand_item: String, action_labels: Dictionary) -> void:
-	if style_label != null:
-		style_label.set_meta("source_text", "")
-		style_label.text = "R: %s  |  L: %s\nR1 %s · R2 %s · L1 %s · L2 %s" % [
-			right_hand_item,
-			left_hand_item,
-			action_labels.get("right_primary", "R1"),
-			action_labels.get("right_secondary", "R2"),
-			action_labels.get("left_primary", "L1"),
-			action_labels.get("left_secondary", "L2"),
-		]
+	# IDs are gameplay keys; the visible equipment dock uses public display names.
+	refresh_weapon_slots()
 	if mobile_controls != null and mobile_controls.has_method("set_hand_labels"):
 		mobile_controls.set_hand_labels(action_labels)
 
@@ -288,7 +298,13 @@ func set_input_buffer_debug(text: String) -> void:
 	if buffer_debug_label == null:
 		return
 	buffer_debug_label.text = text
-	buffer_debug_label.visible = not text.is_empty()
+	buffer_debug_label.visible = _diagnostics_visible and not text.is_empty()
+
+
+func set_diagnostics_visible(enabled: bool) -> void:
+	_diagnostics_visible = enabled
+	if buffer_debug_label != null:
+		buffer_debug_label.visible = enabled and not buffer_debug_label.text.is_empty()
 
 
 func set_lock_target(target: Node) -> void:
@@ -424,6 +440,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if title_overlay != null and title_overlay.visible:
 		return
+	if is_equipment_open():
+		if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("equipment"):
+			close_equipment()
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("help"):
 		_toggle_help()
 		get_viewport().set_input_as_handled()
@@ -463,6 +484,10 @@ func _build_interface() -> void:
 	vertical_layout.add_child(flexible_space)
 	vertical_layout.add_child(_build_boss_lane())
 	vertical_layout.add_child(_build_prompt_lane())
+	_bottom_spacer = Control.new()
+	_bottom_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vertical_layout.add_child(_bottom_spacer)
+	_build_weapon_dock()
 
 	_build_message_lane()
 	_build_buffer_debug_label()
@@ -474,27 +499,33 @@ func _build_interface() -> void:
 	_build_help_overlay()
 	_build_title_overlay()
 	_build_epilogue_overlay()
+	equipment_panel = EquipmentPanelScript.new()
+	equipment_panel.name = "EquipmentPanel"
+	root.add_child(equipment_panel)
+	equipment_panel.connect("close_requested", close_equipment)
+	equipment_panel.connect("loadout_updated", refresh_weapon_slots)
 
 
 func _build_top_row() -> HBoxContainer:
 	top_row = HBoxContainer.new()
 	top_row.name = "TopRow"
-	top_row.add_theme_constant_override("h_separation", 18)
+	top_row.add_theme_constant_override("separation", 18)
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	vitals_panel = PanelContainer.new()
 	vitals_panel.name = "VitalsPanel"
-	vitals_panel.custom_minimum_size = Vector2(360.0, 122.0)
+	vitals_panel.custom_minimum_size = Vector2(326.0, 76.0)
 	vitals_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	vitals_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.016, 0.02, 0.027, 0.82), COLOR_BORDER_SOFT, 4, 14.0, 8.0))
+	vitals_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	vitals_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	top_row.add_child(vitals_panel)
 
 	var vitals := VBoxContainer.new()
 	vitals.name = "Vitals"
-	vitals.add_theme_constant_override("separation", 5)
+	vitals.add_theme_constant_override("separation", 4)
 	vitals_panel.add_child(vitals)
-	vitals.add_child(_make_bar_row("VIT", COLOR_HEALTH, 21.0, true))
-	vitals.add_child(_make_bar_row("END", COLOR_STAMINA, 13.0, false))
+	vitals.add_child(_make_bar_row("VIT", COLOR_HEALTH, 15.0, true))
+	vitals.add_child(_make_bar_row("END", COLOR_STAMINA, 9.0, false))
 	vitals.add_child(_make_focus_row())
 	poise_row = _make_poise_row()
 	vitals.add_child(poise_row)
@@ -508,35 +539,229 @@ func _build_top_row() -> HBoxContainer:
 
 	ember_panel = PanelContainer.new()
 	ember_panel.name = "EmberPanel"
-	ember_panel.custom_minimum_size = Vector2(190.0, 52.0)
+	ember_panel.custom_minimum_size = Vector2(112.0, 36.0)
 	ember_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
-	ember_panel.add_theme_stylebox_override("panel", _panel_style(COLOR_SURFACE, COLOR_BORDER, 5, 14.0, 7.0))
+	ember_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	ember_panel.add_theme_stylebox_override("panel", _panel_style(Color(.035, .043, .047, .7), Color(.43, .36, .24, .6), 1, 12.0, 5.0))
 	top_row.add_child(ember_panel)
 	var resource_stack := VBoxContainer.new()
 	resource_stack.add_theme_constant_override("separation", 2)
 	ember_panel.add_child(resource_stack)
-	embers_label = _make_label("◆  0", 21, COLOR_EMBER)
+	embers_label = _make_label("◆  0", 19, COLOR_EMBER)
 	embers_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	embers_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	resource_stack.add_child(embers_label)
-	style_label = _make_label(LocalizationScript.text("RELIQUARY GUARD", _locale), 12, COLOR_MUTED)
-	style_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# Retain the existing public label for style updates, without crowding currency.
+	style_label = _make_label("", 12, COLOR_MUTED)
+	style_label.visible = false
 	resource_stack.add_child(style_label)
 	return top_row
+
+
+func _build_weapon_dock() -> void:
+	weapon_dock = MarginContainer.new()
+	weapon_dock.name = "WeaponDock"
+	weapon_dock.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	weapon_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(weapon_dock)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 7)
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weapon_dock.add_child(column)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 7)
+	column.add_child(row)
+	for index in 3:
+		var button := Button.new()
+		button.name = "WeaponSlot%d" % index
+		button.custom_minimum_size = Vector2(94., 84.)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.focus_mode = Control.FOCUS_ALL
+		button.pressed.connect(_select_weapon_slot.bind(index))
+		row.add_child(button)
+		weapon_slot_buttons.append(button)
+		var stack := VBoxContainer.new()
+		stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		stack.offset_left = 6.
+		stack.offset_right = -6.
+		stack.offset_top = 7.
+		stack.offset_bottom = -5.
+		stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		stack.add_theme_constant_override("separation", 3)
+		button.add_child(stack)
+		var icon := TextureRect.new()
+		icon.name = "WeaponIcon"
+		icon.texture = HudThemeScript.weapon_icon("sword")
+		icon.custom_minimum_size = Vector2(34., 36.)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		stack.add_child(icon)
+		var caption := _make_label("", 13, COLOR_TEXT)
+		caption.name = "WeaponName"
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		stack.add_child(caption)
+		button.set_meta("caption", caption)
+		button.set_meta("icon", icon)
+	_weapon_hint = Button.new()
+	_weapon_hint.name = "OpenEquipmentHint"
+	var hint_surface := StyleBoxFlat.new()
+	hint_surface.bg_color = Color(0.022, 0.027, 0.035, 0.84)
+	hint_surface.set_corner_radius_all(3)
+	_weapon_hint.add_theme_stylebox_override("normal", hint_surface)
+	_weapon_hint.add_theme_stylebox_override("hover", _theme.slot_style(false, true))
+	_weapon_hint.custom_minimum_size.y = 28.
+	_weapon_hint.add_theme_font_size_override("font_size", 13)
+	_weapon_hint.pressed.connect(func() -> void: equipment_requested.emit())
+	column.add_child(_weapon_hint)
+	location_label = _make_label("", 14, COLOR_TEXT)
+	location_label.name = "LocationLabel"
+	location_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	location_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	location_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	location_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	location_label.add_theme_constant_override("shadow_offset_y", 1)
+	root.add_child(location_label)
+	scene_objective_label = _make_label("", 13, COLOR_TEXT)
+	scene_objective_label.name = "SceneObjective"
+	scene_objective_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	scene_objective_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	scene_objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	scene_objective_label.max_lines_visible = 3
+	scene_objective_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scene_objective_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	scene_objective_label.add_theme_constant_override("shadow_outline_size", 3)
+	scene_objective_label.hide()
+	root.add_child(scene_objective_label)
+	refresh_weapon_slots()
+
+
+func refresh_weapon_slots() -> void:
+	if weapon_slot_buttons.is_empty():
+		return
+	var slots: Array = []
+	if is_instance_valid(player) and player.has_method("get_weapon_quickslots"):
+		slots = player.call("get_weapon_quickslots")
+	for index in weapon_slot_buttons.size():
+		var button := weapon_slot_buttons[index]
+		var data: Dictionary = slots[index] if index < slots.size() else {}
+		var active := bool(data.get("active", false))
+		var caption := button.get_meta("caption") as Label
+		var icon := button.get_meta("icon") as TextureRect
+		var display := HudThemeScript.readable_name(String(data.get("display_name", "")), _locale)
+		caption.text = display
+		icon.texture = HudThemeScript.weapon_icon(String(data.get("weapon_type", "sword")))
+		icon.modulate = Color.WHITE if active else Color(.78, .8, .78)
+		button.add_theme_stylebox_override("normal", _theme.slot_style(active))
+		button.add_theme_stylebox_override("hover", _theme.slot_style(active, true))
+		button.tooltip_text = display + " · " + _copy("当前使用" if active else "切换至此兵器", "In hand" if active else "Switch to this weapon")
+		button.set_meta("active", active)
+		button.set_meta("item_id", data.get("item_id", ""))
+	if _weapon_hint != null:
+		_weapon_hint.text = _copy("X  轮换兵器    I  装备", "X  Cycle weapons    I  Equipment")
+
+
+func _select_weapon_slot(index: int) -> void:
+	if not is_instance_valid(player) or not player.has_method("try_select_weapon_slot"):
+		return
+	if not bool(player.call("try_select_weapon_slot", index)):
+		var reason := String(player.call("get_weapon_loadout_error")) if player.has_method("get_weapon_loadout_error") else _copy("当前无法切换兵器", "Cannot switch weapons right now")
+		show_message(reason, 1.6)
+	refresh_weapon_slots()
+
+
+func open_equipment() -> bool:
+	if equipment_panel == null or is_equipment_open() or not is_instance_valid(player):
+		return false
+	if title_overlay.visible or death_overlay.visible or epilogue_overlay.visible:
+		return false
+	if get_tree().paused and not pause_overlay.visible and not help_overlay.visible:
+		return false
+	_equipment_was_paused = get_tree().paused
+	_equipment_was_help = help_overlay.visible
+	_equipment_previous_mouse = Input.mouse_mode
+	var settings := {"locale": _locale, "ui_scale": _ui_scale, "text_scale": _text_scale, "high_contrast": _high_contrast}
+	if not bool(equipment_panel.call("show_for", player, settings)):
+		return false
+	pause_overlay.visible = false
+	help_overlay.visible = false
+	get_tree().paused = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if mobile_controls != null:
+		mobile_controls.visible = false
+	return true
+
+
+func close_equipment() -> void:
+	if not is_equipment_open():
+		return
+	equipment_panel.visible = false
+	get_tree().paused = _equipment_was_paused
+	help_overlay.visible = _equipment_was_help
+	pause_overlay.visible = _equipment_was_paused and not _equipment_was_help
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if _equipment_was_paused else _equipment_previous_mouse
+	if _equipment_was_help and back_button != null:
+		back_button.grab_focus()
+	elif _equipment_was_paused and resume_button != null:
+		resume_button.grab_focus()
+	if mobile_controls != null:
+		mobile_controls.visible = _mobile_controls_requested and not _equipment_was_paused
+	refresh_weapon_slots()
+
+
+func is_equipment_open() -> bool:
+	return equipment_panel != null and equipment_panel.visible
+
+
+func set_location(chapter_name: String, place_name: String) -> void:
+	_chapter_name = chapter_name
+	_location_name = place_name
+	if location_label != null:
+		location_label.text = "  ·  ".join([HudThemeScript.readable_name(chapter_name, _locale), HudThemeScript.readable_name(place_name, _locale)])
+		_update_responsive_layout()
+
+
+func set_scene_objective(text: String) -> void:
+	if scene_objective_label == null or scene_objective_label.text == text:
+		return
+	scene_objective_label.text = text
+	scene_objective_label.visible = not text.is_empty()
+	_update_responsive_layout()
+
+
+func _copy(zh: String, en: String) -> String:
+	return HudThemeScript.copy(zh, en, _locale)
+
+
+func _bilingual_label(zh: String, en: String, pixels: int, color: Color) -> Label:
+	var label := _make_label(_copy(zh, en), pixels, color)
+	label.remove_meta("source_text")
+	label.set_meta("zh", zh)
+	label.set_meta("en", en)
+	return label
+
+
+func _bilingual_button(zh: String, en: String) -> Button:
+	var button := _make_button(_copy(zh, en))
+	button.remove_meta("source_text")
+	button.set_meta("zh", zh)
+	button.set_meta("en", en)
+	return button
 
 
 func _make_bar_row(caption: String, fill_color: Color, height: float, is_health: bool) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 9)
-	var caption_label := _make_label(caption, 11, COLOR_MUTED)
-	caption_label.custom_minimum_size = Vector2(30.0, 0.0)
+	var caption_label := _make_label(caption, 12, COLOR_TEXT)
+	caption_label.custom_minimum_size = Vector2(34.0, 0.0)
 	caption_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(caption_label)
 	var bar := _make_bar(fill_color, height)
 	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(bar)
-	var value_label := _make_label("100 / 100", 12, COLOR_TEXT)
-	value_label.custom_minimum_size = Vector2(76.0, 0.0)
+	var value_label := _make_label("100 / 100", 11, COLOR_TEXT)
+	value_label.custom_minimum_size = Vector2(66.0, 0.0)
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(value_label)
@@ -552,7 +777,7 @@ func _make_bar_row(caption: String, fill_color: Color, height: float, is_health:
 func _make_poise_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 9)
-	var caption_label := _make_label("POI", 10, COLOR_MUTED)
+	var caption_label := _bilingual_label("架势", "Poise", 11, COLOR_MUTED)
 	caption_label.custom_minimum_size = Vector2(30.0, 0.0)
 	row.add_child(caption_label)
 	poise_bar = _make_bar(Color("d9903d"), 7.0)
@@ -569,7 +794,7 @@ func _make_charge_row() -> HBoxContainer:
 	# 蓄力三档进度条（短）
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 9)
-	var caption_label := _make_label("CHG", 10, COLOR_MUTED)
+	var caption_label := _bilingual_label("蓄力", "Charge", 11, COLOR_MUTED)
 	caption_label.custom_minimum_size = Vector2(30.0, 0.0)
 	row.add_child(caption_label)
 	charge_bar = _make_bar(Color("c9a35a"), 7.0)
@@ -585,15 +810,15 @@ func _make_charge_row() -> HBoxContainer:
 func _make_focus_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 9)
-	var caption_label := _make_label("FOC", 11, COLOR_MUTED)
-	caption_label.custom_minimum_size = Vector2(30.0, 0.0)
+	var caption_label := _make_label("FOC", 12, COLOR_TEXT)
+	caption_label.custom_minimum_size = Vector2(34.0, 0.0)
 	caption_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(caption_label)
-	focus_bar = _make_bar(COLOR_FOCUS, 11.0)
+	focus_bar = _make_bar(COLOR_FOCUS, 9.0)
 	focus_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(focus_bar)
-	focus_value_label = _make_label("80 / 80", 12, COLOR_TEXT)
-	focus_value_label.custom_minimum_size = Vector2(76.0, 0.0)
+	focus_value_label = _make_label("80 / 80", 11, COLOR_TEXT)
+	focus_value_label.custom_minimum_size = Vector2(66.0, 0.0)
 	focus_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	focus_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(focus_value_label)
@@ -606,9 +831,9 @@ func _build_boss_lane() -> CenterContainer:
 	lane.custom_minimum_size.y = 68.0
 	boss_panel = PanelContainer.new()
 	boss_panel.name = "BossPanel"
-	boss_panel.custom_minimum_size = Vector2(760.0, 62.0)
+	boss_panel.custom_minimum_size = Vector2(560.0, 56.0)
 	boss_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	boss_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.012, 0.015, 0.02, 0.94), Color(0.34, 0.27, 0.2), 3, 18.0, 8.0))
+	boss_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.025, 0.03, 0.035, 0.65), Color(.43, .36, .24, .55), 1, 16.0, 7.0))
 	boss_panel.visible = false
 	lane.add_child(boss_panel)
 	var boss_box := VBoxContainer.new()
@@ -628,9 +853,9 @@ func _build_prompt_lane() -> CenterContainer:
 	lane.custom_minimum_size.y = 58.0
 	prompt_panel = PanelContainer.new()
 	prompt_panel.name = "PromptPanel"
-	prompt_panel.custom_minimum_size = Vector2(440.0, 48.0)
+	prompt_panel.custom_minimum_size = Vector2(320.0, 44.0)
 	prompt_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	prompt_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.012, 0.015, 0.02, 0.93), COLOR_BORDER_SOFT, 5, 14.0, 7.0))
+	prompt_panel.add_theme_stylebox_override("panel", _panel_style(Color(.025, .032, .035, .8), Color(.43, .36, .24, .55), 2, 14.0, 6.0))
 	prompt_panel.visible = false
 	lane.add_child(prompt_panel)
 
@@ -650,6 +875,8 @@ func _build_prompt_lane() -> CenterContainer:
 	row.add_child(keycap)
 	prompt_label = _make_label("", 17, COLOR_TEXT)
 	prompt_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	prompt_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	prompt_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(prompt_label)
 	return lane
 
@@ -700,7 +927,7 @@ func _build_buffer_debug_label() -> void:
 
 
 func _build_lock_marker() -> void:
-	lock_label = _make_label("◈", 32, COLOR_EMBER)
+	lock_label = _make_label("◇", 32, COLOR_EMBER)
 	lock_label.name = "LockMarker"
 	lock_label.custom_minimum_size = Vector2(46.0, 46.0)
 	lock_label.size = Vector2(46.0, 46.0)
@@ -725,17 +952,21 @@ func _build_mobile_controls() -> void:
 
 func _build_pause_overlay() -> void:
 	pause_overlay = _make_menu_overlay("PAUSED", "THE HOLLOW WAITS")
-	var content := pause_overlay.get_node("Center/Menu/Margins/Content") as VBoxContainer
+	var content := pause_overlay.get_node("Center/Menu/Margins/Scroll/Content") as VBoxContainer
 	resume_button = _make_button("RESUME")
 	resume_button.pressed.connect(func() -> void: _set_paused(false))
 	content.add_child(resume_button)
+	var equipment_button := _bilingual_button("装备兵器", "EQUIPMENT")
+	equipment_button.name = "EquipmentButton"
+	equipment_button.pressed.connect(func() -> void: equipment_requested.emit())
+	content.add_child(equipment_button)
 	var help_button := _make_button("CONTROLS")
 	help_button.pressed.connect(_toggle_help)
 	content.add_child(help_button)
 	var language_title := _make_label("LANGUAGE", 13, COLOR_MUTED)
 	language_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	content.add_child(language_title)
-	var language_row := HBoxContainer.new()
+	var language_row := VBoxContainer.new()
 	language_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	language_row.add_theme_constant_override("separation", 10)
 	content.add_child(language_row)
@@ -750,12 +981,13 @@ func _build_pause_overlay() -> void:
 	chinese_button.pressed.connect(_request_locale.bind("zh_CN"))
 	language_row.add_child(chinese_button)
 	# 战斗提示模式：默认关闭，仅显示跳劈等教学提示
-	var tip_title := _make_label("COMBAT TIP MODE", 13, COLOR_MUTED)
+	var tip_title := _bilingual_label("战斗提示", "COMBAT TIP MODE", 13, COLOR_MUTED)
 	tip_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	content.add_child(tip_title)
 	combat_tip_check = CheckButton.new()
-	combat_tip_check.text = "Show combat tips (charge / grip / context)"
-	combat_tip_check.set_meta("source_text", "Show combat tips (charge / grip / context)")
+	combat_tip_check.text = "Show combat tips"
+	combat_tip_check.set_meta("zh", "显示战斗提示")
+	combat_tip_check.set_meta("en", "Show combat tips")
 	combat_tip_check.button_pressed = false
 	combat_tip_check.focus_mode = Control.FOCUS_ALL
 	combat_tip_check.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -765,26 +997,31 @@ func _build_pause_overlay() -> void:
 
 func _build_title_overlay() -> void:
 	title_overlay = _make_menu_overlay(
-		"ASHEN HOLLOW",
-		"A DELIBERATE ACTION JOURNEY"
+		_copy("烬渊", "EMBER ABYSS"),
+		_copy("余烬未熄，前路未尽", "WHERE THE EMBERS ENDURE")
 	)
-	var content := title_overlay.get_node("Center/Menu/Margins/Content") as VBoxContainer
-	var summary := _make_label(
-		"Cross the moonlit reliquary, reclaim your embers, and break the cinder seal.",
-		15,
-		COLOR_MUTED
-	)
+	var content := title_overlay.get_node("Center/Menu/Margins/Scroll/Content") as VBoxContainer
+	for index in [0, 1]:
+		var label := content.get_child(index) as Label
+		label.remove_meta("source_text")
+		label.set_meta("zh", "烬渊" if index == 1 else "余烬未熄，前路未尽")
+		label.set_meta("en", "EMBER ABYSS" if index == 1 else "WHERE THE EMBERS ENDURE")
+	var summary := _bilingual_label("穿过沉寂的庙宇，拾起兵器，寻回失落的余烬。", "Cross the silent temple. Take up your weapon. Reclaim the embers.", 16, COLOR_MUTED)
 	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	summary.custom_minimum_size = Vector2(420.0, 48.0)
+	summary.custom_minimum_size = Vector2(0.0, 48.0)
 	content.add_child(summary)
 	play_button = _make_button("BEGIN JOURNEY")
 	play_button.pressed.connect(_begin_play)
 	content.add_child(play_button)
+	var equipment_hint := _bilingual_label("X  轮换兵器    I  装备    Esc  暂停", "X  Cycle weapons    I  Equipment    Esc  Pause", 13, COLOR_MUTED)
+	equipment_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	equipment_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(equipment_hint)
 	var language_title := _make_label("LANGUAGE", 13, COLOR_MUTED)
 	language_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	content.add_child(language_title)
-	var language_row := HBoxContainer.new()
+	var language_row := VBoxContainer.new()
 	language_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	language_row.add_theme_constant_override("separation", 10)
 	content.add_child(language_row)
@@ -851,7 +1088,7 @@ func _build_epilogue_overlay() -> void:
 
 func _build_help_overlay() -> void:
 	help_overlay = _make_menu_overlay("CONTROLS", "KEYBOARD & MOUSE")
-	var content := help_overlay.get_node("Center/Menu/Margins/Content") as VBoxContainer
+	var content := help_overlay.get_node("Center/Menu/Margins/Scroll/Content") as VBoxContainer
 	var controls_grid := GridContainer.new()
 	controls_grid.columns = 2
 	controls_grid.add_theme_constant_override("h_separation", 34)
@@ -868,6 +1105,8 @@ func _build_help_overlay() -> void:
 	_add_control_row(controls_grid, "SPRINT", "SHIFT")
 	_add_control_row(controls_grid, "INTERACT", "E")
 	_add_control_row(controls_grid, "LOCK TARGET", "Q  /  MMB")
+	_add_control_row(controls_grid, _copy("轮换兵器", "CYCLE WEAPONS"), "X")
+	_add_control_row(controls_grid, _copy("装备菜单", "EQUIPMENT"), "I")
 	_add_control_row(controls_grid, "CHANGE STYLE", "1–5  /  TAB")
 	_add_control_row(controls_grid, "GUARD / PARRY", "C  /  R")
 	_add_control_row(controls_grid, "STYLE SKILL", "F")
@@ -882,6 +1121,11 @@ func _build_help_overlay() -> void:
 
 func _add_control_row(grid: GridContainer, action: String, binding: String) -> void:
 	var action_label := _make_label(action, 14, COLOR_MUTED)
+	if action in ["轮换兵器", "CYCLE WEAPONS", "装备菜单", "EQUIPMENT"]:
+		action_label.remove_meta("source_text")
+		var equipment := action in ["装备菜单", "EQUIPMENT"]
+		action_label.set_meta("zh", "装备菜单" if equipment else "轮换兵器")
+		action_label.set_meta("en", "EQUIPMENT" if equipment else "CYCLE WEAPONS")
 	action_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	grid.add_child(action_label)
 	var binding_label := _make_label(binding, 15, COLOR_TEXT)
@@ -976,16 +1220,24 @@ func _make_menu_overlay(title: String, eyebrow: String) -> ColorRect:
 	margins.add_theme_constant_override("margin_right", 38)
 	margins.add_theme_constant_override("margin_bottom", 32)
 	menu.add_child(margins)
+	var scroll := ScrollContainer.new()
+	scroll.name = "Scroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	margins.add_child(scroll)
 	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.name = "Content"
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_theme_constant_override("separation", 16)
-	margins.add_child(content)
+	content.minimum_size_changed.connect(_update_responsive_layout.call_deferred)
+	scroll.add_child(content)
 	var eyebrow_label := _make_label(eyebrow, 12, COLOR_MUTED)
 	eyebrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	content.add_child(eyebrow_label)
 	var title_label := _make_label(title, 34, COLOR_EMBER)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(title_label)
 	var divider := HSeparator.new()
 	divider.custom_minimum_size = Vector2(420.0, 1.0)
@@ -1145,7 +1397,9 @@ func set_locale(locale: String) -> void:
 	if root == null:
 		return
 	for control in _walk_controls(root):
-		if control.has_meta("source_text"):
+		if control.has_meta("zh"):
+			control.set("text", _copy(String(control.get_meta("zh")), String(control.get_meta("en"))))
+		elif control.has_meta("source_text") and not String(control.get_meta("source_text")).is_empty():
 			var translated := LocalizationScript.text(
 				String(control.get_meta("source_text")),
 				_locale
@@ -1156,6 +1410,9 @@ func set_locale(locale: String) -> void:
 				(control as Button).text = translated
 	if mobile_controls != null and mobile_controls.has_method("set_locale"):
 		mobile_controls.set_locale(_locale)
+	refresh_weapon_slots()
+	if not _location_name.is_empty():
+		set_location(_chapter_name, _location_name)
 
 
 func set_reduced_motion(enabled: bool) -> void:
@@ -1247,13 +1504,38 @@ func _update_responsive_layout() -> void:
 	safe_area.add_theme_constant_override("margin_right", right_margin)
 	safe_area.add_theme_constant_override("margin_bottom", bottom_margin)
 	var available_width := maxf(viewport_size.x - left_margin - right_margin, 220.0)
-	vitals_panel.custom_minimum_size = Vector2(minf(360.0 * _ui_scale, available_width), 104.0 * _ui_scale)
-	ember_panel.custom_minimum_size = Vector2(minf(190.0 * _ui_scale, available_width), 50.0 * _ui_scale)
+	var money_width := 104. * _ui_scale
+	vitals_panel.custom_minimum_size = Vector2(minf(326.0 * _ui_scale, maxf(170., available_width - money_width - 24.)), 0.)
+	ember_panel.custom_minimum_size = Vector2(money_width, 36.0 * _ui_scale)
 	ember_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
-	boss_panel.custom_minimum_size.x = minf(760.0 * _ui_scale, available_width)
-	prompt_panel.custom_minimum_size.x = minf(440.0 * _ui_scale, available_width)
+	for value_label in [health_value_label, stamina_value_label, focus_value_label]:
+		value_label.visible = not compact
+	boss_panel.custom_minimum_size.x = minf(560.0 * _ui_scale, available_width)
+	prompt_panel.custom_minimum_size.x = minf(380.0 * _ui_scale, available_width)
 	message_panel.custom_minimum_size.x = minf(360.0 * _ui_scale, available_width)
-	_message_safe_area.offset_top = top_margin + 72.0 * _ui_scale
+	var dock_width := minf(296. * _ui_scale, available_width)
+	var dock_height := 120. * _ui_scale
+	weapon_dock.offset_left = left_margin
+	weapon_dock.offset_right = left_margin + dock_width
+	weapon_dock.offset_top = -bottom_margin - dock_height
+	weapon_dock.offset_bottom = -bottom_margin
+	for button in weapon_slot_buttons:
+		button.custom_minimum_size = Vector2(dock_width / 3. - 7., 82. * _ui_scale)
+	_bottom_spacer.custom_minimum_size.y = dock_height + 8. if viewport_size.x < 1050. * _ui_scale else 0.
+	location_label.offset_left = minf(350. * _ui_scale, viewport_size.x * .35)
+	location_label.offset_right = -minf(170. * _ui_scale, viewport_size.x * .25)
+	location_label.offset_top = top_margin
+	location_label.offset_bottom = top_margin + 28. * _ui_scale
+	location_label.visible = viewport_size.x >= 760. * _ui_scale and not _location_name.is_empty()
+	var wide_objective := viewport_size.x >= 1050. * _ui_scale
+	if scene_objective_label != null:
+		scene_objective_label.offset_left = maxf(location_label.offset_left, left_margin + maxf(vitals_panel.size.x, vitals_panel.custom_minimum_size.x) + 16. * _ui_scale) if wide_objective else left_margin
+		scene_objective_label.offset_right = location_label.offset_right if wide_objective else -right_margin
+		scene_objective_label.offset_top = top_margin + (28. if wide_objective else 80.) * _ui_scale
+		scene_objective_label.offset_bottom = scene_objective_label.offset_top + 58. * _ui_scale
+	_message_safe_area.offset_top = top_margin + 82.0 * _ui_scale
+	if scene_objective_label != null and scene_objective_label.visible and not wide_objective:
+		_message_safe_area.offset_top += 58. * _ui_scale
 	_message_safe_area.offset_bottom = _message_safe_area.offset_top + 80.0 * _ui_scale
 	_message_safe_area.add_theme_constant_override("margin_left", left_margin)
 	_message_safe_area.add_theme_constant_override("margin_right", right_margin)
@@ -1264,13 +1546,40 @@ func _update_responsive_layout() -> void:
 			var menu_margin := 20 if compact else roundi(38.0 * _ui_scale)
 			margins.add_theme_constant_override("margin_left", menu_margin)
 			margins.add_theme_constant_override("margin_right", menu_margin)
+			margins.add_theme_constant_override("margin_top", 20)
+			margins.add_theme_constant_override("margin_bottom", 20)
+			var scroll := margins.get_node_or_null("Scroll") as ScrollContainer
+			if scroll != null:
+				var content := scroll.get_node("Content") as VBoxContainer
+				scroll.custom_minimum_size.y = minf(content.get_combined_minimum_size().y, maxf(140., viewport_size.y - top_margin - bottom_margin - 42.))
 	for child in _walk_controls(root):
 		if child is HSeparator and child.has_meta("base_width"):
-			child.custom_minimum_size.x = minf(float(child.get_meta("base_width")) * _ui_scale, maxf(available_width - 48.0, 160.0))
+			child.custom_minimum_size.x = 0.
 
 
 func _get_safe_insets(viewport_size: Vector2) -> Vector4:
 	if DisplayServer.get_name() == "headless":
+		return Vector4.ZERO
+	if OS.has_feature("web"):
+		# Browser screen dimensions describe the monitor, not the canvas. Treating
+		# the window's safe rectangle as monitor pixels creates huge false margins
+		# in a windowed preview. Read the browser's actual CSS safe-area insets.
+		var raw = JavaScriptBridge.eval("""
+			JSON.stringify((() => {
+				const probe = document.createElement('div');
+				probe.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+				document.body.appendChild(probe);
+				const style = getComputedStyle(probe);
+				const values = [parseFloat(style.paddingLeft), parseFloat(style.paddingTop), parseFloat(style.paddingRight), parseFloat(style.paddingBottom), innerWidth, innerHeight];
+				probe.remove();
+				return values;
+			})())
+		""", true)
+		var values = JSON.parse_string(str(raw))
+		if values is Array and values.size() == 6 and float(values[4]) > 0.0 and float(values[5]) > 0.0:
+			var ratio := viewport_size / Vector2(float(values[4]), float(values[5]))
+			return Vector4(float(values[0]) * ratio.x, float(values[1]) * ratio.y,
+				float(values[2]) * ratio.x, float(values[3]) * ratio.y)
 		return Vector4.ZERO
 	var screen_size := Vector2(DisplayServer.screen_get_size())
 	var safe_rect := Rect2(DisplayServer.get_display_safe_area())

@@ -4,6 +4,8 @@ extends Area3D
 
 signal talk_requested(npc_id: StringName, player: Node)
 
+const EmbeddedActions = preload("res://scripts/core/embedded_model_actions.gd")
+
 var prompt_text := "与云游交谈"
 var npc_id: StringName = &"npc_cloud_wanderer"
 var world_callback: Callable
@@ -24,7 +26,8 @@ func _process(delta: float) -> void:
 		_model_base_y_set = true
 	var profile := ModelMotionProfiles.profile_for("npc/%s" % String(npc_id))
 	var vfx: Dictionary = profile.get("vfx", {})
-	ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
+	if not EmbeddedActions.available(model_root):
+		ModelFx.apply_movement(model_root, _model_base_y, profile.get("movement", {}), delta)
 	ModelFx.ensure_ambient(self, vfx.get("ambient", {}))
 	if vfx.has("aura"):
 		ModelFx.ensure_aura(self, vfx["aura"])
@@ -35,6 +38,7 @@ func get_prompt() -> String:
 
 
 func interact(interacting_player: Node = null) -> void:
+	EmbeddedActions.play_action(get_node_or_null("ModelRoot"), "interact", true)
 	if world_callback.is_valid():
 		world_callback.call(self, interacting_player)
 	talk_requested.emit(npc_id, interacting_player)

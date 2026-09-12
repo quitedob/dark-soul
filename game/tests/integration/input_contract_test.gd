@@ -12,7 +12,7 @@ const REQUIRED_ACTIONS := [
 	&"dodge", &"jump", &"lock_on", &"cycle_lock_left", &"cycle_lock_right",
 	&"interact", &"right_primary", &"right_secondary", &"left_primary",
 	&"left_secondary", &"guard", &"parry", &"special_attack", &"cast_spell",
-	&"cycle_style", &"toggle_grip", &"light_attack", &"heavy_attack",
+	&"cycle_style", &"cycle_weapon", &"equipment", &"toggle_grip", &"light_attack", &"heavy_attack",
 	&"pause", &"help", &"style_1", &"style_2", &"style_3", &"style_4", &"style_5",
 ]
 
@@ -53,6 +53,8 @@ func _test_key_mouse_bindings() -> void:
 	_expect(_has_key_binding(&"interact", KEY_E), "interact must bind E.")
 	_expect(_has_key_binding(&"cast_spell", KEY_G), "cast_spell must bind G.")
 	_expect(_has_key_binding(&"cycle_style", KEY_TAB), "cycle_style must bind Tab.")
+	_expect(_has_key_binding(&"cycle_weapon", KEY_X), "cycle_weapon must bind X.")
+	_expect(_has_key_binding(&"equipment", KEY_I), "equipment must bind I.")
 
 
 func _test_configuration_is_idempotent() -> void:

@@ -7,10 +7,10 @@
 script = ExtResource("1_world")
 
 [node name="HubJarA" parent="." groups=["hub_props"] instance=ExtResource("2_jar")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 0, 4.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 0, -4.6)
 
 [node name="HubJarB" parent="." groups=["hub_props"] instance=ExtResource("2_jar")]
-transform = Transform3D(0.94, 0, 0.34, 0, 1, 0, -0.34, 0, 0.94, -2.6, 0, 5.2)
+transform = Transform3D(0.94, 0, 0.34, 0, 1, 0, -0.34, 0, 0.94, -2.6, 0, -5.2)
 
 [node name="HubJarC" parent="." groups=["hub_props"] instance=ExtResource("2_jar")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0, 0, 3.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0, 0, -6.8)

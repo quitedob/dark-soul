@@ -1,0 +1,19 @@
+{
+  "prefix": {
+    "scene": "res://assets/models/characters/player-classes/02-Frenzied-Warrior.glb",
+    "clip": "walk",
+    "lower_trim": 0.0,
+    "upper_trim": 0.5,
+    "root_node_world_pos": {"x": 0, "y": 0, "z": 0},
+    "root_node_world_rot": {"x": 0, "y": 0, "z": 0, "w": 1}
+  },
+  "suffix": {
+    "scene": "res://assets/models/characters/player-classes/02-Frenzied-Warrior.glb",
+    "clip": "walk",
+    "lower_trim": 0.5,
+    "upper_trim": 1.0,
+    "root_node_world_pos": {"x": 0, "y": 0, "z": 1},
+    "root_node_world_rot": {"x": 0, "y": 0, "z": 0, "w": 1}
+  },
+  "stitch_duration": 1.0
+}

@@ -13,16 +13,21 @@ static func apply_chase_boost(enemy: Node, heal_speed_id: int) -> int:
 		return heal_speed_id
 	if not ("move_speed" in enemy):
 		return heal_speed_id
-	var original_speed: float = float(enemy.move_speed)
+	var original_speed: float = float(enemy.get_meta("heal_react_base_speed", enemy.move_speed))
+	enemy.set_meta("heal_react_base_speed", original_speed)
 	enemy.move_speed = original_speed * SPEED_MULT
 	var next_id: int = heal_speed_id + 1
 	var tree: SceneTree = enemy.get_tree()
 	if tree == null:
 		enemy.move_speed = original_speed
+		enemy.remove_meta("heal_react_base_speed")
 		return next_id
 	var restore_timer := tree.create_timer(DURATION_SEC)
+	var enemy_ref: WeakRef = weakref(enemy)
 	restore_timer.timeout.connect(func():
-		if is_instance_valid(enemy) and int(enemy.get("_heal_speed_id")) == next_id:
-			enemy.move_speed = original_speed
+		var receiver: Node = enemy_ref.get_ref()
+		if is_instance_valid(receiver) and int(receiver.get("_heal_speed_id")) == next_id:
+			receiver.move_speed = original_speed
+			receiver.remove_meta("heal_react_base_speed")
 	)
 	return next_id

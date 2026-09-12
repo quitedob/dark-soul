@@ -9,7 +9,7 @@ extends RefCounted
 
 static func boss() -> Dictionary:
 	return {
-		"id": "boss_blind_bell",
+		"id": "boss_blind_bell", "story_arena": true,
 		"display_name": "盲钟·听烬 / The Blind Bell · Hearer of Embers",
 		"max_health": 520.0, "reward": 420,
 		"arena": "hidden_belltower",
@@ -33,6 +33,8 @@ static func boss() -> Dictionary:
 			},
 			"2": {
 				"threshold": 0.55,
+				"arena_effects": [{"kind": "bronze", "color": "c09246", "warning": 1.2, "radius": 1.9, "lifetime": 0.0, "interval": 1.0, "layout": "ring", "count": 4, "blocker": true, "width": 3.0, "damage": 0.0}],
+				"arena_event": "resonance_barriers",
 				"description": "聋世 · 黑暗中的声音",
 				"attacks": [
 					# 无声钟舌 (Silent Tongue) —— 双段快刺（count/hits 元数据）
@@ -42,7 +44,7 @@ static func boss() -> Dictionary:
 					# 三响冲锋 (Triple Toll Charge) —— 横穿全场冲锋（大 lunge）
 					{"name": "triple_toll_charge", "windup": 0.7, "active": 0.6, "recovery": 1.8, "damage": 32.0, "stagger": 38.0, "lunge": 6.0, "heavy": true},
 					# 摄魂鸣 (Soul-Drain Toll) —— 低频长鸣持续汲取（status 型，12m 半径）
-					{"name": "soul_drain_toll", "windup": 1.2, "active": 0.5, "recovery": 2.2, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "heavy": false, "type": "status", "effect": "soul_drain", "range": 12.0},
+					{"name": "soul_drain_toll", "windup": 1.2, "active": 0.5, "recovery": 2.2, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "heavy": false, "type": "status", "effect": "soul_drain", "range": 12.0, "arena_effect": {"kind": "bronze", "color": "c09246", "warning": 1.2, "radius": 12.0, "lifetime": 9.0, "interval": 3.0, "drain_embers": 8, "drain_focus": 10.0}},
 					# 钟舌绞杀 (Tongue Strangulation) —— 链条甩出拖拽
 					{"name": "tongue_strangulation", "windup": 0.8, "active": 0.5, "recovery": 2.2, "damage": 24.0, "stagger": 30.0, "lunge": 1.6, "heavy": true},
 				],

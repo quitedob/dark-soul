@@ -5,14 +5,22 @@ const TraumaShakeScript = preload("res://scripts/components/trauma_shake.gd")
 
 class FreezeProbe extends Node:
 	var frozen := false
+	var thaw_count := 0
 	func set_visual_frozen(value: bool) -> void:
 		frozen = value
+		if not value:
+			thaw_count += 1
 
 var _failures: Array[String] = []
 
 
-func _init() -> void:
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
 	_test_hit_stop()
+	_test_freed_hit_stop_participants()
 	_test_trauma()
 	if _failures.is_empty():
 		print("ASHEN_FEEDBACK_CONTRACTS_OK")
@@ -60,6 +68,37 @@ func _test_trauma() -> void:
 	_expect(is_zero_approx(shake.trauma), "Disabled shake accepted trauma.")
 	shake.free()
 	camera.free()
+
+
+func _test_freed_hit_stop_participants() -> void:
+	for cleanup: String in ["expiry", "clear", "exit_tree"]:
+		var manager = HitStopManagerScript.new()
+		var doomed := FreezeProbe.new()
+		var survivor := FreezeProbe.new()
+		root.add_child(manager)
+		manager.set_physics_process(false)
+		root.add_child(doomed)
+		root.add_child(survivor)
+		# Put the soon-freed participant first so cleanup must skip it and
+		# continue to thaw the remaining live participant.
+		manager.trigger(doomed, survivor, 0.08, 60.0)
+		doomed.free()
+		match cleanup:
+			"expiry":
+				for _frame in 5:
+					manager._physics_process(1.0 / 60.0)
+			"clear":
+				manager.clear()
+			"exit_tree":
+				manager.free()
+		_expect(not survivor.frozen, cleanup + ": freed participant prevented live participant thaw")
+		_expect(survivor.thaw_count == 1, cleanup + ": live participant must thaw exactly once")
+		if is_instance_valid(manager):
+			_expect(manager._remaining_frames.is_empty(), cleanup + ": expired participant records were retained")
+			manager.clear()
+			manager.free()
+		_expect(survivor.thaw_count == 1, cleanup + ": repeated cleanup duplicated thaw")
+		survivor.free()
 
 
 func _expect(condition: bool, message: String) -> void:

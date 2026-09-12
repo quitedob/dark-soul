@@ -6,6 +6,7 @@ signal choice_made(story_flag: StringName, value: String)
 
 const FateCatalog = preload("res://scripts/combat/data/boss_fate_catalog.gd")
 const LocalizationScript = preload("res://scripts/core/localization.gd")
+const HudThemeScript = preload("res://scripts/ui/hud_theme.gd")
 
 var _dim: ColorRect
 var _panel: PanelContainer
@@ -67,6 +68,7 @@ func _build() -> void:
 	add_child(center)
 
 	_panel = PanelContainer.new()
+	_panel.theme = HudThemeScript.new().build_theme()
 	_panel.custom_minimum_size = Vector2(420, 280)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.07, 0.1, 0.96)

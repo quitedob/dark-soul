@@ -115,7 +115,7 @@ static func elites() -> Array[Dictionary]:
 
 static func boss() -> Dictionary:
 	return {
-		"id": "boss_xing_tian",
+		"id": "boss_xing_tian", "story_arena": true,
 		"display_name": "血将军·刑天 / Blood General · Xing Tian",
 		"max_health": 580.0, "reward": 600,
 		"arena": "mountaintop_colosseum",
@@ -137,26 +137,30 @@ static func boss() -> Dictionary:
 			},
 			"2": {
 				"threshold": 0.7,
+				"arena_effects": [],
+				"arena_event": "chains_break",
 				"description": "Chains shattered — dual-wielding wild strikes, increased speed and aggression",
 				"attacks": [
 					{"name": "dual_slash", "windup": 0.44, "active": 0.24, "recovery": 0.48, "damage": 34.0, "stagger": 38.0, "lunge": 2.2, "heavy": false},
 					{"name": "frenzy_flurry", "windup": 0.38, "active": 0.55, "recovery": 0.62, "damage": 8.0, "stagger": 10.0, "lunge": 0.0, "heavy": false, "type": "multi_hit", "hits": 5},
 					{"name": "headless_charge", "windup": 0.65, "active": 0.28, "recovery": 0.58, "damage": 38.0, "stagger": 44.0, "lunge": 6.0, "heavy": true},
-					{"name": "war_cry_shockwave", "windup": 0.85, "active": 0.30, "recovery": 0.72, "damage": 20.0, "stagger": 30.0, "lunge": 0.0, "heavy": false, "type": "radial_aoe", "range": 6.0},
+					{"name": "war_cry_shockwave", "windup": 0.85, "active": 0.30, "recovery": 0.72, "damage": 20.0, "stagger": 30.0, "lunge": 0.0, "heavy": false, "type": "radial_aoe", "range": 6.0, "arena_effect": {"kind": "blood", "color": "a73136", "warning": 1.2, "radius": 1.2, "lifetime": 7.0, "interval": 1.0, "layout": "line", "count": 3, "spacing": 2.2, "damage": 7.0, "break_props": true}},
 				],
 				"vfx": "blood_mist_aura",
 				"lighting": "crimson_rage_glow",
 			},
 			"3": {
 				"threshold": 0.3,
-				"description": "Wounds emit spectral blood — attacks leave lingering damage zones, enrage timer active",
+				"arena_effects": [],
+				"arena_event": "honor_duel",
+				"description": "One axe lowered — measured duels, readable counter stance, a final salute at ten percent",
 				"attacks": [
-					{"name": "blood_slash", "windup": 0.35, "active": 0.20, "recovery": 0.40, "damage": 40.0, "stagger": 46.0, "lunge": 2.5, "heavy": false, "type": "trail_hazard"},
-					{"name": "dying_rage_slam", "windup": 0.55, "active": 0.32, "recovery": 0.55, "damage": 55.0, "stagger": 60.0, "lunge": 3.0, "heavy": true},
-					{"name": "blood_geyser", "windup": 0.72, "active": 0.38, "recovery": 0.68, "damage": 30.0, "stagger": 35.0, "lunge": 0.0, "heavy": true, "type": "line_aoe", "length": 8.0},
+					{"name": "honor_counter_stance", "windup": 1.8, "active": .1, "recovery": .85, "damage": 0., "stagger": 0., "lunge": 0.},
+					{"name": "honor_single_cleave", "windup": .92, "active": .3, "recovery": .95, "damage": 40., "stagger": 46., "lunge": 2.5, "heavy": true},
+					{"name": "honor_thrust", "windup": .72, "active": .28, "recovery": .8, "damage": 30., "stagger": 35., "lunge": 3.2},
 				],
-				"vfx": "spectral_blood_geysers",
-				"lighting": "deep_crimson_darkness",
+				"vfx": "warrior_last_salute",
+				"lighting": "blood_sunset_dim",
 			},
 		},
 		"vfx_unique": {

@@ -3,6 +3,14 @@ extends RefCounted
 ## 双手装备目录：展示/网格仍用字典；Guard/Weapon 权威改走 Resource
 
 const GuardResolverScript = preload("res://scripts/combat/guard_resolver.gd")
+const MovesetFactory = preload("res://scripts/combat/data/compatibility_moveset_factory.gd")
+
+## Only weapons with a modeled handheld mesh and a usable melee pose family.
+## Bow remains a compatibility loadout until Manny has a draw/release clip.
+const QUICKSLOT_WEAPONS := [
+	"guardian_sword", "xingtian_axe_right", "class_greatsword", "class_sword", "class_axe",
+]
+static var _weapon_cache: Dictionary = {}
 
 const STYLE_LOADOUTS := [
 	{"right_hand": "guardian_sword", "left_hand": "reliquary_shield"},
@@ -173,11 +181,35 @@ static func get_guard_profile_resource(item_id: String) -> GuardProfile:
 
 ## 加载 WeaponData Resource（权威；可空）
 static func get_weapon_data(item_id: String) -> WeaponData:
+	if _weapon_cache.has(item_id):
+		return _weapon_cache[item_id] as WeaponData
+	if item_id == "xingtian_axe_right":
+		var axe := MovesetFactory.create_weapon(preload("res://resources/combat_styles/twin_colossi.tres")).duplicate(true) as WeaponData
+		axe.weapon_id = &"xingtian_axe_right"
+		axe.weapon_type = &"axe"
+		axe.display_name = "刑天战斧"
+		axe.mesh_shape = "axe_right"
+		axe.default_grip = &"one_handed"
+		_weapon_cache[item_id] = axe
+		return axe
 	var path := String(WEAPON_DATA_PATHS.get(item_id, ""))
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return null
-	var loaded := load(path)
-	return loaded as WeaponData
+	var weapon := load(path) as WeaponData
+	if weapon == null:
+		return null
+	if weapon.supported_grips().is_empty():
+		# These authored resources carry metadata; the existing factory supplies
+		# their distinct timing, damage, charge tiers, hitboxes and weapon arts.
+		var generated := MovesetFactory.create_weapon_for_type(weapon.weapon_type, weapon.weapon_id)
+		if generated == null:
+			return null
+		weapon = weapon.duplicate() as WeaponData
+		weapon.one_hand_moveset = generated.one_hand_moveset
+		weapon.two_hand_moveset = generated.two_hand_moveset
+		weapon.paired_moveset = generated.paired_moveset
+	_weapon_cache[item_id] = weapon
+	return weapon
 
 
 static func get_item(item_id: String) -> Dictionary:
@@ -197,9 +229,28 @@ static func get_item(item_id: String) -> Dictionary:
 			}
 	var weapon := get_weapon_data(item_id)
 	if weapon != null:
+		if item.is_empty():
+			item = {
+				"hand": String(weapon.hand_slot), "weapon_type": String(weapon.weapon_type),
+				"mesh_shape": weapon.mesh_shape, "mesh_color": weapon.mesh_color_hex,
+				"primary": "weapon_light", "secondary": "weapon_heavy",
+				"primary_label": "轻击", "secondary_label": "重击 / 蓄力",
+			}
 		item["weapon_data"] = weapon
 		item["weapon_data_id"] = String(weapon.weapon_id)
+		item["display_name"] = get_display_name(item_id)
 	return item
+
+
+static func get_display_name(item_id: String) -> String:
+	match item_id:
+		"guardian_sword": return "守护者直剑 / Guardian Sword"
+		"xingtian_axe_right": return "刑天战斧 / Xingtian Axe"
+		"class_greatsword": return "陨星大剑 / Falling Star Greatsword"
+		"class_sword": return "骑士直剑 / Knight Sword"
+		"class_axe": return "重型战斧 / Heavy Axe"
+	var weapon := get_weapon_data(item_id)
+	return weapon.display_name if weapon != null else item_id.replace("_", " ").capitalize()
 
 
 static func get_guard_profile(item_id: String) -> Dictionary:
@@ -215,7 +266,7 @@ static func get_parry_feedback(item_id: String) -> Dictionary:
 
 
 static func is_valid_for_hand(item_id: String, hand: String) -> bool:
-	return ITEMS.has(item_id) and String(ITEMS[item_id].get("hand", "")) == hand
+	return String(get_item(item_id).get("hand", "")) == hand
 
 
 static func get_style_loadout(style_id: int) -> Dictionary:
@@ -242,17 +293,17 @@ static func get_action_labels(right_hand: String, left_hand: String) -> Dictiona
 
 
 static func get_mesh_shape(item_id: String) -> String:
-	return String(ITEMS.get(item_id, {}).get("mesh_shape", "box"))
+	return String(get_item(item_id).get("mesh_shape", "box"))
 
 
 static func get_mesh_color(item_id: String) -> Color:
-	var hex := String(ITEMS.get(item_id, {}).get("mesh_color", "9aa3aa"))
+	var hex := String(get_item(item_id).get("mesh_color", "9aa3aa"))
 	return Color(hex)
 
 
 static func get_weapon_type(item_id: String) -> StringName:
 	# 左右手武器类型，用于同型跳劈判定
-	return StringName(String(ITEMS.get(item_id, {}).get("weapon_type", "unknown")))
+	return StringName(String(get_item(item_id).get("weapon_type", "unknown")))
 
 
 static func is_jump_slash_weapon_type(weapon_type: StringName) -> bool:

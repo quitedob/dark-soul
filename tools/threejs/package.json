@@ -1,0 +1,10 @@
+{
+  "name": "ashen-hollow-environment-authoring",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../build_threejs_environment.mjs",
+    "verify": "node verify_environment.mjs"
+  },
+  "dependencies": { "three": "0.185.1" }
+}

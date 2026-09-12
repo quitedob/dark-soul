@@ -115,7 +115,7 @@ static func elites() -> Array[Dictionary]:
 
 static func boss() -> Dictionary:
 	return {
-		"id": "boss_zhu_yin",
+		"id": "boss_zhu_yin", "story_arena": true,
 		"display_name": "烬渊之主·烛阴 / Lord of the Ember Abyss · Zhu Yin",
 		"max_health": 800.0, "reward": 1000,
 		"arena": "cosmic_throne_void",
@@ -135,6 +135,8 @@ static func boss() -> Dictionary:
 			},
 			"2": {
 				"threshold": 0.7,
+				"arena_effects": [{"kind": "star", "color": "d6b66d", "warning": 1.2, "radius": 1.9, "lifetime": 0.0, "interval": 1.0, "layout": "ring", "count": 3, "blocker": true, "width": 3.0, "damage": 0.0}],
+				"arena_event": "stellar_cover",
 				"description": "Dragon Lord Humanoid — swift sword techniques, time manipulation, teleport combos",
 				"attacks": [
 					{"name": "time_slash", "windup": 0.28, "active": 0.15, "recovery": 0.25, "damage": 28.0, "stagger": 30.0, "lunge": 3.5, "type": "speed_boosted"},
@@ -147,11 +149,15 @@ static func boss() -> Dictionary:
 			},
 			"3": {
 				"threshold": 0.4,
+				"arena_effects": [{"kind": "star", "color": "d6b66d", "warning": 1.2, "radius": 1.9, "lifetime": 0.0, "interval": 1.0, "layout": "ring", "count": 4, "blocker": true, "width": 3.0, "damage": 0.0}, {"kind": "void", "color": "8674cc", "warning": 1.2, "radius": 2.0, "lifetime": 18.0, "interval": 0.6, "layout": "ring", "count": 3, "rotation": 0.0, "damage": 4.0, "pull": 3.0}],
+				"arena_event": "void_fractures",
 				"description": "Reality collapse — zero-gravity arena, bullet-hell ember projectiles, fractured space attacks",
 				"attacks": [
+					{"name": "supernova", "windup": .6, "active": .1, "recovery": 5.2, "damage": 70., "stagger": 40., "lunge": 0., "type": "story_action"},
+					{"name": "black_hole", "windup": .9, "active": .1, "recovery": 1., "damage": 0., "stagger": 0., "lunge": 0., "type": "arena_modify", "effect": "gravity_well", "arena_effect": {"kind": "void", "warning": 1.5, "radius": 5., "lifetime": 8., "interval": .2, "pull": 4., "damage": 2., "color": "615283"}},
 					{"name": "ember_bullet_hell", "windup": 0.55, "active": 1.2, "recovery": 0.68, "damage": 8.0, "stagger": 8.0, "lunge": 0.0, "type": "multi_projectile", "count": 30},
 					{"name": "space_fracture", "windup": 0.82, "active": 0.38, "recovery": 0.72, "damage": 32.0, "stagger": 38.0, "lunge": 0.0, "type": "line_aoe", "length": 15.0},
-					{"name": "zero_g_slam", "windup": 0.72, "active": 0.30, "recovery": 0.58, "damage": 36.0, "stagger": 44.0, "lunge": 0.0, "type": "pull_then_explode", "range": 8.0},
+					{"name": "zero_g_slam", "windup": 0.72, "active": 0.30, "recovery": 0.58, "damage": 36.0, "stagger": 44.0, "lunge": 0.0, "type": "pull_then_explode", "range": 8.0, "arena_effect": {"kind": "void", "color": "8674cc", "warning": 1.2, "radius": 4.0, "lifetime": 6.0, "interval": 0.6, "damage": 4.0, "pull": 5.0}},
 					{"name": "reality_tear", "windup": 1.05, "active": 0.45, "recovery": 0.95, "damage": 22.0, "stagger": 28.0, "lunge": 0.0, "type": "random_teleport_aoe", "hits": 4},
 				],
 				"vfx": "reality_fracture_shards",
@@ -159,6 +165,8 @@ static func boss() -> Dictionary:
 			},
 			"4": {
 				"threshold": 0.1,
+				"arena_effects": [],
+				"arena_event": "final_stillness",
 				"description": "Weakened dragon lord — non-combat choice phase. Player chooses ending.",
 				"attacks": [
 					{"name": "dying_ember_surge", "windup": 1.55, "active": 0.55, "recovery": 1.5, "damage": 50.0, "stagger": 60.0, "lunge": 0.0, "type": "radial_aoe", "range": 12.0},

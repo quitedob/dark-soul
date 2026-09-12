@@ -14,8 +14,8 @@ const EmbeddedActions = preload("res://scripts/core/embedded_model_actions.gd")
 ## Registry schema:
 ##   id -> {
 ##       path:      res:// path to the GLB (required)
-##       sub_node:  node name to extract from the GLB and re-parent to the pivot
-##                  origin (weapons/shields); whole model used when absent
+##       sub_node:  original part name to center at the grip origin. Skinned
+##                  selections retain the scene/skeleton and hide other meshes.
 ##       root_name: name of the container node added to `parent`
 ##                  (default "ModelRoot"; "BodyRoot" satisfies the player lookup)
 ##       scale:     uniform scale
@@ -27,8 +27,9 @@ const EmbeddedActions = preload("res://scripts/core/embedded_model_actions.gd")
 ## Dropping a GLB into game/assets/models/<category>/<key>.glb and registering it
 ## here makes that entity real with zero changes to the consumers.
 
-## The 85 three.js-authored GLBs (build/glb-models/out/) are imported under
-## game/assets/models/ and registered here. `align_ground` lifts a model so its
+## The 86-model skinned/action library is synced from build/glb-models/animation/staged
+## into game/assets/models/. Registered models bind through model_actions.json.
+## `align_ground` lifts a model so its
 ## lowest mesh sits at the container origin (authors export feet-on-origin).
 const _E := "res://assets/models/enemies/"
 const _BOSS := "res://assets/models/bosses/"

@@ -26,13 +26,26 @@ var last_speed_boost := false
 var last_arena_effect := ""
 
 
+static func owns_active_hit(attack: Dictionary) -> bool:
+	# These types dispatch their own hit volume/projectile. Locomotion modifiers
+	# (teleport, pull, charge) still use the enemy's authored melee swing.
+	return String(attack.get("type", "")) in ["story_action", "multi_hit", "repeat_3_times", "radial_aoe", "cone_aoe", "stage_wide_aoe", "targeted_impact_aoe", "line_aoe", "projectile", "multi_projectile", "radial_projectile_burst", "line_projectile", "homing_projectile", "trail_hazard", "arena_modify", "summon"]
+
+
 ## ACTIVE 阶段执行（主入口）
 func execute_active(attacker: Node3D, target: Node3D, attack: Dictionary) -> void:
 	var atype := String(attack.get("type", "")).to_lower()
 	last_type = atype
-	if atype.is_empty() or target == null or not is_instance_valid(target):
+	if target == null or not is_instance_valid(target):
+		return
+	var arena = _arena_director(attacker)
+	if is_instance_valid(arena):
+		arena.on_boss_skill(attacker, target, attack)
+	if atype.is_empty():
 		return
 	match atype:
+		"story_action":
+			pass # Exact scene-owned skill notified above; no duplicate melee hit.
 		"chain_teleport":
 			_chain_teleport(attacker, target, int(attack.get("chain_count", 3)))
 		"teleport_after", "teleport_behind":
@@ -304,8 +317,12 @@ func _candidates(attacker: Node3D, primary: Node3D) -> Array:
 	var out: Array = []
 	var seen: Dictionary = {}
 	var world := _world_node(attacker)
-	if world != null and world.has_method("get_target_candidates"):
-		for c in world.get_target_candidates():
+	if world != null:
+		# Lock-on candidates are hostile enemies, not the boss's damage faction.
+		var candidates: Array = []
+		if "player" in world: candidates.append(world.player)
+		if attacker.is_inside_tree(): candidates.append_array(attacker.get_tree().get_nodes_in_group("player_summons"))
+		for c in candidates:
 			if c == null or not (c is Node3D) or c == attacker or seen.has(c):
 				continue
 			seen[c] = true
@@ -468,6 +485,8 @@ func _notify_arena_impact(attacker: Node3D, position: Vector3, radius: float) ->
 func _spawn_aoe_hazard(attacker: Node3D, attack: Dictionary, ground_point: Vector3) -> void:
 	if not bool(attack.get("spawn_hazard", false)):
 		return
+	if attack.has("arena_effect") and is_instance_valid(_arena_director(attacker)):
+		return # Scene-owned, telegraphed arena effect replaces this legacy duplicate.
 	last_hazard = false
 	if attacker == null or not is_instance_valid(attacker) or not attacker.is_inside_tree():
 		return
@@ -566,7 +585,7 @@ func _summon_clones(attacker: Node3D, target: Node3D, attack: Dictionary) -> voi
 		parent.add_child(clone)
 		var ang := TAU * float(i) / float(count) + 0.3
 		clone.global_position = center + Vector3(cos(ang) * 2.2, 0.0, sin(ang) * 2.2)
-		clone.setup({"lifetime": lifetime, "health": health})
+		clone.setup({"lifetime": lifetime, "health": health, "attacker": attacker, "target": target, "reflect_damage": float(attack.get("clone_reflect", 10.)), "fighter": bool(attack.get("clone_fighter", false)), "model_id": String(attack.get("clone_model", "enemy/body/by_id/boss_nine_tails"))})
 		last_clones += 1
 
 
@@ -574,6 +593,8 @@ func _summon_clones(attacker: Node3D, target: Node3D, attack: Dictionary) -> voi
 func _arena_modify(attacker: Node3D, target: Node3D, attack: Dictionary) -> void:
 	var effect := String(attack.get("effect", ""))
 	last_arena_effect = effect
+	if attack.has("arena_effect") and is_instance_valid(_arena_director(attacker)):
+		return # The real field applies only to actors physically inside it.
 	_status_effect(attacker, target, effect)
 
 
@@ -634,12 +655,22 @@ func _world_node(attacker: Node3D) -> Node:
 
 
 func _projectile_parent(attacker: Node3D) -> Node:
+	var arena = _arena_director(attacker)
+	if is_instance_valid(arena):
+		return arena.get_effect_parent()
 	var world := _world_node(attacker)
 	if world != null:
 		return world
 	if attacker.get_tree() != null and attacker.get_tree().current_scene != null:
 		return attacker.get_tree().current_scene
 	return attacker
+
+
+func _arena_director(attacker: Node3D) -> Node:
+	if not is_instance_valid(attacker) or not attacker.has_meta("boss_arena_director"):
+		return null
+	var arena = attacker.get_meta("boss_arena_director")
+	return arena if is_instance_valid(arena) and arena is Node else null
 
 
 func _aim_dir(attacker: Node3D, target: Node3D) -> Vector3:

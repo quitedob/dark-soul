@@ -13,6 +13,7 @@ func get_prompt() -> String:
 
 func interact(interacting_player: Node = null) -> void:
 	# 执行出口回调
+	# The callback may synchronously unload this exit's entire level.
+	exit_used.emit(interacting_player)
 	if world_callback.is_valid():
 		world_callback.call(self, interacting_player)
-	exit_used.emit(interacting_player)

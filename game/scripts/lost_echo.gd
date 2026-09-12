@@ -50,7 +50,7 @@ func _recover(player: Node) -> void:
 	if _claimed or player == null:
 		return
 	_claimed = true
-	monitoring = false
+	set_deferred("monitoring", false)
 	# Let the signal handler call recover_embers so we don't double-recover.
 	recovered.emit(amount, player)
 	var tween := create_tween()

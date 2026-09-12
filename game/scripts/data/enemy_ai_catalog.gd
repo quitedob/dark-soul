@@ -52,7 +52,7 @@ static func normalize(raw: Dictionary) -> Dictionary:
 	var nav := _nav_for_body(body)
 	profile["nav_radius"] = float(profile.get("nav_radius", nav["radius"]))
 	profile["nav_height"] = float(profile.get("nav_height", nav["height"]))
-	profile["path_desired_distance"] = float(profile.get("path_desired_distance", 0.35))
+	profile["path_desired_distance"] = float(profile.get("path_desired_distance", 0.7))
 	profile["target_desired_distance"] = float(profile.get("target_desired_distance", nav["target_desired"]))
 	profile["body_radius"] = float(profile.get("body_radius", nav["body_r"]))
 	profile["body_height"] = float(profile.get("body_height", nav["body_h"]))

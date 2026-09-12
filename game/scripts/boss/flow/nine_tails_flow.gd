@@ -33,6 +33,7 @@ var _gaze_remaining := 0.0
 var _last_phase := 1
 ## 材质原态缓存（body/weapon 发光，凝视结束后恢复）
 var _stored_materials: Dictionary = {}
+var _encounter: Node
 
 
 func _process(delta: float) -> void:
@@ -60,6 +61,8 @@ func _poll_memory_gaze() -> void:
 		return
 	if not flow_boss.has_method("get_health_ratio"):
 		return
+	if is_instance_valid(_encounter) and not _encounter.combat_is_active():
+		return
 	var threshold := float(flow_config.get("memory_gaze_threshold", DEFAULT_THRESHOLD))
 	var ratio: float = flow_boss.get_health_ratio()
 	# 重置（死亡/休息整场回满）后解除触发标志，下次降到阈值重新触发
@@ -68,7 +71,7 @@ func _poll_memory_gaze() -> void:
 		return
 	if _gaze_triggered:
 		return
-	if ratio < threshold:
+	if ratio <= threshold:
 		_gaze_triggered = true
 		_trigger_memory_gaze()
 
@@ -86,6 +89,9 @@ func _trigger_memory_gaze() -> void:
 	_play_interrupt_visuals()
 	if flow_boss.has_method("set_visual_frozen"):
 		flow_boss.set_visual_frozen(true)
+	var arena = flow_boss.get_meta("boss_arena_director", null)
+	if is_instance_valid(arena) and is_instance_valid(arena.story_props):
+		arena.story_props.begin_memory_gaze()
 
 
 func _end_gaze() -> void:
@@ -94,6 +100,24 @@ func _end_gaze() -> void:
 	_restore_emission()
 	_gaze_active = false
 	_gaze_remaining = 0.0
+	if is_instance_valid(flow_boss):
+		var arena = flow_boss.get_meta("boss_arena_director", null)
+		if is_instance_valid(arena) and is_instance_valid(arena.story_props):
+			arena.story_props.end_memory_gaze()
+
+
+func bind_encounter(boundary: Node) -> void:
+	_encounter = boundary
+
+
+func _on_encounter_reset() -> void:
+	_end_gaze()
+	_gaze_triggered = false
+	_last_phase = 1
+
+
+func _on_encounter_resolved() -> void:
+	_end_gaze()
 
 
 ## 通过 run_state.set_choice_flag 记录命运旗标（ch3_memory_gaze_seen）。

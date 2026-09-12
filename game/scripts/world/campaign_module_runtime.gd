@@ -28,7 +28,7 @@ func bind(player: Node3D, hud: Node, audio: Node) -> void:
 	_audio = audio
 
 
-func activate(level_root: Node3D) -> void:
+func activate(level_root: Node3D, suppressed_modules: Array[StringName] = []) -> void:
 	# 清理旧连线后扫描当前关卡模块与折叠拓扑
 	clear()
 	_level_root = level_root
@@ -40,6 +40,8 @@ func activate(level_root: Node3D) -> void:
 			if not module is Node3D:
 				continue
 			var module_id := StringName(module.get_meta("module_id", &""))
+			if module_id in suppressed_modules:
+				continue
 			match module_id:
 				&"fragile_floor":
 					_wire_fragile_floor(module as Node3D)
@@ -173,11 +175,13 @@ func _wire_gate_exit(module: Node3D) -> void:
 	interact.set_meta("campaign_exit", true)
 	interact.prompt_text = LocalizationScript.text("Advance to the next ruin")
 	interact.world_callback = Callable(self, "_on_exit_interact")
+	# Interaction selection measures distance to the Area origin. Keep that
+	# origin at the same terminal marker as its physical detection volume.
+	interact.position = marker.position if marker != null else Vector3(0.0, 1.2, -1.2)
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(3.2, 3.0, 2.4)
 	shape.shape = box
-	shape.position = marker.position if marker != null else Vector3(0.0, 1.2, -1.2)
 	interact.add_child(shape)
 	module.add_child(interact)
 	_wired.append(interact)
@@ -295,6 +299,10 @@ func _wire_arena_seal(module: Node3D) -> void:
 		_set_static_colliders_enabled(seal, false)
 		seal.visible = false
 		seal.set_meta("arena_sealed", false)
+	var boundary := _level_root.get_node_or_null("BossEncounterBoundary") if _level_root != null else null
+	if boundary != null:
+		boundary.register_gate(seal)
+		return
 	if trigger == null:
 		return
 	trigger.monitoring = true
@@ -508,11 +516,8 @@ func _make_ceiling_surface(module: Node3D, zone: Area3D) -> StaticBody3D:
 	shape.shape = box
 	ceiling.position.y = maxf(size.y - 0.2, 0.5)
 	ceiling.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	var bmesh := BoxMesh.new()
-	bmesh.size = box.size
-	mesh.mesh = bmesh
-	ceiling.add_child(mesh)
+	var visual_factory = preload("res://scripts/levels/procedural_level_modules.gd")
+	visual_factory.add_solid_visual(ceiling, box.size, String(module.get_meta("visual_theme", "theme_spirit_ruins")))
 	module.add_child(ceiling)
 	_wired.append(ceiling)
 	_set_static_colliders_enabled(ceiling, false)
@@ -1087,6 +1092,13 @@ func _wire_one_way_door(fold: Node3D, door_root: Node3D) -> void:
 	interact.world_callback = func(_a: Node, _p: Node) -> void:
 		if bool(door_root.get_meta("is_open", false)):
 			return
+		if bool(door_root.get_meta("physical_return_gate", false)):
+			if not _p is Node3D:
+				return
+			var local: Vector3 = door_root.to_local(_p.global_position)
+			if local.z * signf(far.position.z) < .45 or _p.global_position.distance_to(far.global_position) > 3.5:
+				_notify("门闩在另一侧 / Barred from the other side", 1.6)
+				return
 		_open_one_way_door(door_root, door)
 		_persist_shortcut(shortcut_id)
 		_notify(LocalizationScript.text("ONE-WAY PATH OPENS TO THE SHRINE"), 2.0)
@@ -1109,10 +1121,22 @@ func _open_one_way_door(door_root: Node3D, door: StaticBody3D) -> void:
 	tween.tween_property(door, "position:y", door.position.y + 3.8, 1.15)
 	tween.tween_callback(func() -> void:
 		_set_static_colliders_enabled(door, false)
+		if bool(door_root.get_meta("physical_return_gate", false)) and get_parent().has_method("request_navigation_refresh"):
+			get_parent().call_deferred("request_navigation_refresh", _level_root)
 	)
 
 
 func _wire_elevator(fold: Node3D, elevator: Node3D) -> void:
+	if bool(elevator.get_meta("physical_lift", false)):
+		var controller = load("res://scripts/world/campaign_physical_lift.gd").new()
+		controller.name = "PhysicalLift"
+		elevator.add_child(controller)
+		var shortcut_id := String(fold.get_meta("elevator_id", "elevator"))
+		controller.setup(elevator, shortcut_id in _read_activated_shortcuts(), func() -> void:
+			_persist_shortcut(shortcut_id)
+			shortcut_fold_opened.emit(shortcut_id)
+		)
+		return
 	# 激活后平台可往返；交互可立刻送回 Ember Shrine 停靠点
 	var tip := elevator.get_node_or_null("ActivateMarker") as Marker3D
 	var platform := elevator.get_node_or_null("LiftPlatform") as AnimatableBody3D
@@ -1191,7 +1215,7 @@ func _restore_shortcut_folds(fold: Node3D) -> void:
 			_set_static_colliders_enabled(door, false)
 			door_root.set_meta("is_open", true)
 	var elevator := fold.get_node_or_null("ElevatorLift") as Node3D
-	if elevator != null and elevator_id in activated:
+	if elevator != null and elevator_id in activated and not bool(elevator.get_meta("physical_lift", false)):
 		elevator.set_meta("is_active", true)
 		var platform := elevator.get_node_or_null("LiftPlatform") as AnimatableBody3D
 		var dock := elevator.get_node_or_null("ShrineDock") as Marker3D

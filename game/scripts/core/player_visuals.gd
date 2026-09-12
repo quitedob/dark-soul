@@ -22,6 +22,9 @@ const HAND_RIGHT_REST := Vector3(-0.739, 1.441, -0.065)
 const HAND_LEFT_REST := Vector3(0.739, 1.441, -0.065)
 ## 统一坐标系：身体 + 武器的单一朝向源（yaw 180 = 背对镜头，用户 F4 关确认）。
 const BODY_YAW := PI
+## Manny's hand +Y runs wrist-to-fingers; +Z crosses the grip toward the thumb.
+## A shaft follows +Z, rather than the palm-normal +X produced by rest-delta alone.
+const MANNY_WEAPON_AXES := Basis(Vector3.RIGHT, Vector3.BACK, Vector3.DOWN)
 
 var _player: Node3D
 var _trail_surface_tool: SurfaceTool = null
@@ -33,8 +36,20 @@ var _visor_material: StandardMaterial3D = null
 ## 真模型 BodyRoot 的运动基准高度（apply_movement 需要捕捉一次）。
 var _body_model_base_y := 0.0
 var _body_model_base_y_set := false
+var _equipment_skeleton: Skeleton3D
+var _right_hand_bone := -1
+var _left_hand_bone := -1
+var _right_grip_offset := Basis.IDENTITY
+var _left_grip_offset := Basis.IDENTITY
+var _shield_grip_offset := Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3.ZERO)
+var _weapon_tip_local := Vector3(0.0, 1.05, 0.0)
 ## 身体网格分组标记：rebuild_body 借此精确移除旧身体而不误伤 weapon_pivot 等。
 const BODY_GROUP := "_player_body_group"
+const CAMERA_BODY_HIDE_DISTANCE := 1.0
+const CAMERA_BODY_RESTORE_DISTANCE := 1.25
+var _camera_body_hidden := false
+## Weak references avoid retaining replaced class bodies until the camera retreats.
+var _camera_body_visibility: Dictionary = {}
 
 
 func setup(player_node: Node3D) -> void:
@@ -42,6 +57,37 @@ func setup(player_node: Node3D) -> void:
 
 
 # -- public API ------------------------------------------------------------
+
+
+## Use the collision-resolved Camera3D position, not SpringArm's requested length.
+## Hysteresis prevents visibility flicker while scraping a nearby wall. Only body
+## roots are changed: authored child visibility, equipment and processing survive.
+func update_camera_visibility() -> void:
+	if not is_instance_valid(_player) or not is_instance_valid(_player.camera) \
+			or not is_instance_valid(_player.camera_rig) or not is_instance_valid(_player.body_yaw):
+		return
+	var distance: float = _player.camera.global_position.distance_to(_player.camera_rig.global_position)
+	if distance < CAMERA_BODY_HIDE_DISTANCE:
+		_camera_body_hidden = true
+	elif distance > CAMERA_BODY_RESTORE_DISTANCE:
+		_camera_body_hidden = false
+	for id in _camera_body_visibility.keys():
+		var saved: Dictionary = _camera_body_visibility[id]
+		var body := (saved["root"] as WeakRef).get_ref() as Node3D
+		if not is_instance_valid(body):
+			_camera_body_visibility.erase(id)
+		elif not _camera_body_hidden or body.get_parent() != _player.body_yaw or not body.is_in_group(BODY_GROUP):
+			body.visible = bool(saved["visible"])
+			_camera_body_visibility.erase(id)
+	if not _camera_body_hidden:
+		return
+	for child in _player.body_yaw.get_children():
+		if not child is Node3D or not child.is_in_group(BODY_GROUP):
+			continue
+		var id: int = child.get_instance_id()
+		if not _camera_body_visibility.has(id):
+			_camera_body_visibility[id] = {"root": weakref(child), "visible": child.visible}
+		child.visible = false
 
 
 func build_nodes(class_id := "") -> void:
@@ -206,6 +252,7 @@ func rebuild_body(class_id: String) -> void:
 	_active_class_id = resolved_class
 	_body_model_base_y_set = false
 	_refresh_body_references()
+	update_camera_visibility()
 
 
 ## L-18：解析身体职业 id。若 run_state 存在非空 body_class_override 则优先（混合职业
@@ -244,6 +291,146 @@ func _refresh_body_references() -> void:
 	_player.cloak_mesh = _player.body_mesh
 	_player.head_mesh = _player.body_mesh
 	_player._sync_embedded_body_action()
+	_bind_equipment_skeleton()
+
+
+## Equipment stays under BodyYaw across body swaps. Follow the evaluated skin pose,
+## including the final deferred skeleton update, rather than moving the equipment
+## into the replaceable BodyRoot or copying a bone's model-local coordinates.
+func _bind_equipment_skeleton() -> void:
+	if is_instance_valid(_equipment_skeleton):
+		if _equipment_skeleton.skeleton_updated.is_connected(_on_equipment_skeleton_updated):
+			_equipment_skeleton.skeleton_updated.disconnect(_on_equipment_skeleton_updated)
+	_equipment_skeleton = null
+	_right_hand_bone = -1
+	_left_hand_bone = -1
+	_right_grip_offset = Basis.IDENTITY
+	_left_grip_offset = Basis.IDENTITY
+	_shield_grip_offset = Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3.ZERO)
+	_restore_legacy_equipment_pose()
+	var hand_prefix := "hand." if EmbeddedModelActions.available(_player.body_mesh) else "DEF-hand."
+	for candidate in _player.body_mesh.find_children("*", "Skeleton3D", true, false):
+		var skeleton := candidate as Skeleton3D
+		var right := skeleton.find_bone(hand_prefix + "R")
+		var left := skeleton.find_bone(hand_prefix + "L")
+		if right >= 0 and left >= 0:
+			_equipment_skeleton = skeleton
+			_right_hand_bone = right
+			_left_hand_bone = left
+			_equipment_skeleton.skeleton_updated.connect(_on_equipment_skeleton_updated)
+			return
+	if EmbeddedModelActions.available(_player.body_mesh):
+		push_warning("PlayerVisuals: embedded body lacks hand.R/hand.L equipment anchors")
+
+
+func _on_equipment_skeleton_updated() -> void:
+	if _sync_embedded_equipment():
+		update_weapon_trail()
+
+
+func _sync_embedded_equipment() -> bool:
+	if not is_instance_valid(_player) or not is_instance_valid(_equipment_skeleton):
+		return false
+	if not _equipment_skeleton.is_inside_tree() or not _player.body_yaw.is_inside_tree():
+		return false
+	if not _player.body_mesh.is_ancestor_of(_equipment_skeleton):
+		return false
+	if _player.weapon_pivot == null or _player.offhand_weapon_pivot == null or _player.shield_mesh == null:
+		return false
+	var to_body: Transform3D = _player.body_yaw.global_transform.affine_inverse() * _equipment_skeleton.global_transform
+	var right := _equipment_hand_transform(to_body, _right_hand_bone)
+	var left := _equipment_hand_transform(to_body, _left_hand_bone)
+	if not right.is_finite() or not left.is_finite():
+		return false
+	_player.weapon_pivot.transform = right
+	_player.offhand_weapon_pivot.transform = left
+	# Keep the shield's authored grip-axis correction after the hand's rotation delta.
+	_player.shield_mesh.transform = left * Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3.ZERO)
+	if not EmbeddedModelActions.available(_player.body_mesh):
+		right = _manny_weapon_transform(to_body, _right_hand_bone, true)
+		left = _manny_weapon_transform(to_body, _left_hand_bone, false)
+		_player.weapon_pivot.transform = right
+		_player.offhand_weapon_pivot.transform = left
+	if not EmbeddedModelActions.available(_player.body_mesh) and not _legacy_equipment_clip_active():
+		# Fallback-only actions retain their grip gesture, relative to the evaluated
+		# hand. A real action clip already supplies that movement and must not double it.
+		_player.weapon_pivot.basis = right.basis * _right_grip_offset
+		_player.offhand_weapon_pivot.basis = left.basis * _left_grip_offset
+		_player.shield_mesh.transform = _equipment_hand_transform(to_body, _left_hand_bone) * _shield_grip_offset
+	return true
+
+
+func _manny_weapon_transform(to_body: Transform3D, bone: int, right_hand: bool) -> Transform3D:
+	var pose := to_body * _equipment_skeleton.get_bone_global_pose(bone)
+	# The grip lies between wrist and finger bases, inside the palm. Manny's
+	# middle-finger base is at hand-local Y=.1216; the thumb base is at Y=.0273.
+	var grip := Vector3(-0.012 if right_hand else 0.012, 0.075, 0.0)
+	return Transform3D(pose.basis.orthonormalized() * MANNY_WEAPON_AXES, pose * grip)
+
+
+func _legacy_equipment_clip_active() -> bool:
+	var bridge = _player._anim_bridge
+	if bridge == null or not bridge.enabled or not bridge.has_real_animations():
+		return false
+	if not bridge.anim_tree.active:
+		return bridge.anim_player.is_playing() and bridge.clip_drives_real_body(bridge.anim_player.assigned_animation)
+	var playback := bridge.anim_tree.get("parameters/playback") as AnimationNodeStateMachinePlayback
+	var machine := bridge.anim_tree.tree_root as AnimationNodeStateMachine
+	if playback == null or machine == null:
+		return false
+	var current := playback.get_current_node()
+	# Heavy/jump attacks and other fallback gestures can leave the locomotion
+	# animation running; that does not make their procedural gesture redundant.
+	match _player.state:
+		_player.State.LOCOMOTION:
+			if current not in [&"Idle", &"Walk", &"Strafe"]:
+				return false
+		_player.State.ATTACK_WINDUP, _player.State.ATTACK_ACTIVE:
+			if current != &"LightAttack":
+				return false
+		_player.State.ATTACK_RECOVERY:
+			var expected := &"LightAttack"
+			if _player.attack_action_id in ["pierce_thrust", "crescent_leap"]:
+				expected = &"Skill"
+			elif _player.attack_action_id == "colossal_leap":
+				expected = &"ColossalLeap"
+			if current != expected:
+				return false
+		_player.State.GUARD_THRUST:
+			if current != &"Skill":
+				return false
+		_player.State.LEAP_WINDUP, _player.State.LEAP_ACTIVE:
+			if current != (&"Skill" if _player._leap_is_curved else &"ColossalLeap"):
+				return false
+		_player.State.CAST:
+			if current not in [&"Cast", &"Skill"]:
+				return false
+		_:
+			return false
+	if not machine.has_node(current):
+		return false
+	var clip := machine.get_node(current) as AnimationNodeAnimation
+	# Strafe has no procedural weapon gesture; its blend space drives the hands.
+	return current == &"Strafe" or (clip != null and bridge.clip_drives_real_body(clip.animation))
+
+
+func _equipment_hand_transform(to_body: Transform3D, bone: int) -> Transform3D:
+	var pose := to_body * _equipment_skeleton.get_bone_global_pose(bone)
+	var rest := to_body * _equipment_skeleton.get_bone_global_rest(bone)
+	# Identity at rest preserves the existing weapon axes. Bone rest axes differ
+	# between classes, so copying the absolute bone basis would rotate the grips.
+	var delta := pose.basis.orthonormalized() * rest.basis.orthonormalized().inverse()
+	return Transform3D(delta, pose.origin)
+
+
+func _restore_legacy_equipment_pose() -> void:
+	if _player.weapon_pivot != null:
+		var two_handing: bool = _player.grip_mode == _player.GripMode.TWO_HANDED
+		_player.weapon_pivot.transform = Transform3D(Basis.IDENTITY, HAND_RIGHT_REST * 0.5 if two_handing else HAND_RIGHT_REST)
+	if _player.offhand_weapon_pivot != null:
+		_player.offhand_weapon_pivot.transform = Transform3D(Basis.IDENTITY, HAND_LEFT_REST)
+	if _player.shield_mesh != null:
+		_player.shield_mesh.transform = Transform3D(Basis(Vector3.RIGHT, PI * 0.5), HAND_LEFT_REST)
 
 
 func _has_body() -> bool:
@@ -305,6 +492,7 @@ func update_weapon_visuals() -> void:
 	_player.weapon_material.roughness = 0.28
 
 	WeaponMeshFactory.build_into_parent(_player.weapon_pivot, right_shape, right_mat)
+	_cache_weapon_tip()
 
 	var two_handing: bool = _player.grip_mode == _player.GripMode.TWO_HANDED
 	var single_from_pair: bool = (
@@ -331,11 +519,46 @@ func update_weapon_visuals() -> void:
 	if shield_visible:
 		var shield_mat := make_material(left_color, 0.48, 0.72)
 		WeaponMeshFactory.build_shield(_player.shield_mesh, shield_mat)
+	_sync_embedded_equipment()
+
+
+func _cache_weapon_tip() -> void:
+	var samples: Array[Vector3] = []
+	_collect_weapon_vertices(_player.weapon_pivot, Transform3D.IDENTITY, samples)
+	_weapon_tip_local = Vector3(0.0, 1.05, 0.0)
+	var furthest := -INF
+	for point in samples:
+		if point.y > furthest:
+			furthest = point.y
+			_weapon_tip_local = point
+
+
+func _collect_weapon_vertices(node: Node3D, to_pivot: Transform3D, samples: Array[Vector3]) -> void:
+	if not node.visible:
+		return
+	if node is MeshInstance3D and node.mesh != null:
+		for surface in node.mesh.get_surface_count():
+			var arrays: Array = node.mesh.surface_get_arrays(surface)
+			for point: Vector3 in arrays[Mesh.ARRAY_VERTEX]:
+				samples.append(to_pivot * point)
+	for child in node.get_children():
+		if child is Node3D:
+			_collect_weapon_vertices(child, to_pivot * child.transform, samples)
 
 
 func update_visual_pose() -> void:
-	if _player.visual_root == null or _player.state == _player.State.DEAD:
+	if _player.visual_root == null:
 		return
+	if EmbeddedModelActions.available(_player.body_mesh):
+		_player.visual_root.rotation = Vector3.ZERO
+		var flip := PI if _player.get("_debug_flip_body") else 0.0
+		_player.body_yaw.rotation.y = BODY_YAW + flip
+		_sync_embedded_equipment()
+		update_weapon_trail()
+		return
+	if _player.state == _player.State.DEAD:
+		return
+	_restore_legacy_equipment_pose()
 	_player.visual_root.rotation.z = 0.0
 	# F4 调试翻转：翻转整个 body_yaw（身体+武器一起），默认 BODY_YAW；翻转时 +PI。
 	if _player.body_yaw != null:
@@ -394,8 +617,10 @@ func update_visual_pose() -> void:
 			_player.visual_root.rotation.z = sin(_player.state_time * 28.0) * 0.12
 		_:
 			_player.visual_root.rotation.x = move_toward(_player.visual_root.rotation.x, 0.0, 0.12)
-	if EmbeddedModelActions.available(_player.body_mesh):
-		_player.visual_root.rotation = Vector3.ZERO
+	_right_grip_offset = _player.weapon_pivot.basis
+	_left_grip_offset = _player.offhand_weapon_pivot.basis
+	_shield_grip_offset = Transform3D(_player.shield_mesh.basis, _player.shield_mesh.position - HAND_LEFT_REST)
+	_sync_embedded_equipment()
 	update_weapon_trail()
 
 
@@ -416,8 +641,7 @@ func update_weapon_trail() -> void:
 	# C-05：按重量档 + 风格 trail_color 刷新材质
 	_refresh_trail_profile()
 	# Get weapon tip position in global space, then convert to body_yaw local
-	var tip_local: Vector3 = _player.weapon_pivot.position + Vector3(0, 1.05, 0)
-	var tip_global: Vector3 = _player.body_yaw.to_global(tip_local)
+	var tip_global: Vector3 = _player.weapon_pivot.to_global(_weapon_tip_local)
 	var tip_in_visual: Vector3 = _player.body_yaw.to_local(tip_global)
 	if _player._trail_points.is_empty() or _player._trail_points[_player._trail_points.size() - 1].distance_to(tip_in_visual) > 0.04:
 		_player._trail_points.append(tip_in_visual)
@@ -472,7 +696,8 @@ func _build_trail_ribbon(points: Array[Vector3]) -> void:
 		_trail_surface_tool.add_vertex(p + across)
 		_trail_surface_tool.set_color(col)
 		_trail_surface_tool.add_vertex(p - across)
-	_trail_surface_tool.generate_normals()
+	# This vertex-colored ribbon is unshaded. SurfaceTool.generate_normals()
+	# supports separate triangles only, not the triangle strip used here.
 	_trail_surface_tool.commit(_trail_array_mesh)
 	_player.weapon_trail.mesh = _trail_array_mesh
 

@@ -55,6 +55,12 @@ const REAL_ROOT_MOTION_BONES := ["root", "Root"]
 ## RootMotionSkeleton:Root position 轨（字符级位移，非 DEF 骨姿态）。
 ## 与 retarget_oal_to_mannyquin.gd 的 ROOT_MOTION_KEYS 一致。
 const REAL_ROOT_MOTION_KEYS: Array[StringName] = [&"colossal_leap"]
+## The bundled OAL sword clip raises the wrist until 0.525 s, then sweeps through
+## 0.700 s (length 1.166667 s). Fit those authored phases to gameplay AttackData;
+## scaling only the whole clip leaves the hitbox open during the raised windup.
+const REAL_LIGHT_CONTACT_PHASE := Vector2(0.45, 0.60)
+const TIMED_LIGHT_ANIM := &"light_attack_timed"
+const REAL_BODY_POSE_META := &"real_body_pose"
 
 var _player: CharacterBody3D
 var skeleton: Skeleton3D
@@ -78,6 +84,9 @@ var _real_loaded_count := 0
 ## _real_clip_for 只在此集合内解析，杜绝"源库有名但 remap 后 0 轨被剔除"
 ## 的悬空 real/<clip> —— 名存实亡的 clip 永不驱动任何状态。
 var _real_surviving: Dictionary = {}
+var _real_light_source: Animation
+var _timed_light_cache: Dictionary = {}
+var _light_node: AnimationNodeAnimation
 
 
 func setup(player_node: CharacterBody3D) -> void:
@@ -160,11 +169,105 @@ func set_strafe_blend(blend: Vector2) -> void:
 	anim_tree.set("parameters/Strafe/blend_position", blend)
 
 
-func travel_light_attack() -> void:
+func travel_light_attack(attack: AttackData = null) -> void:
+	if attack != null:
+		travel_melee_attack(attack)
+		return
 	if not enabled or _playback == null:
 		return
 	_strafe_active = false
-	_playback.travel("LightAttack")
+	_playback.start("LightAttack", true)
+
+
+## Ground heavy uses the same authored sword motion at its own AttackData
+## cadence. Without a real sword source, retain the existing heavy fallback.
+func travel_melee_attack(attack: AttackData, heavy := false) -> bool:
+	if not enabled or _playback == null or attack == null:
+		return false
+	if heavy and _real_light_source == null:
+		return false
+	_strafe_active = false
+	_configure_light_timing(attack)
+	# Keep the existing state name for compatibility; it now covers real ground
+	# melee. travel() to the current state would not restart a queued swing.
+	_playback.start("LightAttack", true)
+	return true
+
+
+func _configure_light_timing(attack: AttackData) -> void:
+	var source := _real_light_source if _real_light_source != null else anim_player.get_animation("combat/%s" % LIGHT_ANIM)
+	var chain_open := attack.chain_open_seconds if attack.chain_open_seconds > 0.0 else attack.windup_seconds + attack.active_seconds
+	var chain_close := attack.chain_close_seconds if attack.chain_close_seconds > 0.0 else attack.windup_seconds + attack.active_seconds + attack.recovery_seconds
+	var key := [attack.windup_seconds, attack.active_seconds, attack.recovery_seconds, chain_open, chain_close]
+	if not _timed_light_cache.has(key):
+		var contact := REAL_LIGHT_CONTACT_PHASE * source.length if _real_light_source != null else Vector2(0.18, 0.42)
+		var timed := _retime_light_clip(source, contact, attack, chain_open, chain_close)
+		# The runtime copy lives in combat/, but retains its real skeletal pose
+		# provenance. A retimed procedural root-only fallback must stay false.
+		timed.set_meta(REAL_BODY_POSE_META, _real_light_source != null)
+		_timed_light_cache[key] = timed
+	var clip: Animation = _timed_light_cache[key]
+	var library := anim_player.get_animation_library("combat")
+	if not library.has_animation(TIMED_LIGHT_ANIM) or library.get_animation(TIMED_LIGHT_ANIM) != clip:
+		if library.has_animation(TIMED_LIGHT_ANIM):
+			library.remove_animation(TIMED_LIGHT_ANIM)
+		library.add_animation(TIMED_LIGHT_ANIM, clip)
+	_light_node.animation = "combat/%s" % TIMED_LIGHT_ANIM
+
+
+func clip_drives_real_body(path: StringName) -> bool:
+	if not real_layer_active or anim_player == null or not anim_player.has_animation(path):
+		return false
+	return String(path).begins_with("real/") or bool(anim_player.get_animation(path).get_meta(REAL_BODY_POSE_META, false))
+
+
+func _retime_light_clip(source: Animation, contact: Vector2, attack: AttackData, chain_open: float, chain_close: float) -> Animation:
+	var out := Animation.new()
+	out.length = attack.windup_seconds + attack.active_seconds + attack.recovery_seconds
+	out.loop_mode = Animation.LOOP_NONE
+	for track in source.get_track_count():
+		var kind := source.track_get_type(track)
+		if kind not in [Animation.TYPE_POSITION_3D, Animation.TYPE_ROTATION_3D, Animation.TYPE_SCALE_3D]:
+			continue
+		var target := out.add_track(kind)
+		out.track_set_path(target, source.track_get_path(track))
+		out.track_set_interpolation_type(target, source.track_get_interpolation_type(track))
+		var times: Array[float] = [0.0, contact.x, contact.y, source.length]
+		for index in source.track_get_key_count(track):
+			times.append(source.track_get_key_time(track, index))
+		times.sort()
+		for at: float in times:
+			var pose: Variant
+			match kind:
+				Animation.TYPE_POSITION_3D:
+					pose = source.position_track_interpolate(track, at)
+				Animation.TYPE_ROTATION_3D:
+					pose = source.rotation_track_interpolate(track, at)
+				Animation.TYPE_SCALE_3D:
+					pose = source.scale_track_interpolate(track, at)
+			# Insert the exact boundary poses too: keys crossing a phase boundary
+			# must not interpolate across two different playback rates.
+			var mapped: float
+			if at <= contact.x:
+				mapped = at / contact.x * attack.windup_seconds
+			elif at <= contact.y:
+				mapped = attack.windup_seconds + (at - contact.x) / (contact.y - contact.x) * attack.active_seconds
+			else:
+				mapped = attack.windup_seconds + attack.active_seconds + (at - contact.y) / (source.length - contact.y) * attack.recovery_seconds
+			out.track_insert_key(target, mapped, pose)
+	# Separate tracks preserve simultaneous hit-off and combo-open events;
+	# Animation replaces an existing key when a second key has the same time.
+	for group in [
+		[[attack.windup_seconds, "anim_event_hitbox_on", []],
+			[attack.windup_seconds + attack.active_seconds, "anim_event_hitbox_off", []]],
+		[[chain_open, "anim_event_combo_open", []], [chain_close, "anim_event_combo_close", []]],
+		[[attack.windup_seconds + attack.active_seconds / 12.0, "anim_event_push_forward", [0.4]]],
+	]:
+		var events := out.add_track(Animation.TYPE_METHOD)
+		out.track_set_path(events, NodePath("."))
+		for event in group:
+			out.track_insert_key(events, minf(float(event[0]), out.length), {"method": event[1], "args": event[2]})
+	return out
 
 
 func travel_leap(curved: bool = false) -> void:
@@ -389,6 +492,8 @@ func _ingest_real_library(lib: AnimationLibrary) -> void:
 		return
 	# 重建时清空存活集合，避免累积陈旧名字（多次 ingest/热加载）。
 	_real_surviving.clear()
+	_real_light_source = null
+	_timed_light_cache.clear()
 	# track 路径相对 AnimationPlayer 的 root_node（".." = 玩家）解析，
 	# 因此节点部分用 玩家→骨架 的相对路径。
 	var skeleton_path: NodePath = _player.get_path_to(_real_skeleton)
@@ -407,6 +512,7 @@ func _ingest_real_library(lib: AnimationLibrary) -> void:
 		# 轻击/跃击真 clip 无 method 轨 → 补种现有程序化 timing 轨，
 		# 保住 D-08 hitbox/combo 计时契约（真 clip 驱动时也能开窗）。
 		if String(anim_name) == String(LIGHT_ANIM):
+			_real_light_source = remapped.duplicate()
 			_stamp_method_tracks_from(remapped, LIGHT_ANIM)
 		elif String(anim_name) == String(LEAP_ANIM):
 			_stamp_method_tracks_from(remapped, LEAP_ANIM)
@@ -787,7 +893,8 @@ func _make_state_machine() -> AnimationNodeStateMachine:
 	sm.add_node("Idle", _anim_node(_clip_path(IDLE_ANIM)), Vector2(0, 0))
 	sm.add_node("Walk", _anim_node(_clip_path(WALK_ANIM)), Vector2(180, 0))
 	sm.add_node("Strafe", _make_strafe_blendspace(), Vector2(360, 0))
-	sm.add_node("LightAttack", _anim_node(_clip_path(LIGHT_ANIM)), Vector2(90, 140))
+	_light_node = _anim_node(_clip_path(LIGHT_ANIM))
+	sm.add_node("LightAttack", _light_node, Vector2(90, 140))
 	sm.add_node("ColossalLeap", _anim_node(_clip_path(LEAP_ANIM)), Vector2(250, 140))
 	sm.add_node("Riposte", _anim_node(_clip_path(RIPOSTE_ANIM)), Vector2(90, 260))
 	sm.add_node("Backstab", _anim_node(_clip_path(BACKSTAB_ANIM)), Vector2(250, 260))

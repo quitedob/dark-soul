@@ -18,8 +18,12 @@ func load_level(level_id: StringName) -> Node3D:
 	if level_data.is_empty():
 		push_error("Unknown campaign level: %s" % level_id)
 		return null
+	var built_level := Builder.build(level_data)
+	if built_level == null:
+		push_error("Required campaign geometry could not be built: %s" % canonical_id)
+		return null
 	unload_level()
-	current_level = Builder.build(level_data)
+	current_level = built_level
 	current_level_id = canonical_id
 	add_child(current_level)
 	level_loaded.emit(current_level_id, current_level)

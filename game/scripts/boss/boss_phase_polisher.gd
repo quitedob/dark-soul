@@ -12,6 +12,7 @@ var arena_vfx = null  # ArenaPhaseVfx 实例（preload 构造，避免 class_nam
 var reduced_motion := false
 var _active_anchor: Node3D = null
 var _blend_tween: Tween = null
+var _completion_tween: Tween = null
 
 
 func setup(director = null) -> void:
@@ -40,13 +41,18 @@ func play_transition(enemy: Node3D, new_phase: int) -> void:
 	var duration := 1.55 if new_phase < 3 else 1.85
 	if reduced_motion:
 		duration *= 0.55
-	var tree := get_tree()
-	if tree != null:
-		tree.create_timer(duration).timeout.connect(func():
-			if is_instance_valid(enemy):
-				transition_finished.emit(enemy, new_phase)
-			_clear_focus_anchor()
-		)
+	if _completion_tween != null and _completion_tween.is_valid():
+		_completion_tween.kill()
+	_completion_tween = create_tween()
+	_completion_tween.tween_interval(duration)
+	_completion_tween.tween_callback(_finish_transition.bind(weakref(enemy), new_phase))
+
+
+func _finish_transition(reference: WeakRef, phase: int) -> void:
+	var enemy = reference.get_ref()
+	if is_instance_valid(enemy):
+		transition_finished.emit(enemy, phase)
+	_clear_focus_anchor()
 
 
 func _play_camera_focus(enemy: Node3D, new_phase: int) -> void:
@@ -157,6 +163,9 @@ func _clear_focus_anchor() -> void:
 
 
 func reset() -> void:
+	if _completion_tween != null and _completion_tween.is_valid():
+		_completion_tween.kill()
+	_completion_tween = null
 	if _blend_tween != null and _blend_tween.is_valid():
 		_blend_tween.kill()
 	_blend_tween = null

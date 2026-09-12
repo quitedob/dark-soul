@@ -1,0 +1,2506 @@
+{
+  "schema_version": 1,
+  "coordinates": "Godot Y-up meters; identity roots; foot Y=0; front=-Z",
+  "navigation": "exact physical mesh triangles on layer 1; bounded solid-only navigation proxies on layer 524288; place outside reserved routes",
+  "palette_encoding": "display sRGB converted to linear material factors",
+  "parts": {
+    "MuralWall": {
+      "resource": "res://assets/environment/story_props/spirit_ruins.glb",
+      "theme": "spirit_ruins",
+      "bounds": {
+        "min": [
+          -3.0,
+          0.0,
+          -0.45
+        ],
+        "max": [
+          3.0,
+          4.0,
+          0.45
+        ],
+        "size": [
+          6.0,
+          4.0,
+          0.9
+        ],
+        "triangles": 3824,
+        "mesh_count": 4,
+        "vertices": 2040
+      },
+      "footprint": [
+        6,
+        0.9
+      ],
+      "height": 4,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.95624,
+            0.05444
+          ],
+          "size": [
+            5.8,
+            3.91248,
+            0.61532
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/01-spirit-awakening/levels/01-levels-detail.md:6-157"
+    },
+    "AwakeningBier": {
+      "resource": "res://assets/environment/story_props/spirit_ruins.glb",
+      "theme": "spirit_ruins",
+      "bounds": {
+        "min": [
+          -1.0,
+          0.0,
+          -1.8
+        ],
+        "max": [
+          1.0,
+          1.2,
+          1.8
+        ],
+        "size": [
+          2.0,
+          1.2,
+          3.6
+        ],
+        "triangles": 1096,
+        "mesh_count": 4,
+        "vertices": 584
+      },
+      "footprint": [
+        2,
+        3.6
+      ],
+      "height": 1.2,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            0.51724,
+            0.0
+          ],
+          "size": [
+            2.0,
+            1.03448,
+            3.44118
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/01-spirit-awakening/levels/01-levels-detail.md:6-157"
+    },
+    "KneelingStatue": {
+      "resource": "res://assets/environment/story_props/spirit_ruins.glb",
+      "theme": "spirit_ruins",
+      "bounds": {
+        "min": [
+          -1.2,
+          0.0,
+          -1.2
+        ],
+        "max": [
+          1.2,
+          3.2,
+          1.2
+        ],
+        "size": [
+          2.4,
+          3.2,
+          2.4
+        ],
+        "triangles": 1276,
+        "mesh_count": 4,
+        "vertices": 674
+      },
+      "footprint": [
+        2.4,
+        2.4
+      ],
+      "height": 3.2,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.32767,
+            0.0
+          ],
+          "size": [
+            1.74545,
+            2.65534,
+            1.74545
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/01-spirit-awakening/levels/01-levels-detail.md:6-157"
+    },
+    "CryptWall": {
+      "resource": "res://assets/environment/story_props/spirit_ruins.glb",
+      "theme": "spirit_ruins",
+      "bounds": {
+        "min": [
+          -3.0,
+          0.0,
+          -0.5
+        ],
+        "max": [
+          3.0,
+          4.0,
+          0.5
+        ],
+        "size": [
+          6.0,
+          4.0,
+          1.0
+        ],
+        "triangles": 3480,
+        "mesh_count": 4,
+        "vertices": 1932
+      },
+      "footprint": [
+        6,
+        1
+      ],
+      "height": 4,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.95624,
+            0.125
+          ],
+          "size": [
+            5.8,
+            3.91248,
+            0.58333
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/01-spirit-awakening/levels/01-levels-detail.md:6-157"
+    },
+    "Sarcophagus": {
+      "resource": "res://assets/environment/story_props/spirit_ruins.glb",
+      "theme": "spirit_ruins",
+      "bounds": {
+        "min": [
+          -0.85,
+          0.0,
+          -1.6
+        ],
+        "max": [
+          0.85,
+          1.3,
+          1.6
+        ],
+        "size": [
+          1.7,
+          1.3,
+          3.2
+        ],
+        "triangles": 1188,
+        "mesh_count": 4,
+        "vertices": 644
+      },
+      "footprint": [
+        1.7,
+        3.2
+      ],
+      "height": 1.3,
+      "navigation_boxes": [
+        {
+          "center": [
+            -0.01596,
+            0.5098,
+            0.0
+          ],
+          "size": [
+            1.66808,
+            1.01961,
+            3.05882
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/01-spirit-awakening/levels/01-levels-detail.md:6-157"
+    },
+    "WatchBrazier": {
+      "resource": "res://assets/environment/story_props/spirit_ruins.glb",
+      "theme": "spirit_ruins",
+      "bounds": {
+        "min": [
+          -1.0,
+          0.0,
+          -1.0
+        ],
+        "max": [
+          1.0,
+          3.5,
+          1.0
+        ],
+        "size": [
+          2.0,
+          3.5,
+          2.0
+        ],
+        "triangles": 1092,
+        "mesh_count": 4,
+        "vertices": 580
+      },
+      "footprint": [
+        2,
+        2
+      ],
+      "height": 3.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.06061,
+            0.0
+          ],
+          "size": [
+            1.40744,
+            2.12121,
+            1.40744
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/01-spirit-awakening/levels/01-levels-detail.md:6-157"
+    },
+    "PrisonCage": {
+      "resource": "res://assets/environment/story_props/blood_iron.glb",
+      "theme": "blood_iron",
+      "bounds": {
+        "min": [
+          -2.0,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          2.0,
+          3.5,
+          2.0
+        ],
+        "size": [
+          4.0,
+          3.5,
+          4.0
+        ],
+        "triangles": 2432,
+        "mesh_count": 3,
+        "vertices": 1344
+      },
+      "footprint": [
+        4,
+        4
+      ],
+      "height": 3.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            -1.88,
+            1.80187,
+            0.0
+          ],
+          "size": [
+            0.18,
+            3.38534,
+            3.9
+          ]
+        },
+        {
+          "center": [
+            1.88,
+            1.80187,
+            0.0
+          ],
+          "size": [
+            0.18,
+            3.38534,
+            3.9
+          ]
+        },
+        {
+          "center": [
+            0.0,
+            1.80187,
+            1.88
+          ],
+          "size": [
+            3.9,
+            3.38534,
+            0.18
+          ]
+        },
+        {
+          "center": [
+            -1.5,
+            1.80187,
+            -1.88
+          ],
+          "size": [
+            0.85,
+            3.38534,
+            0.18
+          ]
+        },
+        {
+          "center": [
+            1.5,
+            1.80187,
+            -1.88
+          ],
+          "size": [
+            0.85,
+            3.38534,
+            0.18
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "open front doorway and interior; bars, back and side walls block",
+      "source": "docs/chapters/02-blood-iron/chapter-overview.md:25-93"
+    },
+    "CommandTent": {
+      "resource": "res://assets/environment/story_props/blood_iron.glb",
+      "theme": "blood_iron",
+      "bounds": {
+        "min": [
+          -4.0,
+          0.0,
+          -4.0
+        ],
+        "max": [
+          4.0,
+          5.0,
+          4.0
+        ],
+        "size": [
+          8.0,
+          5.0,
+          8.0
+        ],
+        "triangles": 708,
+        "mesh_count": 3,
+        "vertices": 420
+      },
+      "footprint": [
+        8,
+        8
+      ],
+      "height": 5,
+      "navigation_boxes": [
+        {
+          "center": [
+            -3.57967,
+            1.3,
+            0.11628
+          ],
+          "size": [
+            0.12823,
+            2.6,
+            7.01228
+          ]
+        },
+        {
+          "center": [
+            3.57967,
+            1.3,
+            0.11628
+          ],
+          "size": [
+            0.12823,
+            2.6,
+            7.01228
+          ]
+        },
+        {
+          "center": [
+            0.0,
+            1.3,
+            3.62242
+          ],
+          "size": [
+            7.26619,
+            2.6,
+            0.12946
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "open front and walkable center; fabric side/back surfaces block",
+      "source": "docs/chapters/02-blood-iron/chapter-overview.md:25-93"
+    },
+    "WarTable": {
+      "resource": "res://assets/environment/story_props/blood_iron.glb",
+      "theme": "blood_iron",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -1.15
+        ],
+        "max": [
+          1.5,
+          1.5,
+          1.15
+        ],
+        "size": [
+          3.0,
+          1.5,
+          2.3
+        ],
+        "triangles": 948,
+        "mesh_count": 4,
+        "vertices": 520
+      },
+      "footprint": [
+        3,
+        2.3
+      ],
+      "height": 1.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            0.65,
+            0.0
+          ],
+          "size": [
+            2.8,
+            1.3,
+            2.14667
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/02-blood-iron/chapter-overview.md:25-93"
+    },
+    "WarBanner": {
+      "resource": "res://assets/environment/story_props/blood_iron.glb",
+      "theme": "blood_iron",
+      "bounds": {
+        "min": [
+          -1.25,
+          0.0,
+          -0.5
+        ],
+        "max": [
+          1.25,
+          5.0,
+          0.5
+        ],
+        "size": [
+          2.5,
+          5.0,
+          1.0
+        ],
+        "triangles": 768,
+        "mesh_count": 5,
+        "vertices": 422
+      },
+      "footprint": [
+        2.5,
+        1
+      ],
+      "height": 5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            0.5,
+            0.0
+          ],
+          "size": [
+            0.97826,
+            1.0,
+            0.9
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/02-blood-iron/chapter-overview.md:25-93"
+    },
+    "SiegeWagon": {
+      "resource": "res://assets/environment/story_props/blood_iron.glb",
+      "theme": "blood_iron",
+      "bounds": {
+        "min": [
+          -1.7,
+          0.0,
+          -2.5
+        ],
+        "max": [
+          1.7,
+          3.0,
+          2.5
+        ],
+        "size": [
+          3.4,
+          3.0,
+          5.0
+        ],
+        "triangles": 3408,
+        "mesh_count": 3,
+        "vertices": 1824
+      },
+      "footprint": [
+        3.4,
+        5
+      ],
+      "height": 3,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.5,
+            0.57735
+          ],
+          "size": [
+            2.84691,
+            3.0,
+            3.5189
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/02-blood-iron/chapter-overview.md:25-93"
+    },
+    "Barricade": {
+      "resource": "res://assets/environment/story_props/blood_iron.glb",
+      "theme": "blood_iron",
+      "bounds": {
+        "min": [
+          -3.0,
+          0.0,
+          -0.7
+        ],
+        "max": [
+          3.0,
+          2.1,
+          0.7
+        ],
+        "size": [
+          6.0,
+          2.1,
+          1.4
+        ],
+        "triangles": 2496,
+        "mesh_count": 3,
+        "vertices": 1288
+      },
+      "footprint": [
+        6,
+        1.4
+      ],
+      "height": 2.1,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            0.98164,
+            0.0929
+          ],
+          "size": [
+            5.84874,
+            1.84772,
+            0.99099
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/02-blood-iron/chapter-overview.md:25-93"
+    },
+    "BeaconTower": {
+      "resource": "res://assets/environment/story_props/blood_iron.glb",
+      "theme": "blood_iron",
+      "bounds": {
+        "min": [
+          -4.0,
+          0.0,
+          -4.0
+        ],
+        "max": [
+          4.0,
+          14.0,
+          4.0
+        ],
+        "size": [
+          8.0,
+          14.0,
+          8.0
+        ],
+        "triangles": 7942,
+        "mesh_count": 5,
+        "vertices": 4235
+      },
+      "footprint": [
+        8,
+        8
+      ],
+      "height": 14,
+      "navigation_boxes": [
+        {
+          "center": [
+            -2.71795,
+            5.04323,
+            -2.71795
+          ],
+          "size": [
+            1.33333,
+            10.08646,
+            1.33333
+          ]
+        },
+        {
+          "center": [
+            -2.71795,
+            5.04323,
+            2.71795
+          ],
+          "size": [
+            1.33333,
+            10.08646,
+            1.33333
+          ]
+        },
+        {
+          "center": [
+            2.71795,
+            5.04323,
+            -2.71795
+          ],
+          "size": [
+            1.33333,
+            10.08646,
+            1.33333
+          ]
+        },
+        {
+          "center": [
+            2.71795,
+            5.04323,
+            2.71795
+          ],
+          "size": [
+            1.33333,
+            10.08646,
+            1.33333
+          ]
+        },
+        {
+          "center": [
+            0.0,
+            4.8415,
+            2.87179
+          ],
+          "size": [
+            6.25641,
+            9.683,
+            0.66667
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "external signal tower, hollow central bay; solid corners and rear masonry",
+      "source": "docs/chapters/02-blood-iron/chapter-overview.md:25-93"
+    },
+    "BambooGrove": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -3.0,
+          0.0,
+          -3.0
+        ],
+        "max": [
+          3.0,
+          9.0,
+          3.0
+        ],
+        "size": [
+          6.0,
+          9.0,
+          6.0
+        ],
+        "triangles": 15180,
+        "mesh_count": 2,
+        "vertices": 8494
+      },
+      "footprint": [
+        6,
+        6
+      ],
+      "height": 9,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.12507,
+            2.65857,
+            0.02474
+          ],
+          "size": [
+            3.42863,
+            5.31039,
+            3.74204
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "WeddingLantern": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -0.7,
+          0.0,
+          -0.7
+        ],
+        "max": [
+          0.7,
+          4.0,
+          0.7
+        ],
+        "size": [
+          1.4,
+          4.0,
+          1.4
+        ],
+        "triangles": 1760,
+        "mesh_count": 7,
+        "vertices": 936
+      },
+      "footprint": [
+        1.4,
+        1.4
+      ],
+      "height": 4,
+      "navigation_boxes": [
+        {
+          "center": [
+            -0.22808,
+            0.72917,
+            0.0
+          ],
+          "size": [
+            0.72176,
+            1.45833,
+            0.96809
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "Palanquin": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -1.75,
+          0.0,
+          -2.5
+        ],
+        "max": [
+          1.75,
+          3.8,
+          2.5
+        ],
+        "size": [
+          3.5,
+          3.8,
+          5.0
+        ],
+        "triangles": 3112,
+        "mesh_count": 4,
+        "vertices": 1874
+      },
+      "footprint": [
+        3.5,
+        5
+      ],
+      "height": 3.8,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.4811,
+            0.0
+          ],
+          "size": [
+            2.4911,
+            2.9622,
+            2.7
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "MemoryMirror": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -0.6
+        ],
+        "max": [
+          1.5,
+          4.2,
+          0.6
+        ],
+        "size": [
+          3.0,
+          4.2,
+          1.2
+        ],
+        "triangles": 3020,
+        "mesh_count": 6,
+        "vertices": 1577
+      },
+      "footprint": [
+        3,
+        1.2
+      ],
+      "height": 4.2,
+      "navigation_boxes": [
+        {
+          "center": [
+            -1.13333,
+            1.8939,
+            0.0
+          ],
+          "size": [
+            0.35556,
+            2.67374,
+            0.65455
+          ]
+        },
+        {
+          "center": [
+            1.13333,
+            1.8939,
+            0.0
+          ],
+          "size": [
+            0.35556,
+            2.67374,
+            0.65455
+          ]
+        },
+        {
+          "center": [
+            0.0,
+            2.78515,
+            0.0
+          ],
+          "size": [
+            2.5,
+            2.50663,
+            0.27273
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "LakePavilion": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -5.0,
+          0.0,
+          -5.0
+        ],
+        "max": [
+          5.0,
+          7.0,
+          5.0
+        ],
+        "size": [
+          10.0,
+          7.0,
+          10.0
+        ],
+        "triangles": 6948,
+        "mesh_count": 4,
+        "vertices": 4244
+      },
+      "footprint": [
+        10,
+        10
+      ],
+      "height": 7,
+      "navigation_boxes": [
+        {
+          "center": [
+            3.4879,
+            2.22,
+            2.29056
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        },
+        {
+          "center": [
+            2.29056,
+            2.22,
+            3.4879
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        },
+        {
+          "center": [
+            -2.29056,
+            2.22,
+            3.4879
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        },
+        {
+          "center": [
+            -3.4879,
+            2.22,
+            2.29056
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        },
+        {
+          "center": [
+            -3.4879,
+            2.22,
+            -2.29056
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        },
+        {
+          "center": [
+            -2.29056,
+            2.22,
+            -3.4879
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        },
+        {
+          "center": [
+            2.29056,
+            2.22,
+            -3.4879
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        },
+        {
+          "center": [
+            3.4879,
+            2.22,
+            -2.29056
+          ],
+          "size": [
+            0.99952,
+            4.44,
+            0.99952
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "eight open bays; no filled deck; central bridge stays clear at Y0; only column footings obstruct paths",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "IllusionTree": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -3.0,
+          0.0,
+          -3.0
+        ],
+        "max": [
+          3.0,
+          7.0,
+          3.0
+        ],
+        "size": [
+          6.0,
+          7.0,
+          6.0
+        ],
+        "triangles": 11050,
+        "mesh_count": 3,
+        "vertices": 5757
+      },
+      "footprint": [
+        6,
+        6
+      ],
+      "height": 7,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.15169,
+            2.13494,
+            -0.23526
+          ],
+          "size": [
+            0.95004,
+            4.1108,
+            0.9282
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "HedgeWall": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -3.0,
+          0.0,
+          -0.8
+        ],
+        "max": [
+          3.0,
+          3.0,
+          0.8
+        ],
+        "size": [
+          6.0,
+          3.0,
+          1.6
+        ],
+        "triangles": 28224,
+        "mesh_count": 4,
+        "vertices": 14572
+      },
+      "footprint": [
+        6,
+        1.6
+      ],
+      "height": 3,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.39735,
+            0.0
+          ],
+          "size": [
+            5.8,
+            2.7947,
+            1.38667
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "LakeSurface": {
+      "resource": "res://assets/environment/story_props/jade_veil.glb",
+      "theme": "jade_veil",
+      "bounds": {
+        "min": [
+          -9.0,
+          0.0,
+          -9.0
+        ],
+        "max": [
+          9.0,
+          0.08,
+          9.0
+        ],
+        "size": [
+          18.0,
+          0.08,
+          18.0
+        ],
+        "triangles": 7976,
+        "mesh_count": 3,
+        "vertices": 4004
+      },
+      "footprint": [
+        18,
+        18
+      ],
+      "height": 0.08,
+      "navigation_boxes": [],
+      "collision": false,
+      "passability": "visual water plane only; caller owns water/reset behavior and supporting terrain",
+      "source": "docs/chapters/03-jade-veil/chapter-overview.md:25-99"
+    },
+    "ArchiveShelf": {
+      "resource": "res://assets/environment/story_props/celestial_fall.glb",
+      "theme": "celestial_fall",
+      "bounds": {
+        "min": [
+          -2.5,
+          0.0,
+          -0.7
+        ],
+        "max": [
+          2.5,
+          7.0,
+          0.7
+        ],
+        "size": [
+          5.0,
+          7.0,
+          1.4
+        ],
+        "triangles": 22164,
+        "mesh_count": 5,
+        "vertices": 11840
+      },
+      "footprint": [
+        5,
+        1.4
+      ],
+      "height": 7,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            2.76754,
+            0.0
+          ],
+          "size": [
+            4.9,
+            5.53509,
+            1.3
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/04-celestial-fall/chapter-overview.md:25-109"
+    },
+    "BronzeCauldron": {
+      "resource": "res://assets/environment/story_props/celestial_fall.glb",
+      "theme": "celestial_fall",
+      "bounds": {
+        "min": [
+          -2.5,
+          0.0,
+          -2.5
+        ],
+        "max": [
+          2.5,
+          5.0,
+          2.5
+        ],
+        "size": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "triangles": 3532,
+        "mesh_count": 4,
+        "vertices": 1800
+      },
+      "footprint": [
+        5,
+        5
+      ],
+      "height": 5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.70213,
+            0.0
+          ],
+          "size": [
+            3.48315,
+            3.40426,
+            4.15438
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/04-celestial-fall/chapter-overview.md:25-109"
+    },
+    "CelestialSpire": {
+      "resource": "res://assets/environment/story_props/celestial_fall.glb",
+      "theme": "celestial_fall",
+      "bounds": {
+        "min": [
+          -2.5,
+          0.0,
+          -2.5
+        ],
+        "max": [
+          2.5,
+          12.0,
+          2.5
+        ],
+        "size": [
+          5.0,
+          12.0,
+          5.0
+        ],
+        "triangles": 2328,
+        "mesh_count": 4,
+        "vertices": 1212
+      },
+      "footprint": [
+        5,
+        5
+      ],
+      "height": 12,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            4.5,
+            0.0
+          ],
+          "size": [
+            2.8125,
+            9.0,
+            2.8125
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/04-celestial-fall/chapter-overview.md:25-109"
+    },
+    "BrokenArch": {
+      "resource": "res://assets/environment/story_props/celestial_fall.glb",
+      "theme": "celestial_fall",
+      "bounds": {
+        "min": [
+          -4.0,
+          0.0,
+          -1.0
+        ],
+        "max": [
+          4.0,
+          8.0,
+          1.0
+        ],
+        "size": [
+          8.0,
+          8.0,
+          2.0
+        ],
+        "triangles": 1080,
+        "mesh_count": 3,
+        "vertices": 600
+      },
+      "footprint": [
+        8,
+        2
+      ],
+      "height": 8,
+      "navigation_boxes": [
+        {
+          "center": [
+            -3.12821,
+            2.48594,
+            0.0
+          ],
+          "size": [
+            1.38462,
+            4.97188,
+            1.81169
+          ]
+        },
+        {
+          "center": [
+            3.32051,
+            1.68575,
+            0.0
+          ],
+          "size": [
+            1.35897,
+            3.37149,
+            1.81169
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "wide central arch opening; asymmetric broken top, solid side piers",
+      "source": "docs/chapters/04-celestial-fall/chapter-overview.md:25-109"
+    },
+    "Orrery": {
+      "resource": "res://assets/environment/story_props/celestial_fall.glb",
+      "theme": "celestial_fall",
+      "bounds": {
+        "min": [
+          -3.0,
+          0.0,
+          -3.0
+        ],
+        "max": [
+          3.0,
+          6.0,
+          3.0
+        ],
+        "size": [
+          6.0,
+          6.0,
+          6.0
+        ],
+        "triangles": 3160,
+        "mesh_count": 5,
+        "vertices": 1596
+      },
+      "footprint": [
+        6,
+        6
+      ],
+      "height": 6,
+      "navigation_boxes": [
+        {
+          "center": [
+            -0.01614,
+            1.17438,
+            0.0
+          ],
+          "size": [
+            2.48655,
+            2.34875,
+            2.49665
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/04-celestial-fall/chapter-overview.md:25-109"
+    },
+    "RitualDesk": {
+      "resource": "res://assets/environment/story_props/celestial_fall.glb",
+      "theme": "celestial_fall",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -1.0
+        ],
+        "max": [
+          1.5,
+          1.4,
+          1.0
+        ],
+        "size": [
+          3.0,
+          1.4,
+          2.0
+        ],
+        "triangles": 688,
+        "mesh_count": 5,
+        "vertices": 372
+      },
+      "footprint": [
+        3,
+        2
+      ],
+      "height": 1.4,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            0.63636,
+            0.10526
+          ],
+          "size": [
+            2.7931,
+            1.27273,
+            1.52632
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/04-celestial-fall/chapter-overview.md:25-109"
+    },
+    "AshShore": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -8.0,
+          0.0,
+          -5.0
+        ],
+        "max": [
+          8.0,
+          0.3,
+          5.0
+        ],
+        "size": [
+          16.0,
+          0.3,
+          10.0
+        ],
+        "triangles": 3804,
+        "mesh_count": 3,
+        "vertices": 1990
+      },
+      "footprint": [
+        16,
+        10
+      ],
+      "height": 0.3,
+      "navigation_boxes": [],
+      "collision": false,
+      "passability": "non-solid shore skin; supporting terrain remains authoritative",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "SoulRib": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -3.5,
+          0.0,
+          -1.5
+        ],
+        "max": [
+          3.5,
+          7.0,
+          1.5
+        ],
+        "size": [
+          7.0,
+          7.0,
+          3.0
+        ],
+        "triangles": 1360,
+        "mesh_count": 2,
+        "vertices": 732
+      },
+      "footprint": [
+        7,
+        3
+      ],
+      "height": 7,
+      "navigation_boxes": [
+        {
+          "center": [
+            -3.00427,
+            2.45189,
+            -0.31691
+          ],
+          "size": [
+            0.99145,
+            4.72964,
+            2.36617
+          ]
+        },
+        {
+          "center": [
+            3.00427,
+            2.45189,
+            -0.31691
+          ],
+          "size": [
+            0.99145,
+            4.72964,
+            2.36617
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "soul skeleton arch, open middle; ribs and feet block",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "Throne": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -2.5,
+          0.0,
+          -2.5
+        ],
+        "max": [
+          2.5,
+          7.0,
+          2.5
+        ],
+        "size": [
+          5.0,
+          7.0,
+          5.0
+        ],
+        "triangles": 2356,
+        "mesh_count": 4,
+        "vertices": 1216
+      },
+      "footprint": [
+        5,
+        5
+      ],
+      "height": 7,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            2.71901,
+            -0.3
+          ],
+          "size": [
+            2.8,
+            5.43802,
+            2.2
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "ChainAnchor": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.5
+        ],
+        "max": [
+          1.5,
+          5.0,
+          2.5
+        ],
+        "size": [
+          3.0,
+          5.0,
+          5.0
+        ],
+        "triangles": 2288,
+        "mesh_count": 3,
+        "vertices": 1152
+      },
+      "footprint": [
+        3,
+        5
+      ],
+      "height": 5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.38728,
+            0.99017
+          ],
+          "size": [
+            2.14286,
+            2.77457,
+            2.1569
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "LivingSealTorchDragon": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -1.5
+        ],
+        "max": [
+          1.5,
+          3.0,
+          1.5
+        ],
+        "size": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "triangles": 1992,
+        "mesh_count": 4,
+        "vertices": 1026
+      },
+      "footprint": [
+        3,
+        3
+      ],
+      "height": 3,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.11864,
+            0.0
+          ],
+          "size": [
+            2.27586,
+            2.23729,
+            0.72414
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "LivingSealCloudWanderer": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -1.5
+        ],
+        "max": [
+          1.5,
+          3.0,
+          1.5
+        ],
+        "size": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "triangles": 1648,
+        "mesh_count": 4,
+        "vertices": 832
+      },
+      "footprint": [
+        3,
+        3
+      ],
+      "height": 3,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.11864,
+            0.0
+          ],
+          "size": [
+            2.27586,
+            2.23729,
+            0.72414
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "LivingSealSilenceBringer": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -1.5
+        ],
+        "max": [
+          1.5,
+          3.0,
+          1.5
+        ],
+        "size": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "triangles": 1028,
+        "mesh_count": 3,
+        "vertices": 524
+      },
+      "footprint": [
+        3,
+        3
+      ],
+      "height": 3,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.11864,
+            0.0
+          ],
+          "size": [
+            2.27586,
+            2.23729,
+            0.72414
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "BellTower": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -8.0,
+          0.0,
+          -8.0
+        ],
+        "max": [
+          8.0,
+          15.0,
+          8.0
+        ],
+        "size": [
+          16.0,
+          15.0,
+          16.0
+        ],
+        "triangles": 35648,
+        "mesh_count": 5,
+        "vertices": 19732
+      },
+      "footprint": [
+        16,
+        16
+      ],
+      "height": 15,
+      "navigation_boxes": [
+        {
+          "center": [
+            5.86738,
+            5.3,
+            2.51136
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            2.43035,
+            5.3,
+            6.06296
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            -2.43035,
+            5.3,
+            6.06296
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            -5.86738,
+            5.3,
+            2.51136
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            -5.86738,
+            5.3,
+            -2.51136
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            -2.43035,
+            5.3,
+            -6.06296
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            2.43035,
+            5.3,
+            -6.06296
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            5.86738,
+            5.3,
+            -2.51136
+          ],
+          "size": [
+            1.20968,
+            10.6,
+            1.25
+          ]
+        },
+        {
+          "center": [
+            -6.60282,
+            3.8,
+            0.0
+          ],
+          "size": [
+            0.70565,
+            7.6,
+            8.85417
+          ]
+        },
+        {
+          "center": [
+            6.60282,
+            3.8,
+            0.0
+          ],
+          "size": [
+            0.70565,
+            7.6,
+            8.85417
+          ]
+        },
+        {
+          "center": [
+            -3.0746,
+            2.5,
+            -6.0625
+          ],
+          "size": [
+            1.10887,
+            5.0,
+            1.04167
+          ]
+        },
+        {
+          "center": [
+            3.0746,
+            2.5,
+            -6.0625
+          ],
+          "size": [
+            1.10887,
+            5.0,
+            1.04167
+          ]
+        },
+        {
+          "center": [
+            -3.0746,
+            2.5,
+            6.0625
+          ],
+          "size": [
+            1.10887,
+            5.0,
+            1.04167
+          ]
+        },
+        {
+          "center": [
+            3.0746,
+            2.5,
+            6.0625
+          ],
+          "size": [
+            1.10887,
+            5.0,
+            1.04167
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "open octagonal bell hall; two opposite 5m door bays; side walls and columns only",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "DecoyBell": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -0.7,
+          0.0,
+          -0.7
+        ],
+        "max": [
+          0.7,
+          2.8,
+          0.7
+        ],
+        "size": [
+          1.4,
+          2.8,
+          1.4
+        ],
+        "triangles": 3368,
+        "mesh_count": 5,
+        "vertices": 1944
+      },
+      "footprint": [
+        1.4,
+        1.4
+      ],
+      "height": 2.8,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.03158,
+            0.0
+          ],
+          "size": [
+            1.0462,
+            2.06316,
+            0.72593
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "DecoyBellBroken": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -0.7,
+          0.0,
+          -0.7
+        ],
+        "max": [
+          0.7,
+          2.8,
+          0.7
+        ],
+        "size": [
+          1.4,
+          2.8,
+          1.4
+        ],
+        "triangles": 3530,
+        "mesh_count": 5,
+        "vertices": 2040
+      },
+      "footprint": [
+        1.4,
+        1.4
+      ],
+      "height": 2.8,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.03158,
+            0.0
+          ],
+          "size": [
+            1.0462,
+            2.06316,
+            0.72593
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialStarForger": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 908,
+        "mesh_count": 4,
+        "vertices": 512
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79585,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59169,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialThoughtBreaker": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 896,
+        "mesh_count": 4,
+        "vertices": 512
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79926,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59851,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialDustReturner": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 1246,
+        "mesh_count": 4,
+        "vertices": 687
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79585,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59169,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialFateWeaver": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 1044,
+        "mesh_count": 5,
+        "vertices": 584
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79814,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59628,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialGateKeeper": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 1200,
+        "mesh_count": 4,
+        "vertices": 680
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79585,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59169,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialSinMeasurer": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 1300,
+        "mesh_count": 4,
+        "vertices": 744
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79746,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59491,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialLampLighter": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 1406,
+        "mesh_count": 5,
+        "vertices": 769
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79585,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59169,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialSoulPacifier": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 1776,
+        "mesh_count": 5,
+        "vertices": 960
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79701,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59402,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    },
+    "MemorialCycleTurner": {
+      "resource": "res://assets/environment/story_props/ember_abyss.glb",
+      "theme": "ember_abyss",
+      "bounds": {
+        "min": [
+          -1.5,
+          0.0,
+          -2.0
+        ],
+        "max": [
+          1.5,
+          4.5,
+          2.0
+        ],
+        "size": [
+          3.0,
+          4.5,
+          4.0
+        ],
+        "triangles": 2100,
+        "mesh_count": 4,
+        "vertices": 1120
+      },
+      "footprint": [
+        3,
+        4
+      ],
+      "height": 4.5,
+      "navigation_boxes": [
+        {
+          "center": [
+            0.0,
+            1.79585,
+            0.0
+          ],
+          "size": [
+            2.84483,
+            3.59169,
+            3.79487
+          ]
+        }
+      ],
+      "collision": true,
+      "passability": "solid prop; place outside reserved routes",
+      "source": "docs/chapters/05-throne-of-ashes/chapter-overview.md:25-140; docs/story/lore.md:54-72; docs/bestiary/boss-blind-bell-hearer.md:12-88"
+    }
+  }
+}

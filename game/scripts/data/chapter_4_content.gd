@@ -128,7 +128,7 @@ static func elites() -> Array[Dictionary]:
 static func bosses() -> Array[Dictionary]:
 	return [
 		{
-			"id": "boss_xuan_xiao_wrath",
+			"id": "boss_xuan_xiao_wrath", "story_arena": true,
 			"display_name": "玄霄·嗔念 / Xuan Xiao · Wrath Fragment",
 			"max_health": 120.0, "reward": 200, "arena": "flaming_wrath_platform",
 			"chapter": 4, "chinese_name": "嗔念",
@@ -146,10 +146,12 @@ static func bosses() -> Array[Dictionary]:
 				},
 				"2": {
 					"threshold": 0.6,
+					"arena_effects": [{"kind": "fire", "color": "cf562d", "warning": 1.2, "radius": 1.7, "lifetime": 18.0, "interval": 1.0, "layout": "ring", "count": 4, "damage": 7.0}],
+					"arena_event": "wrath_ignition",
 					"description": "Uncontrollable rage — attacks faster, leaves fire pools, self-damaging",
 					"attacks": [
 						{"name": "rage_flurry", "windup": 0.22, "active": 0.45, "recovery": 0.38, "damage": 18.0, "stagger": 20.0, "lunge": 0.0, "type": "multi_hit", "hits": 5},
-						{"name": "self_immolation_burst", "windup": 0.68, "active": 0.35, "recovery": 0.85, "damage": 35.0, "stagger": 42.0, "lunge": 0.0, "type": "radial_aoe", "range": 5.0},
+						{"name": "self_immolation_burst", "windup": 0.68, "active": 0.35, "recovery": 0.85, "damage": 35.0, "stagger": 42.0, "lunge": 0.0, "type": "radial_aoe", "range": 5.0, "arena_effect": {"kind": "fire", "color": "cf562d", "warning": 1.2, "radius": 1.6, "lifetime": 7.0, "interval": 1.0, "layout": "ring", "count": 3, "distance": 3.3, "damage": 8.0, "break_props": true}},
 					],
 					"vfx": "exploding_fire_pools",
 					"lighting": "intense_crimson",
@@ -158,7 +160,7 @@ static func bosses() -> Array[Dictionary]:
 			"vfx_unique": {"intro": "flame_eruption", "death": "rage_dissipates", "arena": "floating_fire_platform", "ground_effect": "lingering_flame_pools"},
 		},
 		{
-			"id": "boss_xuan_xiao_obsession",
+			"id": "boss_xuan_xiao_obsession", "story_arena": true,
 			"display_name": "玄霄·执念 / Xuan Xiao · Obsession Fragment",
 			"max_health": 140.0, "reward": 200, "arena": "frozen_ritual_platform",
 			"chapter": 4, "chinese_name": "执念",
@@ -176,9 +178,11 @@ static func bosses() -> Array[Dictionary]:
 				},
 				"2": {
 					"threshold": 0.6,
+					"arena_effects": [{"kind": "frost", "color": "63b4d2", "warning": 1.2, "radius": 1.9, "lifetime": 0.0, "interval": 1.0, "layout": "ring", "count": 4, "blocker": true, "width": 3.0, "damage": 0.0}, {"kind": "frost", "color": "63b4d2", "warning": 1.2, "radius": 2.0, "lifetime": 18.0, "interval": 0.2, "layout": "ring", "count": 3, "rotation": 0.0, "slow": 0.55}],
+					"arena_event": "frozen_ritual",
 					"description": "Frozen obsession — time-slowing field, crystallized projectiles, arena freeze",
 					"attacks": [
-						{"name": "time_slow_field", "windup": 0.75, "active": 0.0, "recovery": 0.55, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "type": "arena_modify", "effect": "global_slow"},
+						{"name": "time_slow_field", "windup": 0.75, "active": 0.0, "recovery": 0.55, "damage": 0.0, "stagger": 0.0, "lunge": 0.0, "type": "arena_modify", "effect": "global_slow", "arena_effect": {"kind": "frost", "color": "63b4d2", "warning": 1.2, "radius": 4.0, "lifetime": 7.0, "interval": 0.2, "origin": "target", "slow": 0.5}},
 						{"name": "crystal_barrage", "windup": 0.58, "active": 0.42, "recovery": 0.62, "damage": 10.0, "stagger": 12.0, "lunge": 0.0, "type": "multi_projectile", "count": 8},
 					],
 					"vfx": "time_frozen_particles",
@@ -188,7 +192,7 @@ static func bosses() -> Array[Dictionary]:
 			"vfx_unique": {"intro": "ice_shatter_reveal", "death": "shatter_into_crystals", "arena": "frozen_ritual_circle", "ground_effect": "frost_crystals"},
 		},
 		{
-			"id": "boss_xuan_xiao",
+			"id": "boss_xuan_xiao", "story_arena": true,
 			"display_name": "堕仙·玄霄 / Fallen Immortal · Xuan Xiao",
 			"max_health": 520.0, "reward": 550, "arena": "collapsing_zenith",
 			"chapter": 4, "chinese_name": "玄霄",
@@ -207,6 +211,8 @@ static func bosses() -> Array[Dictionary]:
 				},
 				"2": {
 					"threshold": 0.6,
+					"arena_effects": [{"kind": "star", "color": "d6b66d", "warning": 1.2, "radius": 1.5, "lifetime": 18.0, "interval": 1.0, "layout": "ring", "count": 4, "damage": 6.0}],
+					"arena_event": "starfall_sites",
 					"description": "Wings unfurled — flight mode, aerial bombardment, wind storms, falling debris",
 					"attacks": [
 						{"name": "aerial_dive", "windup": 0.48, "active": 0.25, "recovery": 0.55, "damage": 34.0, "stagger": 40.0, "lunge": 6.0, "type": "flying_swoop"},
@@ -218,10 +224,12 @@ static func bosses() -> Array[Dictionary]:
 				},
 				"3": {
 					"threshold": 0.3,
+					"arena_effects": [{"kind": "void", "color": "8674cc", "warning": 1.2, "radius": 1.8, "lifetime": 18.0, "interval": 1.0, "layout": "ring", "count": 4, "damage": 8.0, "break_props": true}],
+					"arena_event": "corrupted_fissures",
 					"description": "Falling immortal — divine decay, corrupted light, reality-breaking attacks",
 					"attacks": [
 						{"name": "corrupted_divinity", "windup": 0.72, "active": 0.38, "recovery": 0.68, "damage": 38.0, "stagger": 46.0, "lunge": 3.0, "type": "trail_hazard"},
-						{"name": "falling_star_crash", "windup": 0.95, "active": 0.48, "recovery": 1.05, "damage": 48.0, "stagger": 55.0, "lunge": 0.0, "type": "targeted_impact_aoe", "range": 4.5},
+						{"name": "falling_star_crash", "windup": 0.95, "active": 0.48, "recovery": 1.05, "damage": 48.0, "stagger": 55.0, "lunge": 0.0, "type": "targeted_impact_aoe", "range": 4.5, "arena_effect": {"kind": "star", "color": "d6b66d", "warning": 1.2, "radius": 3.4, "lifetime": 5.0, "interval": 1.0, "origin": "target", "damage": 8.0, "break_props": true}},
 						{"name": "zenith_collapse", "windup": 1.15, "active": 0.55, "recovery": 1.25, "damage": 40.0, "stagger": 50.0, "lunge": 0.0, "type": "stage_wide_aoe", "range": 12.0},
 					],
 					"vfx": "corrupted_divine_light",

@@ -8,6 +8,7 @@ signal lock_target_changed(target)
 signal embers_changed(amount)
 signal combat_style_changed(style_id, display_name)
 signal hands_changed(right_hand_item, left_hand_item, action_labels)
+signal weapon_loadout_changed()
 signal healing_started()
 signal grip_changed(grip_mode: int, grip_name: String)
 signal guard_meter_changed(current, maximum)
@@ -62,6 +63,7 @@ const SpellProjectileScene = preload("res://scenes/components/spell_projectile.t
 const LocalizationScript = preload("res://scripts/core/localization.gd")
 const ProceduralUtils = preload("res://scripts/core/procedural_utils.gd")
 const HandEquipmentScript = preload("res://scripts/data/hand_equipment.gd")
+const WeaponLoadoutScript = preload("res://scripts/player/weapon_loadout.gd")
 const GuardResolverScript = preload("res://scripts/combat/guard_resolver.gd")
 const PoiseResolverScript = preload("res://scripts/combat/poise_resolver.gd")
 const LockOnSolverScript = preload("res://scripts/combat/lock_on_solver.gd")
@@ -122,6 +124,9 @@ var gravity := DEFAULT_GRAVITY
 ## 烛阴 P3 零重力覆盖：<0 = 使用默认 gravity；>=0 = 覆盖每帧下坠加速度（置 0 太空漂浮）。
 ## 默认 -1.0，任何非 P3 战斗路径下行为逐字节不变。
 var gravity_override := -1.0
+var _story_healing_locked := false
+var _story_cast_locked := false
+var _story_blessings: Dictionary = {}
 var mouse_sensitivity := 0.0024
 var camera_sensitivity_scale := 1.0
 var invert_camera_y := false
@@ -158,6 +163,9 @@ var combat_style: CombatStyle = CombatStyle.RELIQUARY_GUARD
 var _class_override := ""
 var right_hand_item := "guardian_sword"
 var left_hand_item := "reliquary_shield"
+var _weapon_loadout = WeaponLoadoutScript.new()
+var _equipped_right_weapon: WeaponData
+var _weapon_loadout_error := ""
 var guard_active := false
 var max_guard_meter := 100.0
 var guard_meter := 100.0
@@ -285,6 +293,7 @@ var _charge_time := 0.0
 var _charge_hand := "right"
 var _charge_action_id := ""
 var _combat_tip_mode := false  # 设置：战斗提示模式（默认关）
+var _input_buffer_debug_enabled := false
 var _grab_pose_lock := false
 var _camera_director_override := false
 var _visual_frozen := false
@@ -402,7 +411,7 @@ func _ready() -> void:
 	_anim_bridge = PlayerAnimationBridgeScript.new()
 	_anim_bridge.setup(self)
 	_connect_animation_bridge()
-	if DisplayServer.get_name() != "headless":
+	if DisplayServer.get_name() != "headless" and not OS.has_feature("web"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_emit_stats()
 	_emit_focus()
@@ -422,6 +431,57 @@ func set_gravity_override(v: float) -> void:
 ## 恢复默认重力（P3 结束 / 剧情抉择 / 死亡 / 脱战 / 换关）。
 func clear_gravity_override() -> void:
 	gravity_override = -1.0
+
+
+## Ceiling routes use the same grounded controller, signed along the room's up.
+## Only vertical surfaces are supported; walls require a separate traversal mode.
+func set_traversal_up(up: Vector3) -> void:
+	var next_up := Vector3.DOWN if up.y < -.5 else Vector3.UP
+	if up_direction.is_equal_approx(next_up):
+		return
+	# Rotate around the capsule centre, so changing gravity while grounded
+	# does not put the capsule inside the old floor (or above the ceiling).
+	var capsule_center: Vector3 = body_collision.global_position if body_collision != null else global_position
+	up_direction = next_up
+	rotation.z = PI if next_up.y < 0. else 0.
+	if body_collision != null:
+		global_position += capsule_center - body_collision.global_position
+	velocity.y = 0.
+	_was_on_floor = false
+	_previous_vertical_velocity = 0.
+	if camera_rig != null:
+		camera_rig.rotation.z = rotation.z
+		camera_rig.global_position = global_position + up_direction * 1.45
+		_camera_recover_timer = 0.
+		_camera_recenter_timer = CAMERA_RECENTER_DELAY
+
+
+func clear_traversal_up() -> void:
+	set_traversal_up(Vector3.UP)
+
+
+func set_story_healing_locked(locked: bool) -> void:
+	_story_healing_locked = locked
+
+
+func is_story_healing_locked() -> bool:
+	return _story_healing_locked
+
+
+func set_story_cast_locked(locked: bool) -> void:
+	_story_cast_locked = locked
+
+
+func is_story_cast_locked() -> bool:
+	return _story_cast_locked
+
+
+func set_story_blessing_modifiers(modifiers: Dictionary) -> void:
+	_story_blessings = modifiers.duplicate(true)
+
+
+func story_blessing_multiplier(key: String) -> float:
+	return clampf(float(_story_blessings.get(key, 1.0)), .5, 1.5)
 
 
 ## D-08：连接动画桥信号；默认不改 state_time 权威
@@ -522,6 +582,7 @@ func _physics_process(delta: float) -> void:
 	_update_lock_target()
 	_update_gamepad_camera(delta)
 	_update_camera_rig(delta)
+	_visuals.update_camera_visibility()
 	_process_action_queue()
 	_process_dodge_sprint(delta)
 	if state != State.DEAD:
@@ -534,13 +595,13 @@ func _physics_process(delta: float) -> void:
 			_update_context_windows(delta)
 			_tick_statuses(delta)
 		_was_on_floor = is_on_floor()
-		_previous_vertical_velocity = velocity.y
+		_previous_vertical_velocity = velocity.dot(up_direction)
 		# B-11：下落加倍重力；G-06 局部时间膨胀只乘本实体
 		if not is_on_floor():
-			var grav_mult := 2.0 if velocity.y < 0.0 else 1.0
+			var grav_mult := 2.0 if velocity.dot(up_direction) < 0.0 else 1.0
 			var g := gravity_override if gravity_override >= 0.0 else gravity
-			velocity.y -= g * grav_mult * dilation * delta
-		elif velocity.y <= 0.0:
+			velocity -= up_direction * g * grav_mult * dilation * delta
+		elif velocity.dot(up_direction) <= 0.0:
 			velocity.y = 0.0
 		# 冻结时清水平意图，避免攻击位移继续滑行
 		if _visual_frozen:
@@ -603,8 +664,8 @@ func _check_void_recovery() -> void:
 	if state == State.DEAD:
 		return
 	var safe_origin := last_safe_transform.origin
-	var dropped_far := safe_origin != Vector3.ZERO and global_position.y < safe_origin.y - VOID_DROP_FROM_SAFE
-	if global_position.y > VOID_RECOVER_Y and not dropped_far:
+	var dropped_far := safe_origin != Vector3.ZERO and (global_position - safe_origin).dot(up_direction) < -VOID_DROP_FROM_SAFE
+	if (up_direction.y < 0.0 or global_position.y > VOID_RECOVER_Y) and not dropped_far:
 		return
 	recover_to_last_safe(true)
 
@@ -615,7 +676,7 @@ func recover_to_last_safe(from_void := false) -> void:
 		var respawn_variant: Variant = world_node.get("respawn_position")
 		if respawn_variant is Vector3:
 			target = respawn_variant as Vector3
-	if is_inside_tree():
+	if is_inside_tree() and up_direction.y > 0.0:
 		var space := get_world_3d().direct_space_state
 		if space != null:
 			var exclude: Array[RID] = []
@@ -637,6 +698,9 @@ func recover_to_last_safe(from_void := false) -> void:
 
 
 func respawn_at(at: Vector3) -> void:
+	clear_traversal_up()
+	set_story_healing_locked(false)
+	set_story_cast_locked(false)
 	var safe := at
 	if is_inside_tree():
 		var space := get_world_3d().direct_space_state
@@ -646,6 +710,7 @@ func respawn_at(at: Vector3) -> void:
 				exclude.append(get_rid())
 			safe = SafePlacement.resolve_standing_position(space, at, exclude)
 	global_position = safe
+	_configure_spring_arm_collision()
 	velocity = Vector3.ZERO
 	health = max_health
 	stamina = max_stamina
@@ -672,13 +737,20 @@ var _debug_flip_body := false
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# A fresh browser session requires a user gesture before it can lock the pointer.
+	# UI controls consume their clicks before this gameplay input handler runs.
+	if OS.has_feature("web") and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE and not get_tree().paused:
+		var gameplay_click: bool = event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed
+		var movement_key: bool = event is InputEventKey and (event.is_action_pressed("move_forward") or event.is_action_pressed("move_back") or event.is_action_pressed("move_left") or event.is_action_pressed("move_right"))
+		if gameplay_click or movement_key:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	# 锁敌期间禁用自由环绕；玩家动手取消断锁回正
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and state != State.DEAD:
 		if lock_target == null or not is_instance_valid(lock_target):
 			_camera_recover_timer = 0.0
 			_camera_recenter_timer = CAMERA_RECENTER_DELAY
 			var motion := event as InputEventMouseMotion
-			camera_rig.rotation.y -= motion.relative.x * mouse_sensitivity * camera_sensitivity_scale
+			camera_rig.rotation.y -= motion.relative.x * mouse_sensitivity * camera_sensitivity_scale * up_direction.y
 			var pitch_direction := 1.0 if invert_camera_y else -1.0
 			camera_pitch.rotation.x = clampf(
 				camera_pitch.rotation.x
@@ -723,6 +795,10 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 func receive_hit_payload(payload: Dictionary) -> void:
 	if state == State.DEAD or _is_invulnerable():
 		return
+	if is_instance_valid(world_node) and world_node.has_method("filter_boss_player_hit"):
+		payload = world_node.filter_boss_player_hit(payload)
+		if payload.is_empty():
+			return
 	# 跳跃中：仅下半身对 low_sweep 免疫（高位/全身攻击仍命中）
 	if _is_low_sweep_immune() and _payload_has_tag(payload, &"low_sweep"):
 		return
@@ -743,6 +819,9 @@ func receive_hit_payload(payload: Dictionary) -> void:
 	_apply_status_from_payload(payload)
 
 	var guard_profile: Dictionary = HandEquipmentScript.get_guard_profile(left_hand_item)
+	if not is_equal_approx(story_blessing_multiplier("guard"), 1.0):
+		payload = payload.duplicate(true)
+		payload["guard_damage"] = float(payload.get("guard_damage", payload.get("damage", 0.0))) * story_blessing_multiplier("guard")
 	if not guard_profile.is_empty():
 		max_guard_meter = float(guard_profile.get("max_guard_meter", 100.0))
 	var guard_result := GuardResolverScript.resolve(
@@ -753,7 +832,7 @@ func receive_hit_payload(payload: Dictionary) -> void:
 		guard_profile,
 		guard_meter
 	)
-	var incoming_damage := float(guard_result["damage"])
+	var incoming_damage := float(guard_result["damage"]) * story_blessing_multiplier("damage_reduction")
 	var incoming_stagger := float(guard_result["stagger"])
 	var guarded := bool(guard_result["guarded"])
 	if guarded:
@@ -809,7 +888,7 @@ func apply_status(status_id: StringName, stacks: float, source: Node = null) -> 
 	if state == State.DEAD or stacks <= 0.0:
 		return
 	var event := StatusEffectScript.apply(status_bar, status_id, stacks)
-	var burst_damage := float(event.get("burst_damage", 0.0))
+	var burst_damage := float(event.get("burst_damage", 0.0)) * story_blessing_multiplier("damage_reduction")
 	if burst_damage > 0.0:
 		health = maxf(health - burst_damage, 0.0)
 		_emit_stats()
@@ -833,7 +912,7 @@ func _tick_statuses(delta: float) -> void:
 	_status_accum = 0.0
 	var events := StatusEffectScript.tick(status_bar, elapsed)
 	for event in events:
-		var damage := float(event.get("damage", 0.0))
+		var damage := float(event.get("damage", 0.0)) * story_blessing_multiplier("damage_reduction")
 		if damage <= 0.0:
 			continue
 		health = maxf(health - damage, 0.0)
@@ -890,6 +969,8 @@ func _apply_status_from_payload(payload: Dictionary) -> void:
 
 
 func heal_full() -> void:
+	if _story_healing_locked:
+		return
 	health = max_health
 	stamina = max_stamina
 	focus = max_focus
@@ -900,7 +981,9 @@ func heal_full() -> void:
 
 ## L-06：外部治疗入口（往生莲等）
 func heal(amount: float) -> void:
-	health = minf(health + amount, max_health)
+	if _story_healing_locked or state == State.DEAD:
+		return
+	health = minf(health + amount * story_blessing_multiplier("healing"), max_health)
 	_emit_stats()
 
 
@@ -964,6 +1047,8 @@ func get_upgrade_cost() -> int:
 
 
 func try_upgrade_max_health() -> bool:
+	if _story_healing_locked:
+		return false
 	var cost := get_upgrade_cost()
 	if cost < 0 or embers < cost:
 		return false
@@ -1081,6 +1166,11 @@ func _rebuild_player_body(class_id: String) -> void:
 ## 优先读 run_state.body_class_override（见该函数注释），此处仅触发一次幂等重建使覆盖体观
 ## 生效（rebuild_body 对同职业自带短路）。空覆盖调用无副作用。
 func apply_body_class_override() -> void:
+	if world_node != null and is_instance_valid(world_node) and "run_state" in world_node:
+		var run = world_node.get("run_state")
+		if run != null and run.has_method("get_body_class_override"):
+			var saved_class: String = run.get_body_class_override()
+			_class_override = saved_class if not TalentDataScript.class_for_id(StringName(saved_class)).is_empty() else ""
 	_rebuild_player_body(get_active_class_id())
 
 
@@ -1182,6 +1272,7 @@ func apply_game_settings(settings: Dictionary) -> void:
 	)
 	invert_camera_y = bool(settings.get("invert_camera_y", false))
 	_combat_tip_mode = bool(settings.get("combat_tip_mode", false))
+	_input_buffer_debug_enabled = bool(settings.get("input_buffer_debug", false))
 	if combat_area != null:
 		combat_area.debug_draw = bool(settings.get("combat_hitbox_debug", false))
 	combat_style_changed.emit(combat_style, _style_display_name())
@@ -1189,7 +1280,7 @@ func apply_game_settings(settings: Dictionary) -> void:
 
 
 func get_target_point() -> Vector3:
-	return global_position + Vector3.UP * 1.15
+	return global_position + up_direction * 1.15
 
 
 func is_targetable() -> bool:
@@ -1211,6 +1302,9 @@ func _handle_action_input() -> void:
 		interaction_target.interact(self)
 	if Input.is_action_just_pressed("cycle_style"):
 		set_combat_style((int(combat_style) + 1) % CombatStyle.size())
+	if InputMap.has_action("cycle_weapon") and Input.is_action_just_pressed("cycle_weapon"):
+		if not try_cycle_weapon():
+			_show_message(get_weapon_loadout_error(), 0.8)
 	for style_index in CombatStyle.size():
 		if Input.is_action_just_pressed("style_%d" % (style_index + 1)):
 			set_combat_style(style_index)
@@ -1264,7 +1358,7 @@ func _try_jump() -> void:
 	# 通用跳跃：仅 LOCOMOTION + 贴地；上升时自动 snap 停用
 	if state != State.LOCOMOTION or not is_on_floor():
 		return
-	velocity.y = JUMP_VELOCITY
+	velocity.y = JUMP_VELOCITY * up_direction.y
 	_airborne_from_jump = true
 	_play_audio("dodge", -10.0, 1.35)
 
@@ -1398,10 +1492,10 @@ func get_input_buffer_debug() -> Dictionary:
 
 
 func _update_input_buffer_debug() -> void:
-	# combat tip 或 debug 构建下显示「动作 + 剩余 ms」
+	# Diagnostic timing is opt-in, including editor and debug exports.
 	if hud_node == null or not is_instance_valid(hud_node) or not hud_node.has_method("set_input_buffer_debug"):
 		return
-	var show_debug := _combat_tip_mode or OS.is_debug_build()
+	var show_debug := _input_buffer_debug_enabled
 	if not show_debug or (_buffered_action == "" and _action_queue.is_empty()) or _buffer_timer <= 0.0:
 		if show_debug and not _action_queue.is_empty():
 			hud_node.set_input_buffer_debug("Q %d" % _action_queue.size())
@@ -1488,27 +1582,26 @@ func _update_state(delta: float) -> void:
 				pass
 			else:
 				var leap_forward := -global_transform.basis.z
-				var profile := _style_data()
-				var leap_entry_speed: float = profile.leap_lunge * 0.65
+				var leap_entry_speed := (_current_attack.authored_displacement.z if _current_attack != null else _style_data().leap_lunge) * 0.65
 				velocity.x = leap_forward.x * leap_entry_speed
 				velocity.z = leap_forward.z * leap_entry_speed
 			if state_time <= 0.0:
-				_change_state(State.LEAP_ACTIVE, _style_data().leap_active)
+				_change_state(State.LEAP_ACTIVE, _current_attack.active_seconds if _current_attack != null else _style_data().leap_active)
 		State.LEAP_ACTIVE:
 			if _leap_uses_root_motion and _apply_anim_root_motion(delta):
 				pass
 			else:
 				var attack_forward := -global_transform.basis.z
-				var profile := _style_data()
-				var leap_speed: float = profile.leap_lunge
+				var leap_speed := _current_attack.authored_displacement.z if _current_attack != null else _style_data().leap_lunge
 				velocity.x = attack_forward.x * leap_speed
 				velocity.z = attack_forward.z * leap_speed
-			if _leap_is_curved and not _leap_second_hit and state_time <= _style_data().leap_active * 0.47:
+			var leap_active := _current_attack.active_seconds if _current_attack != null else _style_data().leap_active
+			if _leap_is_curved and not _leap_second_hit and state_time <= leap_active * 0.47:
 				_leap_second_hit = true
 				combat_area.end_swing()
 				_begin_melee_swing()
 			if state_time <= 0.0:
-				_change_state(State.ATTACK_RECOVERY, _style_data().leap_recovery)
+				_change_state(State.ATTACK_RECOVERY, _current_attack.recovery_seconds if _current_attack != null else _style_data().leap_recovery)
 		State.CAST:
 			_slow_horizontal(delta, acceleration * 2.0)
 			_face_lock_target(delta)
@@ -1574,7 +1667,7 @@ func _update_locomotion(delta: float) -> void:
 	var direction := (camera_right * input_vector.x + camera_forward * -input_vector.y).normalized()
 	var sprinting := _wants_sprint() and direction.length_squared() > 0.0 and stamina > 0.0
 	var dilation := _g06_dilation()
-	var target_speed := (sprint_speed if sprinting else move_speed) * _talent_speed_mult * _meridian_speed_mult * _weight_speed_mult * dilation
+	var target_speed := (sprint_speed if sprinting else move_speed) * _talent_speed_mult * _meridian_speed_mult * _weight_speed_mult * dilation * story_blessing_multiplier("speed")
 	# B-12：按状态取加速度
 	var accel: float = _get_current_acceleration()
 	if sprinting:
@@ -2000,6 +2093,11 @@ func _try_chain_advance() -> bool:
 	if _current_attack == null:
 		return false
 	var elapsed := state_duration - state_time
+	# Chain windows are authored from attack start; state_time restarts per phase.
+	if state == State.ATTACK_ACTIVE:
+		elapsed += _current_attack.windup_seconds
+	elif state == State.ATTACK_RECOVERY:
+		elapsed += _current_attack.windup_seconds + _current_attack.active_seconds
 	var open := _chain_window_open(_current_attack)
 	var close := _chain_window_close(_current_attack)
 	if elapsed < open or elapsed > close:
@@ -2051,8 +2149,8 @@ func _commit_chain_attack(attack: AttackData, heavy: bool, hand: String) -> bool
 	attack_damage = _current_attack.damage
 	attack_stagger = _current_attack.poise_damage
 	_combo_chain_hit_landed = false
-	if _anim_bridge != null and _anim_bridge.enabled and not attack_heavy and is_on_floor():
-		_anim_bridge.travel_light_attack()
+	if _anim_bridge != null and _anim_bridge.enabled and is_on_floor():
+		_anim_bridge.travel_melee_attack(_current_attack, attack_heavy)
 	_change_state(State.ATTACK_WINDUP, _current_attack.windup_seconds)
 	return true
 
@@ -2110,15 +2208,15 @@ func _commit_attack(
 	attack_stagger = _current_attack.poise_damage
 	_consume_context_windows(_current_attack)
 	if not is_on_floor() and _current_attack.launch_velocity_y < 0.0:
-		velocity.y = minf(velocity.y, _current_attack.launch_velocity_y)
+		velocity.y = minf(velocity.dot(up_direction), _current_attack.launch_velocity_y) * up_direction.y
 	_announce_context_attack(_current_attack)
 	# L-07：仅中立轻/重击建链；context 招式重置链
 	if resolved == moveset.neutral_light or resolved == moveset.neutral_heavy:
 		_begin_combo_chain(heavy, hand, attack_action_id)
 	else:
 		_reset_combo_chain()
-	if _anim_bridge != null and _anim_bridge.enabled and not attack_heavy and is_on_floor():
-		_anim_bridge.travel_light_attack()
+	if _anim_bridge != null and _anim_bridge.enabled and is_on_floor():
+		_anim_bridge.travel_melee_attack(_current_attack, attack_heavy)
 	_change_state(State.ATTACK_WINDUP, _current_attack.windup_seconds)
 
 
@@ -2214,7 +2312,7 @@ func _update_attack_active_motion(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, acceleration * 1.4 * delta)
 		velocity.z = move_toward(velocity.z, 0.0, acceleration * 1.4 * delta)
 		if _current_attack != null:
-			velocity.y = minf(velocity.y, _current_attack.launch_velocity_y)
+			velocity.y = minf(velocity.dot(up_direction), _current_attack.launch_velocity_y) * up_direction.y
 		return
 	if _movement_mode == MovementMode.ANIMATION_DRIVEN and _apply_anim_root_motion(delta):
 		return
@@ -2246,7 +2344,7 @@ func _apply_anim_root_motion(delta: float, scale: float = 1.0) -> bool:
 	if rr != Quaternion.IDENTITY and rr.length_squared() > 0.0:
 		var yaw := rr.get_euler().y
 		if absf(yaw) > 0.0001:
-			rotate_y(yaw)
+			rotation.y += yaw * up_direction.y
 			applied = true
 	return applied
 
@@ -2256,7 +2354,7 @@ func _resolve_context_attack(moveset: MovesetData, heavy: bool) -> AttackData:
 	if not is_on_floor():
 		if not _can_jump_slash():
 			return null
-		if heavy and velocity.y < -0.5 and moveset.falling_attack != null:
+		if heavy and velocity.dot(up_direction) < -0.5 and moveset.falling_attack != null:
 			return moveset.falling_attack
 		if moveset.jump_attack != null:
 			return moveset.jump_attack
@@ -2386,8 +2484,10 @@ func set_hand_loadout(right_hand_id: String, left_hand_id: String) -> bool:
 	if not HandEquipmentScript.is_valid_for_hand(left_hand_id, "left"):
 		return false
 	var previous_class_id := get_active_class_id()
+	_equipped_right_weapon = null  # Explicit compatibility loadout/class change.
 	right_hand_item = right_hand_id
 	left_hand_item = left_hand_id
+	_weapon_loadout.track_equipped(right_hand_item)
 	combat_style = HandEquipmentScript.get_style_for_loadout(right_hand_item, left_hand_item) as CombatStyle
 	_apply_default_grip_for_style()
 	guard_active = false
@@ -2401,7 +2501,175 @@ func set_hand_loadout(right_hand_id: String, left_hand_id: String) -> bool:
 	var new_class_id := get_active_class_id()
 	if new_class_id != previous_class_id:
 		_rebuild_player_body(new_class_id)
+	weapon_loadout_changed.emit()
 	return true
+
+
+## Equipment UI and gameplay input share these guarded, weapon-only operations.
+## Class identity, body nodes, camera, stats and the left-hand item stay intact.
+func get_weapon_loadout_error() -> String:
+	return _weapon_loadout_error
+
+
+func can_change_weapon_loadout() -> bool:
+	return state == State.LOCOMOTION and not _visual_frozen and not _grab_pose_lock
+
+
+func _weapon_inventory() -> Dictionary:
+	if world_node != null and is_instance_valid(world_node) and "run_state" in world_node:
+		var run = world_node.get("run_state")
+		if run != null:
+			return run.inventory
+	return {}
+
+
+func get_available_right_weapons() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var inventory := _weapon_inventory()
+	for item_id in _weapon_loadout.owned_weapons(inventory, right_hand_item):
+		var weapon := HandEquipmentScript.get_weapon_data(item_id)
+		if weapon == null or not weapon.validate().is_empty():
+			continue
+		rows.append({
+			"item_id": item_id, "display_name": HandEquipmentScript.get_display_name(item_id),
+			"weapon_type": String(weapon.weapon_type), "owned": true,
+			"count": maxi(1, int(inventory.get(item_id, 0))),
+			"supported_grips": weapon.supported_grips(),
+			"primary_label": String(HandEquipmentScript.get_item(item_id).get("primary_label", "轻击")),
+			"secondary_label": String(HandEquipmentScript.get_item(item_id).get("secondary_label", "重击")),
+			"active": item_id == right_hand_item, "can_select": can_change_weapon_loadout(),
+		})
+	return rows
+
+
+func get_weapon_quickslots() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for index in WeaponLoadoutScript.SLOT_COUNT:
+		var item_id: String = _weapon_loadout.slots[index]
+		rows.append({
+			"slot": index, "item_id": item_id,
+			"display_name": HandEquipmentScript.get_display_name(item_id),
+			"weapon_type": String(HandEquipmentScript.get_weapon_type(item_id)),
+			"active": item_id == right_hand_item,
+			"can_select": can_change_weapon_loadout(),
+		})
+	return rows
+
+
+func _validate_weapon_slot(index: int) -> bool:
+	_weapon_loadout_error = ""
+	if not can_change_weapon_loadout():
+		_weapon_loadout_error = "动作结束后才能更换武器"
+		return false
+	if index < 0 or index >= WeaponLoadoutScript.SLOT_COUNT:
+		_weapon_loadout_error = "无效的武器栏位"
+		return false
+	return true
+
+
+func try_select_weapon_slot(index: int) -> bool:
+	if not _validate_weapon_slot(index):
+		return false
+	var item_id: String = _weapon_loadout.slots[index]
+	if item_id not in _weapon_loadout.owned_weapons(_weapon_inventory(), right_hand_item):
+		_weapon_loadout_error = "尚未获得这件武器"
+		return false
+	if not _equip_right_weapon(item_id):
+		return false
+	_weapon_loadout.active_slot = index
+	weapon_loadout_changed.emit()
+	return true
+
+
+func try_cycle_weapon() -> bool:
+	var current: int = _weapon_loadout.slots.find(right_hand_item)
+	return try_select_weapon_slot((current + 1) % WeaponLoadoutScript.SLOT_COUNT)
+
+
+func try_assign_weapon_slot(index: int, item_id: String) -> bool:
+	if not _validate_weapon_slot(index):
+		return false
+	if item_id not in HandEquipmentScript.QUICKSLOT_WEAPONS:
+		_weapon_loadout_error = "这件物品暂不能装备到武器栏"
+		return false
+	if item_id not in _weapon_loadout.owned_weapons(_weapon_inventory(), right_hand_item):
+		_weapon_loadout_error = "尚未获得这件武器"
+		return false
+	var replace_active: bool = _weapon_loadout.slots[index] == right_hand_item
+	if replace_active and not _equip_right_weapon(item_id):
+		return false
+	# Moving an already-slotted weapon swaps the two slots instead of duplicating it.
+	var previous: int = _weapon_loadout.slots.find(item_id)
+	if previous >= 0 and previous != index:
+		_weapon_loadout.slots[previous] = _weapon_loadout.slots[index]
+	_weapon_loadout.slots[index] = item_id
+	_weapon_loadout.track_equipped(right_hand_item)
+	weapon_loadout_changed.emit()
+	return true
+
+
+func _equip_right_weapon(item_id: String) -> bool:
+	var weapon := HandEquipmentScript.get_weapon_data(item_id)
+	if weapon == null or not weapon.validate().is_empty():
+		_weapon_loadout_error = "武器招式尚未就绪"
+		return false
+	_equipped_right_weapon = weapon
+	right_hand_item = item_id
+	var grips := _current_weapon_grips()
+	if _grip_key() not in grips:
+		grip_mode = _grip_mode_from_key(weapon.default_grip if weapon.default_grip in grips else grips[0])
+	guard_active = false
+	_current_attack = null
+	_current_art_stance = &""
+	_buffered_action = ""
+	_buffer_timer = 0.0
+	_action_queue.clear()
+	_reset_combo_chain()
+	_update_weapon_visuals()
+	hands_changed.emit(right_hand_item, left_hand_item, get_hand_action_labels())
+	grip_changed.emit(int(grip_mode), _grip_display_name())
+	_weapon_loadout_error = ""
+	return true
+
+
+## Call after restoring the saved class. This entry also restores its saved
+## offhand without feeding a mixed weapon pair back through class inference.
+func restore_weapon_loadout(run) -> void:
+	if run == null:
+		return
+	var saved_item: String = run.right_hand
+	_weapon_loadout.restore(run.progression_values, run.inventory, saved_item)
+	if HandEquipmentScript.is_valid_for_hand(run.left_hand, "left"):
+		left_hand_item = run.left_hand
+	_equipped_right_weapon = null
+	if saved_item in HandEquipmentScript.QUICKSLOT_WEAPONS:
+		_equip_right_weapon(saved_item)
+	elif HandEquipmentScript.is_valid_for_hand(saved_item, "right"):
+		# Old compatibility bow/catalyst saves still retain their original behavior.
+		right_hand_item = saved_item
+		_apply_default_grip_for_style()
+		_update_weapon_visuals()
+		hands_changed.emit(right_hand_item, left_hand_item, get_hand_action_labels())
+	_refresh_weight_class()
+	weapon_loadout_changed.emit()
+
+
+func snapshot_weapon_loadout(run) -> void:
+	if run == null:
+		return
+	_weapon_loadout.snapshot(run.progression_values)
+	for item_id in _weapon_loadout.inherited_weapons():
+		run.inventory[item_id] = maxi(1, int(run.inventory.get(item_id, 0)))
+	run.right_hand = right_hand_item
+	run.left_hand = left_hand_item
+
+
+func _current_weapon_grips() -> Array[StringName]:
+	var weapon := _current_weapon()
+	var grips: Array[StringName] = weapon.supported_grips() if weapon != null else []
+	if _equipped_right_weapon != null and not HandEquipmentScript.are_same_weapon_type(right_hand_item, left_hand_item):
+		grips.erase(&"paired")
+	return grips
 
 
 func get_hand_loadout() -> Dictionary:
@@ -2449,10 +2717,14 @@ func _initialize_movesets() -> void:
 
 
 func _current_weapon() -> WeaponData:
+	if _equipped_right_weapon != null:
+		return _equipped_right_weapon
 	return _weapons.get(combat_style) as WeaponData
 
 
 func _current_moveset() -> MovesetData:
+	if _equipped_right_weapon != null:
+		return _equipped_right_weapon.resolve_moveset(_grip_key())
 	var cached: MovesetData = _movesets.get(combat_style) as MovesetData
 	if cached != null:
 		return cached
@@ -2518,6 +2790,8 @@ func _apply_default_grip_for_style() -> void:
 
 
 func _refresh_moveset_cache() -> void:
+	if _equipped_right_weapon != null:
+		return
 	var weapon := _current_weapon()
 	if weapon == null:
 		return
@@ -2530,11 +2804,11 @@ func _try_toggle_grip() -> void:
 	var weapon := _current_weapon()
 	if weapon == null:
 		return
-	var grips := weapon.supported_grips()
+	var grips := _current_weapon_grips()
 	if grips.size() <= 1:
 		_show_combat_tip("GRIP LOCKED", 0.6)
 		return
-	var next_key := weapon.cycle_grip(_grip_key())
+	var next_key := grips[(grips.find(_grip_key()) + 1) % grips.size()]
 	grip_mode = _grip_mode_from_key(next_key)
 	guard_active = false
 	_refresh_moveset_cache()
@@ -2626,9 +2900,9 @@ func _execute_hand_action(hand: String, slot: String) -> void:
 	var definition := HandEquipmentScript.get_item(item_id)
 	var action_id := String(definition.get(slot, ""))
 	match action_id:
-		"sword_light":
+		"sword_light", "weapon_light":
 			_try_attack(false, "right", action_id)
-		"sword_heavy":
+		"sword_heavy", "weapon_heavy":
 			if guard_active:
 				_try_shield_bash()
 			elif _wants_immediate_heavy():
@@ -2682,10 +2956,13 @@ func _try_style_skill() -> void:
 		return
 	match combat_style:
 		CombatStyle.RELIQUARY_GUARD:
+			_current_art_stance = &"spear_charge_stance"
 			_try_pierce_thrust()
 		CombatStyle.TWIN_COLOSSI:
+			_current_art_stance = &"colossal_leap"
 			_try_leap_attack(false)
 		CombatStyle.CRESCENT_PAIR:
+			_current_art_stance = &"curved_spin"
 			_try_leap_attack(true)
 		CombatStyle.VEILCRAFT:
 			_try_arcane_barrage()
@@ -2697,6 +2974,14 @@ func _execute_weapon_art(art: WeaponArtData) -> void:
 	if art == null:
 		return
 	_current_art_stance = art.stance_animation if not art.stance_animation.is_empty() else &""
+	# Legacy style/default weapon resources predate stance_animation. Resolve
+	# their actual F action to an existing full-body clip; an empty stance would
+	# otherwise select the one-forearm placeholder and reset the body to rest.
+	if _current_art_stance.is_empty():
+		match art.art_kind:
+			&"pierce_thrust": _current_art_stance = &"spear_charge_stance"
+			&"colossal_leap": _current_art_stance = &"colossal_leap"
+			&"crescent_leap": _current_art_stance = &"curved_spin"
 	match art.art_kind:
 		&"pierce_thrust":
 			_try_pierce_thrust()
@@ -2776,7 +3061,7 @@ func _try_leap_attack(curved_pair: bool) -> void:
 	attack_action_id = "crescent_leap" if curved_pair else "colossal_leap"
 	_spend_stamina(cost, 0.9)
 	if is_on_floor():
-		velocity.y = _current_attack.launch_velocity_y
+		velocity.y = _current_attack.launch_velocity_y * up_direction.y
 	# D-05：Twin Colossi 直线 leap 走 AnimationTree 根运动前冲。
 	# 直线 leap 恒播 colossal_leap 动画（曲刃 leap 走 _change_state 的 travel_skill），
 	# 与根运动模式解耦；_leap_uses_root_motion 只决定位移来源。
@@ -3019,8 +3304,8 @@ func _begin_melee_swing() -> void:
 	else:
 		combat_area.clear_socket_follow()
 	combat_area.begin_swing(
-		attack_damage * _fate_damage_multiplier * (1.0 + _forge_level * FORGE_DAMAGE_PER_LEVEL) * _talent_damage_mult * _meridian_damage_mult,
-		attack_stagger,
+		attack_damage * _fate_damage_multiplier * (1.0 + _forge_level * FORGE_DAMAGE_PER_LEVEL) * _talent_damage_mult * _meridian_damage_mult * story_blessing_multiplier("damage"),
+		attack_stagger * story_blessing_multiplier("stagger"),
 		_attack_metadata()
 	)
 
@@ -3114,7 +3399,7 @@ func _update_poise(delta: float) -> void:
 		return
 	if state != State.LOCOMOTION or poise_health >= max_poise_health:
 		return
-	poise_health = minf(poise_health + poise_regen_rate * delta, max_poise_health)
+	poise_health = minf(poise_health + poise_regen_rate * story_blessing_multiplier("poise_regen") * delta, max_poise_health)
 	poise_changed.emit(poise_health, max_poise_health)
 
 
@@ -3127,12 +3412,12 @@ func _update_stamina(delta: float) -> void:
 		else:
 			var previous := stamina
 			# L-10：防具重量档对精力回复的惩罚（中甲 -5%、重甲 -12%）
-			stamina = minf(stamina + stamina_regen * (1.0 - _weight_stamina_penalty) * dilation * delta, max_stamina)
+			stamina = minf(stamina + stamina_regen * (1.0 - _weight_stamina_penalty) * dilation * delta * story_blessing_multiplier("stamina_regen"), max_stamina)
 			if not is_equal_approx(previous, stamina):
 				_queue_stats_update()
 		if focus < max_focus:
 			var previous_focus_int := floori(focus)
-			focus = minf(focus + FOCUS_REGEN_RATE * focus_regen_multiplier * _talent_focus_regen_mult * _meridian_focus_regen_mult * dilation * delta, max_focus)
+			focus = minf(focus + FOCUS_REGEN_RATE * focus_regen_multiplier * _talent_focus_regen_mult * _meridian_focus_regen_mult * dilation * delta * story_blessing_multiplier("focus_regen"), max_focus)
 			if floori(focus) != previous_focus_int:
 				_emit_focus()
 
@@ -3277,12 +3562,12 @@ func _begin_lock_camera_recover() -> void:
 	if camera_rig == null:
 		return
 	var euler := camera_rig.global_basis.get_euler()
-	camera_rig.rotation = Vector3(0.0, euler.y, 0.0)
+	camera_rig.rotation = Vector3(0.0, euler.y, PI if up_direction.y < 0. else 0.)
 	_camera_recover_timer = LOCK_CAMERA_RECOVER_TIME
 
 
 func _update_camera_rig(delta: float) -> void:
-	camera_rig.global_position = global_position + Vector3.UP * 1.45
+	camera_rig.global_position = global_position + up_direction * 1.45
 	if _camera_director_override:
 		return
 	# G-05：锁敌取景——镜头驻留玩家身后，缓慢跟踪玩家→目标连线（DS 式绕背）
@@ -3298,7 +3583,8 @@ func _update_camera_rig(delta: float) -> void:
 			LockCameraSolverScript.exp_weight(LockCameraSolverScript.YAW_TRACK_SPEED, delta)
 		)
 		# 俯仰：瞄准玩家头顶与目标胸口的中点（中点偏向目标）
-		var pitch_target: float = LockCameraSolverScript.desired_pitch(global_position, point, camera_rig.global_position)
+		var signed_axis := Vector3(1, up_direction.y, 1)
+		var pitch_target: float = LockCameraSolverScript.desired_pitch(global_position * signed_axis, point * signed_axis, camera_rig.global_position * signed_axis)
 		camera_pitch.rotation.x = lerp_angle(
 			camera_pitch.rotation.x,
 			pitch_target,
@@ -3313,14 +3599,16 @@ func _update_camera_rig(delta: float) -> void:
 			LockCameraSolverScript.exp_weight(LockCameraSolverScript.BOOM_SPEED, delta)
 		)
 		return
+	# Boom recovery remains active after manual orbit cancels yaw/pitch recovery,
+	# and after the short recovery timer expires.
+	spring_arm.spring_length = lerpf(spring_arm.spring_length, LockCameraSolverScript.BOOM_BASE,
+		LockCameraSolverScript.exp_weight(LockCameraSolverScript.BOOM_SPEED, delta))
 	# F-05：断锁后偏航对齐角色，俯仰回默认轻度俯视
 	if _camera_recover_timer > 0.0:
 		_camera_recover_timer = maxf(_camera_recover_timer - delta, 0.0)
 		var weight := clampf(delta * LOCK_CAMERA_RECOVER_SPEED, 0.0, 1.0)
 		camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, rotation.y, weight)
 		camera_pitch.rotation.x = lerp_angle(camera_pitch.rotation.x, LOCK_CAMERA_DEFAULT_PITCH, weight)
-		# G-05：断锁后臂长缓慢收回基础长度
-		spring_arm.spring_length = lerpf(spring_arm.spring_length, LockCameraSolverScript.BOOM_BASE, LockCameraSolverScript.exp_weight(LockCameraSolverScript.BOOM_SPEED, delta))
 		return
 	# F-06：无手动输入一段时间后，镜头回跟角色朝向（速度越快越贴）
 	_camera_recenter_timer = maxf(_camera_recenter_timer - delta, 0.0)
@@ -3343,7 +3631,7 @@ func _update_gamepad_camera(delta: float) -> void:
 	_camera_recover_timer = 0.0
 	_camera_recenter_timer = CAMERA_RECENTER_DELAY
 	var angular_speed := 2.4 * camera_sensitivity_scale
-	camera_rig.rotation.y -= look.x * angular_speed * delta
+	camera_rig.rotation.y -= look.x * angular_speed * delta * up_direction.y
 	var pitch_direction := 1.0 if invert_camera_y else -1.0
 	camera_pitch.rotation.x = clampf(
 		camera_pitch.rotation.x + look.y * angular_speed * delta * pitch_direction,
@@ -3458,6 +3746,13 @@ func _configure_spring_arm_collision() -> void:
 		return
 	# 直接写 mask 位图；勿用 set_collision_mask_value（部分环境无此 API）
 	spring_arm.collision_mask = SPRING_ARM_COLLISION_MASK  # = 1，仅 Layer1 静态世界
+	# Invisible containment walls still block actors, but must not push the
+	# camera into the player. Refresh after each level replacement/respawn.
+	spring_arm.clear_excluded_objects()
+	if is_inside_tree():
+		for node in get_tree().get_nodes_in_group("camera_passthrough"):
+			if node is CollisionObject3D and not node.is_queued_for_deletion():
+				spring_arm.add_excluded_object(node.get_rid())
 
 
 func _update_weapon_visuals() -> void:

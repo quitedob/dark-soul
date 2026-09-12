@@ -4,6 +4,7 @@ class_name DialogueOverlay
 ## 极简对白面板：逐行显示，结束后发信号
 
 signal dialogue_finished(dialogue_id: StringName)
+const HudThemeScript = preload("res://scripts/ui/hud_theme.gd")
 
 var _dim: ColorRect
 var _label: Label
@@ -49,6 +50,7 @@ func _build() -> void:
 	add_child(_dim)
 
 	var panel := PanelContainer.new()
+	panel.theme = HudThemeScript.new().build_theme()
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	panel.offset_top = -160.0
 	panel.offset_left = 40.0

@@ -26,6 +26,8 @@ func _run() -> void:
 		return
 	# Keep the existing tree/resources intact, but make this fixture deterministic.
 	bridge.anim_tree.active = false
+	await process_frame
+	await process_frame
 	var root_track: NodePath = bridge.anim_tree.root_motion_track
 	var combat_library: AnimationLibrary = bridge.anim_player.get_animation_library("combat")
 	_expect(not Embedded.available(player.body_mesh), "Manny must not bind embedded class actions")
@@ -34,6 +36,8 @@ func _run() -> void:
 	player._update_visual_pose()
 	_expect(absf(player.visual_root.rotation.x) > .1, "legacy procedural dodge must remain")
 	player._change_state(player.State.LOCOMOTION)
+	player._update_visual_pose()
+	_assert_manny_grip(player)
 	_expect(player.try_switch_class(player.CombatStyle.TWIN_COLOSSI), "base class switch must succeed")
 	await process_frame
 	await process_frame
@@ -50,7 +54,7 @@ func _run() -> void:
 	_test_state_entries(player, animation)
 	_test_speed_and_visuals(player, animation)
 	_test_death_and_respawn(player, animation)
-	_test_body_rebuild(player)
+	await _test_body_rebuild(player)
 	_expect(bridge.anim_tree.root_motion_track == root_track, "root-motion track must not change")
 	_expect(bridge.anim_player.get_animation_library("combat") == combat_library,
 		"embedded actions must not replace the legacy library")
@@ -211,16 +215,61 @@ func _test_body_rebuild(player) -> void:
 		new_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		_expect(_is_clip(new_animation, "idle"), "replacement class must start cleanly")
 		_expect(is_zero_approx(new_animation.get_playing_speed()), "replacement class must inherit hit-stop")
+	# Equipment transforms now follow the replacement body's evaluated hand pose.
+	# Let its deferred skeleton update finish before checking the new anchors.
+	await process_frame
+	await process_frame
 	for index in retained.size():
 		var node := retained[index]
 		_expect(is_instance_valid(node) and node.is_inside_tree(), "body rebuild must preserve equipment/camera/hitbox nodes")
-		_expect(node.transform.is_equal_approx(transforms[index]), "body rebuild must preserve retained transforms")
+		if index >= 3:
+			_expect(node.transform.is_equal_approx(transforms[index]), "body rebuild must preserve trail/hitbox/camera transforms")
+	_assert_native_hand_anchors(player)
 	_expect(player.weapon_pivot.get_parent() == player.body_yaw, "weapon pivot must remain outside replaceable BodyRoot")
 	_expect(player.weapon_trail.get_parent() == player.body_yaw, "trail hierarchy must remain unchanged")
 	player.set_visual_frozen(false)
 	player._change_state(player.State.GUARD_THRUST, .4)
 	if new_animation != null:
 		_expect(_is_clip(new_animation, "gate_seal_ritual"), "special alias must use the replacement model")
+
+
+func _assert_manny_grip(player) -> void:
+	var skeleton := _hand_skeleton(player.body_mesh, "DEF-hand.")
+	_expect(skeleton != null, "Manny must expose anatomical hand anchors")
+	if skeleton == null:
+		return
+	var hand := skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone("DEF-hand.R"))
+	var grip: Vector3 = hand.affine_inverse() * player.weapon_pivot.global_position
+	_expect(grip.y > .05 and grip.y < .1 and absf(grip.x) < .02 and absf(grip.z) < .01,
+		"Manny weapon grip must lie inside the palm")
+	_expect(player.weapon_pivot.global_basis.y.normalized().dot(hand.basis.orthonormalized().z) > .999,
+		"Manny shaft must follow the transverse grip axis")
+
+
+func _assert_native_hand_anchors(player) -> void:
+	var skeleton := _hand_skeleton(player.body_mesh, "hand.")
+	_expect(skeleton != null, "replacement class must expose native hand anchors")
+	if skeleton == null:
+		return
+	for side: String in ["R", "L"]:
+		var bone := skeleton.find_bone("hand." + side)
+		var hand := skeleton.global_transform * skeleton.get_bone_global_pose(bone)
+		var pivot: Node3D = player.weapon_pivot if side == "R" else player.offhand_weapon_pivot
+		_expect(pivot.get_parent() == player.body_yaw, "replacement equipment must stay outside BodyRoot")
+		_expect(pivot.global_position.distance_to(hand.origin) < .0001,
+			"replacement %s equipment must follow its new hand" % side)
+		if side == "L":
+			_expect(player.shield_mesh.get_parent() == player.body_yaw
+				and player.shield_mesh.global_position.distance_to(hand.origin) < .0001,
+				"replacement shield must follow its new left hand")
+
+
+func _hand_skeleton(body: Node, prefix: String) -> Skeleton3D:
+	for candidate in body.find_children("*", "Skeleton3D", true, false):
+		var skeleton := candidate as Skeleton3D
+		if skeleton.find_bone(prefix + "R") >= 0 and skeleton.find_bone(prefix + "L") >= 0:
+			return skeleton
+	return null
 
 
 func _weapon_probe(parent: Node) -> AnimationPlayer:

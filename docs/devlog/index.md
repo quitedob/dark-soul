@@ -6,8 +6,17 @@
 
 ## 日期索引
 
+### 2026-09-10
+
+- [Blender MCP、后台资产管线与全场景问题排查方法复盘](2026-09-10/02-blender-mcp-workflow-and-debugging-retrospective.md)
+- [29 关剧情布置、独立 Boss 判定与场景机制（实现与最终 Chrome 验收完成，验证范围见正文）](2026-09-10/01-story-scene-encounters.md)
+
 ### 2026-09-09
 
+- [全关卡建模、独立兵器栏与 Boss 场地互动（09-10 验证完成）](2026-09-09/05-weapon-loadout-temple-redesign.md)
+- [武器挥砍修复：Manny 握柄轴、真实刀光、动作时序与连续攻击](2026-09-09/04-weapon-swing-visual-timing.md)
+- [Chrome 实际游戏检查：玩家镜头、29 关地形环境、导航与字体修复](2026-09-09/03-browser-gameplay-camera-environment.md)
+- [86 个动画模型接入游戏：761 clips、骨架部件保留、手部装备跟随与姿态采样](2026-09-09/02-animated-library-runtime-integration.md)
 - [86 个模型转换完成状态复核：发布文件、清单哈希与 Godot 导入再次全部通过](2026-09-09/01-model-conversion-recheck.md)
 
 ### 2026-09-08

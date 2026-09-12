@@ -1,0 +1,971 @@
+{
+  "schema_version": 1,
+  "evidence": "independent GLB bytes and geometry",
+  "manifest_sha256": "111a8806becfe38641705a68797115c0650a8b59f446eac52d08cad2093f71f3",
+  "generator_source_sha256": "0adf9a119fbe35e16af29c07c9106057376f98e99a41e76c55fa20f20d1cf2df",
+  "verifier_sources": {
+    "tools/threejs/verify_environment.mjs": "67e670b6d20cd2938a060c37eab28bb75bf851f4a26412e703352ae159ec3b6a",
+    "tools/threejs/glb_reader.mjs": "1f38380b42a81b8b1baa447ad8c14630ce81d3862cffddf5270c10f5e2a43a7b"
+  },
+  "themes": {
+    "spirit_ruins": {
+      "sha256": "18277d07fa1ebef791190648843f24caa42014e2fcca997867859a56bd790e92",
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "triangles": 1108,
+          "surfaces": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "triangles": 1148,
+          "surfaces": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "triangles": 1112,
+          "surfaces": 3
+        },
+        "Column": {
+          "min": [
+            -0.9257192611694336,
+            0,
+            -0.9399999976158142
+          ],
+          "max": [
+            0.9257192611694336,
+            6,
+            0.9399999976158142
+          ],
+          "triangles": 1572,
+          "surfaces": 3
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "triangles": 8096,
+          "surfaces": 5
+        },
+        "Landmark": {
+          "min": [
+            -5.75,
+            0,
+            -5.25
+          ],
+          "max": [
+            5.75,
+            6.920000076293945,
+            5.25
+          ],
+          "triangles": 15436,
+          "surfaces": 5
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "triangles": 912,
+          "surfaces": 4
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "triangles": 1572,
+          "surfaces": 3
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "triangles": 3980,
+          "surfaces": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "triangles": 1120,
+          "surfaces": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "triangles": 33768,
+          "surfaces": 5
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "triangles": 268,
+          "surfaces": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "triangles": 4716,
+          "surfaces": 2
+        }
+      },
+      "retained_landmark_triangles": "exact",
+      "root_contract": "identity direct children",
+      "portable_materials": "core PBR",
+      "embedded_dependencies": "none external"
+    },
+    "blood_iron": {
+      "sha256": "3f3d922273b2191497c90cc6614d01b6a5a6409a7bcfee915e2e5cbe1b6d2d65",
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "triangles": 796,
+          "surfaces": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "triangles": 1148,
+          "surfaces": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "triangles": 1068,
+          "surfaces": 2
+        },
+        "Column": {
+          "min": [
+            -0.8999999761581421,
+            -2.9802322831784522e-9,
+            -0.8999999761581421
+          ],
+          "max": [
+            0.8999999761581421,
+            6,
+            0.8999999761581421
+          ],
+          "triangles": 716,
+          "surfaces": 4
+        },
+        "Gate": {
+          "min": [
+            -6,
+            -2.9802322831784522e-9,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "triangles": 3384,
+          "surfaces": 5
+        },
+        "Landmark": {
+          "min": [
+            -5.25,
+            0,
+            -4.75
+          ],
+          "max": [
+            5.25,
+            12.300000190734863,
+            4.75
+          ],
+          "triangles": 16288,
+          "surfaces": 5
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "triangles": 624,
+          "surfaces": 3
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "triangles": 716,
+          "surfaces": 4
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "triangles": 4080,
+          "surfaces": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "triangles": 1408,
+          "surfaces": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "triangles": 28556,
+          "surfaces": 5
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "triangles": 252,
+          "surfaces": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "triangles": 1548,
+          "surfaces": 3
+        }
+      },
+      "retained_landmark_triangles": "exact",
+      "root_contract": "identity direct children",
+      "portable_materials": "core PBR",
+      "embedded_dependencies": "none external"
+    },
+    "jade_veil": {
+      "sha256": "46491b3eb3e422a7ea8438fdb54b8dbbb2246d030fecf71d6570752f80588866",
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "triangles": 1108,
+          "surfaces": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "triangles": 1148,
+          "surfaces": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "triangles": 1172,
+          "surfaces": 3
+        },
+        "Column": {
+          "min": [
+            -0.9257192611694336,
+            0,
+            -0.9399999976158142
+          ],
+          "max": [
+            0.9257192611694336,
+            6,
+            0.9399999976158142
+          ],
+          "triangles": 1788,
+          "surfaces": 4
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "triangles": 8528,
+          "surfaces": 6
+        },
+        "Landmark": {
+          "min": [
+            -5.695696830749512,
+            0,
+            -4.400000095367432
+          ],
+          "max": [
+            5.695696830749512,
+            10.012250900268555,
+            4.400000095367432
+          ],
+          "triangles": 12948,
+          "surfaces": 6
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "triangles": 1056,
+          "surfaces": 4
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "triangles": 1788,
+          "surfaces": 4
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "triangles": 3980,
+          "surfaces": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "triangles": 1552,
+          "surfaces": 4
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "triangles": 37224,
+          "surfaces": 6
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "triangles": 268,
+          "surfaces": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "triangles": 4716,
+          "surfaces": 2
+        }
+      },
+      "retained_landmark_triangles": "exact",
+      "root_contract": "identity direct children",
+      "portable_materials": "core PBR",
+      "embedded_dependencies": "none external"
+    },
+    "celestial_fall": {
+      "sha256": "38a0ac9c7f972c68b631dce78048220fc8b9530c722bf88d2f51e418cec1ab1a",
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "triangles": 1108,
+          "surfaces": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "triangles": 1148,
+          "surfaces": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "triangles": 1112,
+          "surfaces": 3
+        },
+        "Column": {
+          "min": [
+            -0.9257192611694336,
+            0,
+            -0.9399999976158142
+          ],
+          "max": [
+            0.9257192611694336,
+            6,
+            0.9399999976158142
+          ],
+          "triangles": 1772,
+          "surfaces": 3
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "triangles": 8496,
+          "surfaces": 5
+        },
+        "Landmark": {
+          "min": [
+            -5.75,
+            0,
+            -5.25
+          ],
+          "max": [
+            5.75,
+            16,
+            5.25
+          ],
+          "triangles": 39116,
+          "surfaces": 5
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "triangles": 624,
+          "surfaces": 3
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "triangles": 1962,
+          "surfaces": 3
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "triangles": 3956,
+          "surfaces": 4
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "triangles": 1310,
+          "surfaces": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "triangles": 37226,
+          "surfaces": 5
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "triangles": 268,
+          "surfaces": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "triangles": 4716,
+          "surfaces": 2
+        }
+      },
+      "retained_landmark_triangles": "exact",
+      "root_contract": "identity direct children",
+      "portable_materials": "core PBR",
+      "embedded_dependencies": "none external"
+    },
+    "ember_abyss": {
+      "sha256": "c5d7b146dc6c60d9277254839b609dc84a0bdc4ce6310ac200d88168b0b8a3b6",
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "triangles": 844,
+          "surfaces": 5
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "triangles": 1148,
+          "surfaces": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "triangles": 2504,
+          "surfaces": 2
+        },
+        "Column": {
+          "min": [
+            -0.91643226146698,
+            0,
+            -0.8469107151031494
+          ],
+          "max": [
+            0.91643226146698,
+            6,
+            0.9399999976158142
+          ],
+          "triangles": 1254,
+          "surfaces": 2
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "triangles": 6912,
+          "surfaces": 4
+        },
+        "Landmark": {
+          "min": [
+            -4.765481472015381,
+            0,
+            -4.709809303283691
+          ],
+          "max": [
+            4.765481472015381,
+            13.899726867675781,
+            4.709809303283691
+          ],
+          "triangles": 1686,
+          "surfaces": 4
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "triangles": 696,
+          "surfaces": 4
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "triangles": 1254,
+          "surfaces": 2
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "triangles": 6252,
+          "surfaces": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "triangles": 3040,
+          "surfaces": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "triangles": 24630,
+          "surfaces": 4
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "triangles": 348,
+          "surfaces": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "triangles": 4168,
+          "surfaces": 2
+        }
+      },
+      "retained_landmark_triangles": "exact",
+      "root_contract": "identity direct children",
+      "portable_materials": "core PBR",
+      "embedded_dependencies": "none external"
+    }
+  },
+  "limitations": [
+    "No Godot import, renderer, collision gameplay or target-device timing claims. Parent integration owns those checks."
+  ],
+  "result": "THREEJS_ENVIRONMENT_CONTRACTS_OK"
+}

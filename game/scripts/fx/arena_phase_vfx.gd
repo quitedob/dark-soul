@@ -11,19 +11,19 @@ func play_at(origin: Vector3, phase: int, vfx_key: String = "", parent: Node = n
 		return
 	var root := Node3D.new()
 	root.name = "ArenaPhaseVfx_P%d" % phase
-	root.position = origin
 	host.add_child(root)
+	if root.is_inside_tree():
+		root.global_position = origin
+	else:
+		root.position = origin
 	_spawn_shock_ring(root, phase)
 	_spawn_ember_burst(root, phase, vfx_key)
 	if phase >= 3:
 		_spawn_overload_column(root)
 	# 超时清理，避免粒子节点堆积
-	var tree := host.get_tree()
-	if tree != null:
-		tree.create_timer(DEFAULT_LIFETIME).timeout.connect(func():
-			if is_instance_valid(root):
-				root.queue_free()
-		)
+	var lifetime := root.create_tween()
+	lifetime.tween_interval(DEFAULT_LIFETIME)
+	lifetime.tween_callback(root.queue_free)
 
 
 func _spawn_shock_ring(root: Node3D, phase: int) -> void:

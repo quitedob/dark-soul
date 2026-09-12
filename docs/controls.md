@@ -27,6 +27,8 @@ The game uses semantic right-hand and left-hand actions. Their exact behavior ch
 | Left secondary | — | `R` | Parry, off-hand heavy, or utility action |
 | Weapon skill | — | `F` | Style-specific special action |
 | Cast | — | `G` | Current style spell or prayer |
+| Cycle equipped weapon | — | `X` | Cycles three right-hand weapon slots; preserves body, class and offhand |
+| Equipment menu | — | `I` | Assign owned weapons to slots; I or Esc closes |
 | Cycle style | — | `Tab` | Cycles all five compatibility loadouts |
 | Toggle grip | — | `T` | Cycles grip. Two-hand: **1.3× damage / 1.5× stamina**, no shield. Jump slash only if hands share `weapon_type` (or two-handing) |
 
@@ -40,10 +42,11 @@ The game uses semantic right-hand and left-hand actions. Their exact behavior ch
 
 ### Menus
 
-| Action | Binding |
-|---|---|
-| Pause | `Esc` |
-| Help | `F1` |
+| Action | Binding | Notes |
+|---|---|---|
+| Pause | `Esc` | |
+| Help | `F1` | |
+| Equipment | `I` | Also available from Pause and Inventory |
 | Hitbox debug | `F3` | Toggles CombatArea capsule visualization |
 
 ## Controller
@@ -64,6 +67,8 @@ The game uses semantic right-hand and left-hand actions. Their exact behavior ch
 | `L3` | `L3` | Sprint |
 | `R3` | `R3` | Lock on / cycle |
 | D-pad right | D-pad right | Cycle style |
+| D-pad left | D-pad left | Cycle equipped weapon |
+| D-pad down | D-pad down | Equipment menu |
 | Start | Options | Pause |
 | Back | Touchpad/Create | Help |
 

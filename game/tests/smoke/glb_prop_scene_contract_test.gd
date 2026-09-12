@@ -38,12 +38,20 @@ func _run() -> void:
 	var model: Node3D = prop.get_node_or_null("Model")
 	_check(model != null, "Model child (GLB instance) present")
 
-	# 2) 分组裁剪：pillJar 保留可见，其余分组隐藏
-	var jar_nodes: Array = model.find_children("pillJar", "Node3D", true, false)
-	_check(not jar_nodes.is_empty(), "pillJar group found in GLB")
-	var ember_nodes: Array = model.find_children("ember", "Node3D", true, false)
-	var ember_hidden: bool = not ember_nodes.is_empty() and not (ember_nodes[0] as Node3D).visible
-	_check(ember_hidden, "sibling group 'ember' hidden")
+	# Skinned geometry shares a Skeleton3D outside the original empty groups.
+	var selected: Array = prop.get("_selected_meshes")
+	var jar_body_found := false
+	var hidden := 0
+	for node in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh.mesh == null:
+			continue
+		_check(mesh.is_visible_in_tree() == (mesh in selected), "only selected jar geometry visible: " + String(mesh.name))
+		if mesh in selected and String(mesh.name) == "jarBody":
+			jar_body_found = true
+		if not mesh.visible:
+			hidden += 1
+	_check(jar_body_found and hidden > 0, "jar body retained and other pickup meshes hidden")
 
 	# 3) 碰撞：代码构建的盒形 CollisionShape3D，尺寸合理（药罐 ~0.6m 高）
 	var shapes: Array = prop.find_children("*", "CollisionShape3D", true, false)
@@ -58,15 +66,13 @@ func _run() -> void:
 
 	# 4) 材质导入：药罐网格至少一个表面带材质（glTF 材质已提取）
 	var has_material := false
-	if not jar_nodes.is_empty():
-		var meshes: Array = (jar_nodes[0] as Node3D).find_children("*", "MeshInstance3D", true, false)
-		for node in meshes:
-			var mesh_instance := node as MeshInstance3D
-			if mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() < 1:
-				continue
-			if mesh_instance.get_active_material(0) != null:
-				has_material = true
-				break
+	for node in selected:
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() < 1:
+			continue
+		if mesh_instance.get_active_material(0) != null:
+			has_material = true
+			break
 	_check(has_material, "imported material present on jar meshes")
 
 	# 5) 破碎：信号 + 模型隐藏 + 碎片刚体 + 碰撞停用路径

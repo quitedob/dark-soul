@@ -1,0 +1,1401 @@
+{
+  "schema_version": 1,
+  "generator": "Three.js GLTFExporter",
+  "three_version": "0.185.1",
+  "coordinates": "Godot Y-up metres; each part and exported root identity, no presentation scale",
+  "material_contract": "MeshStandardMaterial core metallic/roughness PBR; embedded geometry; no textures, runtime lights or animations",
+  "source_files": {
+    "tools/build_threejs_environment.mjs": "b7f6a2a82a8d32595e35a3a0747e52793e1db72678a62025618cc4ab0fbe9107",
+    "tools/threejs/glb_reader.mjs": "1f38380b42a81b8b1baa447ad8c14630ce81d3862cffddf5270c10f5e2a43a7b",
+    "tools/threejs/package.json": "180df1bf351849b8f7ab1ab6c5ef58a6cf3fe7d3a71503c98d01d6e19b934f9b"
+  },
+  "parts": [
+    "Floor",
+    "Bridge",
+    "Rail",
+    "Column",
+    "Gate",
+    "Landmark",
+    "Rock",
+    "ArenaCover",
+    "Wall",
+    "Arcade",
+    "Watchtower",
+    "Lantern",
+    "Roof"
+  ],
+  "themes": {
+    "spirit_ruins": {
+      "file": "spirit_ruins.glb",
+      "sha256": "18277d07fa1ebef791190648843f24caa42014e2fcca997867859a56bd790e92",
+      "bytes": 3080868,
+      "story": "Abandoned ancestral shrine: eroded prayer tablets, fluted stone, bronze temple eaves and climbing roots.",
+      "retained_landmark": {
+        "file": "game/assets/environment/campaign_kits/spirit_ruins.glb",
+        "sha256": "e7525e58d57416b318ddefd8745bc275b7b6a71c6cb28d28d9bd7f2b5c4c9bba",
+        "reason": "Preserves exact existing gameplay landmark collision/navigation geometry"
+      },
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "size": [
+            6,
+            0.6000000238418579,
+            6
+          ],
+          "triangles": 1108,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "size": [
+            6,
+            0.2800000011920929,
+            6
+          ],
+          "triangles": 1148,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "size": [
+            6,
+            1.399999976158142,
+            0.47999998927116394
+          ],
+          "triangles": 1112,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Column": {
+          "min": [
+            -0.9257192611694336,
+            0,
+            -0.9399999976158142
+          ],
+          "max": [
+            0.9257192611694336,
+            6,
+            0.9399999976158142
+          ],
+          "size": [
+            1.8514385223388672,
+            6,
+            1.8799999952316284
+          ],
+          "triangles": 1572,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "size": [
+            12,
+            7.829999923706055,
+            3.359999895095825
+          ],
+          "triangles": 8096,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Landmark": {
+          "min": [
+            -5.75,
+            0,
+            -5.25
+          ],
+          "max": [
+            5.75,
+            6.920000076293945,
+            5.25
+          ],
+          "size": [
+            11.5,
+            6.920000076293945,
+            10.5
+          ],
+          "triangles": 15436,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "size": [
+            10,
+            20,
+            10
+          ],
+          "triangles": 912,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "triangles": 1572,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "size": [
+            6,
+            10.000000095367433,
+            1.4800000190734863
+          ],
+          "triangles": 3980,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "size": [
+            6,
+            7,
+            1
+          ],
+          "triangles": 1120,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "size": [
+            12,
+            28,
+            12
+          ],
+          "triangles": 33768,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "size": [
+            0.8399999737739563,
+            1.850000023841858,
+            0.8399999737739563
+          ],
+          "triangles": 268,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "size": [
+            6,
+            3,
+            6
+          ],
+          "triangles": 4716,
+          "material_count": 2,
+          "mesh_count": 2
+        }
+      }
+    },
+    "blood_iron": {
+      "file": "blood_iron.glb",
+      "sha256": "3f3d922273b2191497c90cc6614d01b6a5a6409a7bcfee915e2e5cbe1b6d2d65",
+      "bytes": 4389064,
+      "story": "Iron Howl Pass: massive riveted fortress, firing slits, furnace vents, battered crenellations and torn red standards.",
+      "retained_landmark": {
+        "file": "game/assets/environment/campaign_kits/blood_iron.glb",
+        "sha256": "bbc1bacfac974a88557bcfb13a2998f43f2d9f65d19aef2d7893f65ed4a774ea",
+        "reason": "Preserves exact existing gameplay landmark collision/navigation geometry"
+      },
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "size": [
+            6,
+            0.6000000238418579,
+            6
+          ],
+          "triangles": 796,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "size": [
+            6,
+            0.2800000011920929,
+            6
+          ],
+          "triangles": 1148,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "size": [
+            6,
+            1.399999976158142,
+            0.47999998927116394
+          ],
+          "triangles": 1068,
+          "material_count": 2,
+          "mesh_count": 2
+        },
+        "Column": {
+          "min": [
+            -0.8999999761581421,
+            -2.9802322831784522e-9,
+            -0.8999999761581421
+          ],
+          "max": [
+            0.8999999761581421,
+            6,
+            0.8999999761581421
+          ],
+          "size": [
+            1.7999999523162842,
+            6.000000002980232,
+            1.7999999523162842
+          ],
+          "triangles": 716,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Gate": {
+          "min": [
+            -6,
+            -2.9802322831784522e-9,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "size": [
+            12,
+            7.829999926686287,
+            3.359999895095825
+          ],
+          "triangles": 3384,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Landmark": {
+          "min": [
+            -5.25,
+            0,
+            -4.75
+          ],
+          "max": [
+            5.25,
+            12.300000190734863,
+            4.75
+          ],
+          "size": [
+            10.5,
+            12.300000190734863,
+            9.5
+          ],
+          "triangles": 16288,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "size": [
+            10,
+            20,
+            10
+          ],
+          "triangles": 624,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "triangles": 716,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "size": [
+            6,
+            10.000000095367433,
+            1.4800000190734863
+          ],
+          "triangles": 4080,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "size": [
+            6,
+            7,
+            1
+          ],
+          "triangles": 1408,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "size": [
+            12,
+            28,
+            12
+          ],
+          "triangles": 28556,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "size": [
+            0.8399999737739563,
+            1.850000023841858,
+            0.8399999737739563
+          ],
+          "triangles": 252,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "size": [
+            6,
+            3,
+            6
+          ],
+          "triangles": 1548,
+          "material_count": 3,
+          "mesh_count": 3
+        }
+      }
+    },
+    "jade_veil": {
+      "file": "jade_veil.glb",
+      "sha256": "46491b3eb3e422a7ea8438fdb54b8dbbb2246d030fecf71d6570752f80588866",
+      "bytes": 3015488,
+      "story": "Illusion garden: elegant moon openings, twisted exposed roots, jade tile eaves and amber votive cages.",
+      "retained_landmark": {
+        "file": "game/assets/environment/campaign_kits/jade_veil.glb",
+        "sha256": "d1acb44acc9e8e06975e4f289c345283369b745c93849ebcc60e0cd9d6107e58",
+        "reason": "Preserves exact existing gameplay landmark collision/navigation geometry"
+      },
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "size": [
+            6,
+            0.6000000238418579,
+            6
+          ],
+          "triangles": 1108,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "size": [
+            6,
+            0.2800000011920929,
+            6
+          ],
+          "triangles": 1148,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "size": [
+            6,
+            1.399999976158142,
+            0.47999998927116394
+          ],
+          "triangles": 1172,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Column": {
+          "min": [
+            -0.9257192611694336,
+            0,
+            -0.9399999976158142
+          ],
+          "max": [
+            0.9257192611694336,
+            6,
+            0.9399999976158142
+          ],
+          "size": [
+            1.8514385223388672,
+            6,
+            1.8799999952316284
+          ],
+          "triangles": 1788,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "size": [
+            12,
+            7.829999923706055,
+            3.359999895095825
+          ],
+          "triangles": 8528,
+          "material_count": 6,
+          "mesh_count": 6
+        },
+        "Landmark": {
+          "min": [
+            -5.695696830749512,
+            0,
+            -4.400000095367432
+          ],
+          "max": [
+            5.695696830749512,
+            10.012250900268555,
+            4.400000095367432
+          ],
+          "size": [
+            11.391393661499023,
+            10.012250900268555,
+            8.800000190734863
+          ],
+          "triangles": 12948,
+          "material_count": 6,
+          "mesh_count": 6
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "size": [
+            10,
+            20,
+            10
+          ],
+          "triangles": 1056,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "triangles": 1788,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "size": [
+            6,
+            10.000000095367433,
+            1.4800000190734863
+          ],
+          "triangles": 3980,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "size": [
+            6,
+            7,
+            1
+          ],
+          "triangles": 1552,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "size": [
+            12,
+            28,
+            12
+          ],
+          "triangles": 37224,
+          "material_count": 6,
+          "mesh_count": 6
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "size": [
+            0.8399999737739563,
+            1.850000023841858,
+            0.8399999737739563
+          ],
+          "triangles": 268,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "size": [
+            6,
+            3,
+            6
+          ],
+          "triangles": 4716,
+          "material_count": 2,
+          "mesh_count": 2
+        }
+      }
+    },
+    "celestial_fall": {
+      "file": "celestial_fall.glb",
+      "sha256": "38a0ac9c7f972c68b631dce78048220fc8b9530c722bf88d2f51e418cec1ab1a",
+      "bytes": 4656468,
+      "story": "Falling immortal city: weathered grey-green sanctuaries with worn gold, orbital instruments, broken suspended spires and fractured astral masonry.",
+      "retained_landmark": {
+        "file": "game/assets/environment/campaign_kits/celestial_fall.glb",
+        "sha256": "40ca61cf8b693019140d3680f0cd976a218f10555b173883c8a7134fecc2b800",
+        "reason": "Preserves exact existing gameplay landmark collision/navigation geometry"
+      },
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "size": [
+            6,
+            0.6000000238418579,
+            6
+          ],
+          "triangles": 1108,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "size": [
+            6,
+            0.2800000011920929,
+            6
+          ],
+          "triangles": 1148,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "size": [
+            6,
+            1.399999976158142,
+            0.47999998927116394
+          ],
+          "triangles": 1112,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Column": {
+          "min": [
+            -0.9257192611694336,
+            0,
+            -0.9399999976158142
+          ],
+          "max": [
+            0.9257192611694336,
+            6,
+            0.9399999976158142
+          ],
+          "size": [
+            1.8514385223388672,
+            6,
+            1.8799999952316284
+          ],
+          "triangles": 1772,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "size": [
+            12,
+            7.829999923706055,
+            3.359999895095825
+          ],
+          "triangles": 8496,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Landmark": {
+          "min": [
+            -5.75,
+            0,
+            -5.25
+          ],
+          "max": [
+            5.75,
+            16,
+            5.25
+          ],
+          "size": [
+            11.5,
+            16,
+            10.5
+          ],
+          "triangles": 39116,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "size": [
+            10,
+            20,
+            10
+          ],
+          "triangles": 624,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "triangles": 1962,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "size": [
+            6,
+            10.000000095367433,
+            1.4800000190734863
+          ],
+          "triangles": 3956,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "size": [
+            6,
+            7,
+            1
+          ],
+          "triangles": 1310,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "size": [
+            12,
+            28,
+            12
+          ],
+          "triangles": 37226,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "size": [
+            0.8399999737739563,
+            1.850000023841858,
+            0.8399999737739563
+          ],
+          "triangles": 268,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "size": [
+            6,
+            3,
+            6
+          ],
+          "triangles": 4716,
+          "material_count": 2,
+          "mesh_count": 2
+        }
+      }
+    },
+    "ember_abyss": {
+      "file": "ember_abyss.glb",
+      "sha256": "c5d7b146dc6c60d9277254839b609dc84a0bdc4ce6310ac200d88168b0b8a3b6",
+      "bytes": 1940452,
+      "story": "Broken Furnace core: charred basalt, copper binding ribs, forged suspension chains, restrained ember fissures.",
+      "retained_landmark": {
+        "file": "game/assets/environment/campaign_kits/ember_abyss.glb",
+        "sha256": "5b1503121f93f574422dc85f62a1e62204aaa9b8c2fe93d598199d663c79cdd5",
+        "reason": "Preserves exact existing gameplay landmark collision/navigation geometry"
+      },
+      "parts": {
+        "Floor": {
+          "min": [
+            -3,
+            -0.6000000238418579,
+            -3
+          ],
+          "max": [
+            3,
+            -1.5339672376185548e-17,
+            3
+          ],
+          "size": [
+            6,
+            0.6000000238418579,
+            6
+          ],
+          "triangles": 844,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Bridge": {
+          "min": [
+            -3,
+            -0.14000000059604645,
+            -3
+          ],
+          "max": [
+            3,
+            0.14000000059604645,
+            3
+          ],
+          "size": [
+            6,
+            0.2800000011920929,
+            6
+          ],
+          "triangles": 1148,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Rail": {
+          "min": [
+            -3,
+            0,
+            -0.23999999463558197
+          ],
+          "max": [
+            3,
+            1.399999976158142,
+            0.23999999463558197
+          ],
+          "size": [
+            6,
+            1.399999976158142,
+            0.47999998927116394
+          ],
+          "triangles": 2504,
+          "material_count": 2,
+          "mesh_count": 2
+        },
+        "Column": {
+          "min": [
+            -0.91643226146698,
+            0,
+            -0.8469107151031494
+          ],
+          "max": [
+            0.91643226146698,
+            6,
+            0.9399999976158142
+          ],
+          "size": [
+            1.83286452293396,
+            6,
+            1.7869107127189636
+          ],
+          "triangles": 1254,
+          "material_count": 2,
+          "mesh_count": 2
+        },
+        "Gate": {
+          "min": [
+            -6,
+            0,
+            -1.6799999475479126
+          ],
+          "max": [
+            6,
+            7.829999923706055,
+            1.6799999475479126
+          ],
+          "size": [
+            12,
+            7.829999923706055,
+            3.359999895095825
+          ],
+          "triangles": 6912,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Landmark": {
+          "min": [
+            -4.765481472015381,
+            0,
+            -4.709809303283691
+          ],
+          "max": [
+            4.765481472015381,
+            13.899726867675781,
+            4.709809303283691
+          ],
+          "size": [
+            9.530962944030762,
+            13.899726867675781,
+            9.419618606567383
+          ],
+          "triangles": 1686,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Rock": {
+          "min": [
+            -5,
+            0,
+            -5
+          ],
+          "max": [
+            5,
+            20,
+            5
+          ],
+          "size": [
+            10,
+            20,
+            10
+          ],
+          "triangles": 696,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "ArenaCover": {
+          "min": [
+            -1,
+            0,
+            -1
+          ],
+          "max": [
+            1,
+            3,
+            1
+          ],
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "triangles": 1254,
+          "material_count": 2,
+          "mesh_count": 2
+        },
+        "Wall": {
+          "min": [
+            -3,
+            -9.536743306171047e-8,
+            -0.7400000095367432
+          ],
+          "max": [
+            3,
+            10,
+            0.7400000095367432
+          ],
+          "size": [
+            6,
+            10.000000095367433,
+            1.4800000190734863
+          ],
+          "triangles": 6252,
+          "material_count": 5,
+          "mesh_count": 5
+        },
+        "Arcade": {
+          "min": [
+            -3,
+            0,
+            -0.5
+          ],
+          "max": [
+            3,
+            7,
+            0.5
+          ],
+          "size": [
+            6,
+            7,
+            1
+          ],
+          "triangles": 3040,
+          "material_count": 3,
+          "mesh_count": 3
+        },
+        "Watchtower": {
+          "min": [
+            -6,
+            0,
+            -6
+          ],
+          "max": [
+            6,
+            28,
+            6
+          ],
+          "size": [
+            12,
+            28,
+            12
+          ],
+          "triangles": 24630,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Lantern": {
+          "min": [
+            -0.41999998688697815,
+            0,
+            -0.41999998688697815
+          ],
+          "max": [
+            0.41999998688697815,
+            1.850000023841858,
+            0.41999998688697815
+          ],
+          "size": [
+            0.8399999737739563,
+            1.850000023841858,
+            0.8399999737739563
+          ],
+          "triangles": 348,
+          "material_count": 4,
+          "mesh_count": 4
+        },
+        "Roof": {
+          "min": [
+            -3,
+            5,
+            -3
+          ],
+          "max": [
+            3,
+            8,
+            3
+          ],
+          "size": [
+            6,
+            3,
+            6
+          ],
+          "triangles": 4168,
+          "material_count": 2,
+          "mesh_count": 2
+        }
+      }
+    }
+  },
+  "acceptance": {
+    "glb_structure": "pending independent verify_environment.mjs",
+    "target_godot_renderer": "parent integration required",
+    "navigation_and_collision": "parent production-physics verification required",
+    "performance": "surface budgets bounded; device timings required"
+  },
+  "source_sha256": "0adf9a119fbe35e16af29c07c9106057376f98e99a41e76c55fa20f20d1cf2df"
+}

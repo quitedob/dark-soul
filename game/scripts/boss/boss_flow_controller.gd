@@ -34,6 +34,7 @@ extends Node
 
 ## 当前挂载的流程节点（"FlowController"；null = 未挂载）
 var flow_node: Node = null
+var encounter: Node
 
 
 ## 挂载流程。boss：Enemy 节点；content：章节内容 dict（含可选 "flow"）。
@@ -59,7 +60,6 @@ func attach(boss: Node, content: Dictionary) -> bool:
 		return false
 	var node: Node = instance
 	node.name = "FlowController"
-	boss.add_child(node)
 	flow_node = node
 	# 写引用（脚本未声明这些属性时安全跳过）
 	if "flow_boss" in node:
@@ -67,12 +67,38 @@ func attach(boss: Node, content: Dictionary) -> bool:
 	if "flow_config" in node:
 		var config: Variant = flow.get("config", flow)
 		node.set("flow_config", config)
+	boss.add_child(node)
 	# 桥接信号：转发层处理参数映射（phase_changed 发 (enemy, new_phase) → flow._on_phase(int)）
 	if node.has_method("_on_phase") and boss.has_signal("phase_changed"):
 		boss.phase_changed.connect(_on_boss_phase_forwarded)
 	if node.has_method("_on_story_threshold") and boss.has_signal("story_threshold_reached"):
 		boss.story_threshold_reached.connect(_on_story_threshold_forwarded)
 	return true
+
+
+func bind_encounter(boundary: Node) -> void:
+	encounter = boundary
+	if not boundary.encounter_started.is_connected(_on_encounter_started):
+		boundary.encounter_started.connect(_on_encounter_started)
+		boundary.encounter_reset.connect(_on_encounter_reset)
+		boundary.encounter_resolved.connect(_on_encounter_resolved)
+	if is_instance_valid(flow_node) and flow_node.has_method("bind_encounter"):
+		flow_node.bind_encounter(boundary)
+
+
+func _on_encounter_started() -> void:
+	if is_instance_valid(flow_node) and flow_node.has_method("_on_encounter_started"):
+		flow_node._on_encounter_started()
+
+
+func _on_encounter_reset() -> void:
+	if is_instance_valid(flow_node) and flow_node.has_method("_on_encounter_reset"):
+		flow_node._on_encounter_reset()
+
+
+func _on_encounter_resolved() -> void:
+	if is_instance_valid(flow_node) and flow_node.has_method("_on_encounter_resolved"):
+		flow_node._on_encounter_resolved()
 
 
 ## 转发 boss.phase_changed → flow_node._on_phase(new_phase)

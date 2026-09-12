@@ -114,6 +114,14 @@ func _sweep_motion(motion: Vector3) -> Dictionary:
 	if source != null and is_instance_valid(source) and source is CollisionObject3D:
 		exclude.append((source as CollisionObject3D).get_rid())
 	params.exclude = exclude
+	# A projectile can begin inside a nearby body; cast_motion skips that case.
+	params.motion = Vector3.ZERO
+	var initial := space.intersect_shape(params, 4)
+	if not initial.is_empty():
+		var overlap: Dictionary = initial[0]
+		overlap["position"] = global_position
+		return overlap
+	params.motion = motion
 	var cast := space.cast_motion(params)
 	if cast.size() < 2:
 		return {}
@@ -121,9 +129,11 @@ func _sweep_motion(motion: Vector3) -> Dictionary:
 	if safe_fraction >= 1.0:
 		return {}
 	var travel := motion * safe_fraction
+	# Query just beyond contact; the safe tangent itself has no strict overlap.
+	var contact := motion * float(cast[1]) + motion.normalized() * maxf(_collision_radius * .2, .015)
 	var rest := PhysicsShapeQueryParameters3D.new()
 	rest.shape = shape
-	rest.transform = Transform3D(global_transform.basis, global_position + travel)
+	rest.transform = Transform3D(global_transform.basis, global_position + contact)
 	rest.collision_mask = QUERY_MASK
 	rest.exclude = exclude
 	rest.collide_with_areas = false

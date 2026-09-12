@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 signal health_changed(current, maximum)
+signal reset_completed(enemy)
 signal defeated(enemy, reward, is_guardian)
 signal engagement_changed(enemy, is_guardian, engaged)
 signal execution_break_changed(current, maximum)
@@ -88,6 +89,10 @@ var target_node: Node3D
 var audio_node: Node
 var spawn_origin := Vector3.ZERO
 var guardian := false
+var encounter_boundary: Node = null
+var encounter_assignment: Dictionary = {}
+var _authored_patrol_index := 0
+var _encounter_provoked := false
 var enemy_type: EnemyType = EnemyType.HOLLOW_SENTINEL
 var chapter_content: Dictionary = {}
 var content_id := ""
@@ -125,6 +130,7 @@ var _grab_target: Node3D = null
 var _grab_damage_applied := false
 var _grab_director = null
 var _story_resolution := false
+var _final_choice_emitted := false
 ## L-14：是否尝试抓投（守护默认 true；人型按 content can_grab / body_type 推断）
 var can_grab := false
 ## L-14：抓投概率（守护 GRAB_CHANCE；人型 HUMAN_GRAB_CHANCE）
@@ -275,7 +281,7 @@ func setup_from_content(world, target, audio, spawn_position, content: Dictionar
 func _content_enemy_type(content: Dictionary) -> EnemyType:
 	var archetype := String(content.get("archetype", "")).to_lower()
 	var behavior := String(content.get("behavior", "")).to_lower()
-	if archetype == "ember_skirmisher" or behavior == "ranged_ambush" or behavior == "ranged_artillery":
+	if archetype == "ember_skirmisher" or EnemyBehaviorRegistry.family_for(behavior) == &"ranged":
 		return EnemyType.EMBER_SKIRMISHER
 	return EnemyType.HOLLOW_SENTINEL
 
@@ -330,6 +336,15 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	if is_instance_valid(encounter_boundary) and not encounter_boundary.combat_is_active():
+		velocity.x = 0.0
+		velocity.z = 0.0
+		if not is_on_floor():
+			velocity.y -= gravity * delta
+		else:
+			velocity.y = minf(velocity.y, 0.0)
+		move_and_slide()
+		return
 	if _story_resolution:
 		velocity = Vector3.ZERO
 		knockback_velocity = Vector3.ZERO
@@ -365,6 +380,7 @@ func _physics_process(delta: float) -> void:
 		_refresh_decision_cache()
 	_update_state(delta)
 	_tick_statuses(delta)
+	_constrain_ground_movement(delta)
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	else:
@@ -373,6 +389,59 @@ func _physics_process(delta: float) -> void:
 	_update_embedded_movement()
 	_update_telegraph()
 	_real_model_idle_vfx(delta)
+
+
+## Patrol, direct chase, retreat, return and lunges share one grounded motor.
+## Navigation may be unavailable, and several behaviors deliberately bypass it.
+## Stop voluntary steps at unsupported edges without cancelling gravity/knockback.
+func _constrain_ground_movement(delta: float) -> void:
+	if state == State.STAGGER or motion_mode != CharacterBody3D.MOTION_MODE_GROUNDED or velocity.y > 0.1:
+		return
+	var motion := Vector3(velocity.x, 0.0, velocity.z) * delta
+	if motion.length_squared() < 0.000001 or body_shape == null:
+		return
+	if _ground_step_supported(motion):
+		return
+	# Keep the supported component when a diagonal patrol reaches an edge.
+	var along_x := Vector3(motion.x, 0.0, 0.0)
+	var along_z := Vector3(0.0, 0.0, motion.z)
+	var x_safe := absf(motion.x) > 0.0001 and _ground_step_supported(along_x)
+	var z_safe := absf(motion.z) > 0.0001 and _ground_step_supported(along_z)
+	if x_safe and (not z_safe or absf(motion.x) >= absf(motion.z)):
+		velocity.z = 0.0
+	elif z_safe:
+		velocity.x = 0.0
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+
+
+func _ground_step_supported(motion: Vector3) -> bool:
+	var feet := body_collision.global_transform * Vector3(0.0, -body_shape.height * 0.5, 0.0)
+	var direction := motion.normalized()
+	var side := direction.cross(Vector3.UP)
+	var radius := body_shape.radius
+	# Cover the leading rim, including diagonal corners. Ray height accounts for
+	# the permitted floor slope across the radius, so valid ramps remain walkable.
+	var reach := maxf(floor_snap_length, 0.1) + (radius + motion.length()) * tan(floor_max_angle)
+	var space := get_world_3d().direct_space_state
+	for offset: Vector3 in [direction * radius, (direction + side) * radius * 0.707107, (direction - side) * radius * 0.707107]:
+		var at := feet + motion + offset
+		if _ground_probe_supported(space, at, reach):
+			continue
+		# A capsule bridges the few-centimeter seam between an inclined box's
+		# top edge and its landing. Retry just inside the rim, not across a cliff.
+		var inner := at - direction * minf(radius * 0.25, 0.08)
+		if not _ground_probe_supported(space, inner, reach):
+			return false
+	return true
+
+
+func _ground_probe_supported(space: PhysicsDirectSpaceState3D, at: Vector3, reach: float) -> bool:
+	var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * reach, at + Vector3.DOWN * reach, collision_mask)
+	query.exclude = [get_rid()]
+	var hit := space.intersect_ray(query)
+	return not hit.is_empty() and (hit["normal"] as Vector3).dot(Vector3.UP) + 0.001 >= cos(floor_max_angle)
 
 
 func reset_enemy() -> void:
@@ -398,10 +467,13 @@ func reset_enemy() -> void:
 	_phase_transition_played = false
 	_phase_two_played = false
 	_heal_speed_id += 1  # invalidate any pending heal-speed timer
+	if has_meta("heal_react_base_speed"):
+		remove_meta("heal_react_base_speed")
 	_heal_punish_cooldown = 0.0
 	_active_heal_punish_variant = &""
 	_heal_punish_aoe_radius = 0.0
 	_story_resolution = false
+	_final_choice_emitted = false
 	navigation_refresh = 0.0
 	_cached_has_target = false
 	_cached_target_position = global_position
@@ -428,6 +500,62 @@ func reset_enemy() -> void:
 		_ensure_macro_ai()
 		_macro_ai.reset()
 		_tick_macro_decision()
+	reset_completed.emit(self)
+	_authored_patrol_index = 0
+	_encounter_provoked = false
+	_apply_encounter_profile()
+
+
+func assign_campaign_encounter(plan: Dictionary) -> void:
+	encounter_assignment = plan.duplicate(true)
+	_authored_patrol_index = 0
+	set_meta("encounter_assignment", encounter_assignment)
+	rotation.y = float(plan.get("facing_yaw", 0.0))
+	_apply_encounter_profile()
+
+
+func _apply_encounter_profile() -> void:
+	if encounter_assignment.is_empty() or guardian:
+		return
+	var guard_radius := float(encounter_assignment.get("guard_radius", 14.0))
+	aggro_range = minf(aggro_range, guard_radius)
+	leash_range = maxf(guard_radius + 5.0, 16.0)
+	disengage_range = maxf(aggro_range + 8.0, leash_range)
+	rotation.y = float(encounter_assignment.get("facing_yaw", 0.0))
+
+
+func _update_authored_idle(delta: float) -> bool:
+	if encounter_assignment.is_empty() or guardian:
+		return false
+	var points: Array = encounter_assignment.get("patrol_points", [])
+	if points.is_empty():
+		_slow_horizontal(delta, acceleration)
+		return true
+	var point: Vector3 = points[_authored_patrol_index % points.size()]
+	if _horizontal_distance(global_position, point) < 0.65:
+		_authored_patrol_index = (_authored_patrol_index + 1) % points.size()
+		point = points[_authored_patrol_index]
+	var direction := _safe_navigation_direction(point)
+	velocity.x = move_toward(velocity.x, direction.x * move_speed * 0.45, acceleration * delta)
+	velocity.z = move_toward(velocity.z, direction.z * move_speed * 0.45, acceleration * delta)
+	_face_point(point, delta * 3.0)
+	return true
+
+
+func _can_see_authored_target() -> bool:
+	if encounter_assignment.is_empty() or guardian:
+		return true
+	if String(encounter_assignment.get("activation", "")) == "provoked" and not _encounter_provoked:
+		return false
+	if not _cached_has_target or not is_instance_valid(target_node):
+		return false
+	var offset := target_node.global_position - global_position
+	if absf(offset.y) > maxf(2.5, Vector2(offset.x, offset.z).length() * 0.35):
+		return false
+	if offset.length() > 2.5 and (-global_transform.basis.z).dot(offset.normalized()) < -0.25:
+		return false
+	var query := PhysicsRayQueryParameters3D.create(global_position + Vector3.UP * 1.3, target_node.global_position + Vector3.UP * 1.2, 1)
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func receive_hit(damage, stagger, hit_direction, source) -> void:
@@ -445,8 +573,15 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 
 
 func receive_hit_payload(payload: Dictionary) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or _story_resolution or _final_choice_emitted:
 		return
+	if not _encounter_allows_damage(payload.get("source")):
+		return
+	if guardian and is_instance_valid(world_node) and world_node.has_method("filter_boss_incoming_hit"):
+		payload = world_node.filter_boss_incoming_hit(self, payload)
+		if payload.is_empty():
+			return
+	_encounter_provoked = true
 	# 处决占用期间不受普通命中打断
 	if _execution_claimer != null and is_instance_valid(_execution_claimer):
 		return
@@ -458,13 +593,17 @@ func receive_hit_payload(payload: Dictionary) -> void:
 	var source = payload.get("source")
 	# L-10：命中附带状态（武器 status_inflict / status:* 标签）→ 叠层/爆发
 	_apply_status_from_payload(payload)
-	health = maxf(health - incoming_damage, 0.0)
+	if state == State.DEAD or _story_resolution:
+		return
+	health = maxf(health - incoming_damage, max_health * _final_choice_floor())
 	health_changed.emit(health, max_health)
 	_play_audio("hurt", -8.0, 0.82 if guardian else 1.0)
 	if guardian and not _phase_transition_played and get_health_ratio() <= _phase_two_cut():
 		_trigger_phase_transition()
 	if guardian and not _phase_two_played and get_health_ratio() <= _phase_three_cut():
 		_trigger_phase_transition()
+	if _try_begin_final_choice():
+		return
 	if health <= 0.0:
 		_die()
 		return
@@ -611,24 +750,32 @@ func release_execution_claim(claimer: Node = null) -> void:
 
 
 func apply_execution_damage(amount: float, allow_lethal: bool = true) -> void:
-	if state == State.DEAD or _story_resolution:
+	if state == State.DEAD or _story_resolution or _final_choice_emitted:
+		return
+	if not _encounter_allows_damage(target_node):
 		return
 	var dmg := maxf(amount, 0.0)
 	var floor_ratio := 0.05
 	if boss_break_profile != null:
 		floor_ratio = float(boss_break_profile.story_floor_ratio)
 	var floor_hp := maxf(max_health * floor_ratio, 1.0)
+	var story_floor := _final_choice_floor()
+	if story_floor > 0.0:
+		floor_hp = maxf(max_health * story_floor, 1.0)
 	if not allow_lethal or (guardian and boss_break_profile != null and not bool(boss_break_profile.allow_lethal_on_execution)):
 		health = maxf(health - dmg, floor_hp)
-		if health <= floor_hp + 0.01:
+		if health <= floor_hp + 0.01 and story_floor <= 0.0:
 			story_threshold_reached.emit(
 				boss_break_profile.story_flag if boss_break_profile != null else &"story",
 				get_health_ratio()
 			)
 	else:
 		health = maxf(health - dmg, 0.0)
+	health = maxf(health, max_health * _final_choice_floor())
 	health_changed.emit(health, max_health)
 	_play_audio("hurt", -4.0, 0.7)
+	if _try_begin_final_choice():
+		return
 	if health <= 0.0:
 		_die()
 	elif state == State.WEAK_POINT_EXPOSED:
@@ -747,22 +894,26 @@ func _ensure_human_grab_profile() -> void:
 
 ## L-10：施加状态（bleed 阈值爆发即时结算）
 func apply_status(status_id: StringName, stacks: float, source: Node = null) -> void:
-	if state == State.DEAD or stacks <= 0.0:
+	if state == State.DEAD or _story_resolution or _final_choice_emitted or stacks <= 0.0:
+		return
+	if not _encounter_allows_damage(source):
 		return
 	var event := StatusEffectScript.apply(status_bar, status_id, stacks)
 	status_changed.emit(status_id, StatusEffectScript.get_stacks(status_bar, status_id))
 	var burst_damage := float(event.get("burst_damage", 0.0))
 	if burst_damage > 0.0:
-		health = maxf(health - burst_damage, 0.0)
+		health = maxf(health - burst_damage, max_health * _final_choice_floor())
 		health_changed.emit(health, max_health)
 		_play_audio("hurt", -5.0, 0.9 if guardian else 1.0)
+		if _try_begin_final_choice():
+			return
 		if health <= 0.0:
 			_die()
 
 
 ## L-10：每 STATUS_TICK_INTERVAL 推进一次状态（DoT / 衰减 / 过期）
 func _tick_statuses(delta: float) -> void:
-	if status_bar.is_empty():
+	if status_bar.is_empty() or _story_resolution or _final_choice_emitted or not _encounter_allows_damage(null):
 		_status_accum = 0.0
 		return
 	_status_accum += delta
@@ -779,9 +930,11 @@ func _tick_statuses(delta: float) -> void:
 		var damage := float(event.get("damage", 0.0))
 		if damage <= 0.0:
 			continue
-		health = maxf(health - damage, 0.0)
+		health = maxf(health - damage, max_health * _final_choice_floor())
 		health_changed.emit(health, max_health)
 		_play_audio("hurt", -6.0, 0.9 if guardian else 1.0)
+		if _try_begin_final_choice():
+			return
 		if health <= 0.0:
 			_die()
 			return
@@ -846,16 +999,21 @@ func can_be_grabbed() -> bool:
 
 func on_player_healing() -> void:
 	# 玩家开奶：Boss 走数据驱动 punish 变体；小怪短时加速追击
-	if state == State.DEAD or not is_instance_valid(target_node):
+	if state == State.DEAD or _story_resolution or _final_choice_emitted or not is_instance_valid(target_node):
+		return
+	if not visible or not _encounter_allows_damage(target_node):
 		return
 	if state in [State.WEAK_POINT_EXPOSED, State.GRAB_ACTIVE, State.GRAB_WINDUP]:
 		return
+	_refresh_decision_cache()
+	if not _cached_has_target or not _has_clear_healing_target():
+		return
 	if not engaged:
+		# Healing obeys the same admission, guard range and authored sight rules.
+		if _cached_distance_to_target > aggro_range or not _can_see_authored_target():
+			return
 		_set_engaged(true)
 		_change_state(State.CHASE)
-		_refresh_decision_cache()
-	else:
-		_refresh_decision_cache()
 	if guardian:
 		# G-01：先写黑板开奶标志，宏层发 heal_punish 意图后再微执行
 		_ensure_macro_ai()
@@ -869,7 +1027,7 @@ func on_player_healing() -> void:
 
 ## Boss 治疗惩罚：按距离/阶段选 gap_close / ranged_snipe / aoe_burst
 func _try_boss_heal_punish() -> void:
-	if _heal_punish_cooldown > 0.0:
+	if _heal_punish_cooldown > 0.0 or state not in [State.IDLE, State.CHASE, State.RECOVERY]:
 		return
 	if _heal_punish_profile == null:
 		_heal_punish_profile = HealingPunishCatalog.profile_for(content_id, chapter_content)
@@ -878,6 +1036,11 @@ func _try_boss_heal_punish() -> void:
 		_cached_distance_to_target,
 		_current_phase()
 	)
+	# The healing reaction is its own attack, never the previous skill's executor.
+	_active_attack_profile = {}
+	_current_attack_data = null
+	if combat_area != null:
+		combat_area.end_swing()
 	attack_index += 1
 	attack_is_low_sweep = false
 	attack_windup = float(resolved.get("windup", 0.5))
@@ -888,6 +1051,8 @@ func _try_boss_heal_punish() -> void:
 	attack_lunge = float(resolved.get("lunge", 0.0))
 	attack_heavy = bool(resolved.get("heavy", true))
 	_active_heal_punish_variant = StringName(String(resolved.get("variant", "gap_close")))
+	if _active_heal_punish_variant == &"ranged_snipe":
+		attack_lunge = 0.0
 	_heal_punish_aoe_radius = float(resolved.get("aoe_radius", 0.0))
 	_heal_punish_cooldown = float(_heal_punish_profile.cooldown_sec)
 	var scale := float(resolved.get("windup_scale", 0.7))
@@ -897,22 +1062,29 @@ func _try_boss_heal_punish() -> void:
 	_change_state(State.WINDUP, attack_windup * scale)
 
 
-## 治疗 AoE burst：对半径内目标瞬时结算
+func _has_clear_healing_target() -> bool:
+	if not is_instance_valid(target_node) or not target_node is Node3D or target_node == self:
+		return false
+	var origin := global_position + Vector3.UP * 1.2
+	var destination: Vector3 = target_node.get_target_point() if target_node.has_method("get_target_point") else target_node.global_position + Vector3.UP * 1.2
+	var query := PhysicsRayQueryParameters3D.create(origin, destination, 1)
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
+## The healer is the target; the world's lock-on list contains allied enemies.
 func _apply_heal_punish_aoe() -> void:
 	var radius := _heal_punish_aoe_radius
 	_heal_punish_aoe_radius = 0.0
-	if radius <= 0.0 or world_node == null or not world_node.has_method("get_target_candidates"):
+	if radius <= 0.0 or not _has_clear_healing_target() or not _encounter_allows_damage(target_node):
 		return
-	for candidate in world_node.get_target_candidates():
-		if candidate is Node3D and _horizontal_distance(global_position, candidate.global_position) <= radius:
-			if candidate.has_method("receive_hit"):
-				var dir: Vector3 = (candidate.global_position - global_position)
-				dir.y = 0.0
-				if dir.length_squared() < 0.0001:
-					dir = -global_transform.basis.z
-				else:
-					dir = dir.normalized()
-				candidate.receive_hit(attack_damage, attack_stagger, dir, self)
+	if target_node.is_in_group("enemies") or not target_node.has_method("receive_hit"):
+		return
+	if global_position.distance_to(target_node.global_position) > radius:
+		return
+	var direction: Vector3 = target_node.global_position - global_position
+	direction.y = 0.0
+	direction = -global_transform.basis.z if direction.length_squared() < 0.0001 else direction.normalized()
+	target_node.receive_hit(attack_damage, attack_stagger, direction, self)
 
 
 func get_target_point() -> Vector3:
@@ -920,7 +1092,14 @@ func get_target_point() -> Vector3:
 
 
 func is_targetable() -> bool:
-	return state != State.DEAD and health > 0.0 and visible
+	return state != State.DEAD and health > 0.0 and visible and _encounter_allows_damage(null)
+
+
+func _encounter_allows_damage(source: Variant) -> bool:
+	var story_gate: Callable = get_meta("story_damage_gate", Callable())
+	if story_gate.is_valid() and not bool(story_gate.call(source)):
+		return false
+	return not is_instance_valid(encounter_boundary) or encounter_boundary.allows_damage(source)
 
 
 func get_health_ratio() -> float:
@@ -941,7 +1120,9 @@ func _update_state(delta: float) -> void:
 	match state:
 		State.IDLE:
 			# G-05：behavior 模块驱动 IDLE（巡逻/守点等）
-			if _behavior_module != null and _behavior_module.has_method("update_idle"):
+			if _update_authored_idle(delta):
+				pass
+			elif _behavior_module != null and _behavior_module.has_method("update_idle"):
 				_behavior_module.update_idle(self, delta)
 			else:
 				_slow_horizontal(delta, acceleration)
@@ -949,6 +1130,7 @@ func _update_state(delta: float) -> void:
 				has_target
 				and not _target_is_in_sanctuary()
 				and distance_to_target <= aggro_range
+				and _can_see_authored_target()
 			):
 				_set_engaged(true)
 				_change_state(State.CHASE)
@@ -1050,10 +1232,11 @@ func _update_state(delta: float) -> void:
 			if home_offset.length_squared() <= 0.16:
 				global_position.x = spawn_origin.x
 				global_position.z = spawn_origin.z
-				_slow_horizontal(delta, acceleration * 2.0)
+				velocity.x = 0.0
+				velocity.z = 0.0
 				_change_state(State.IDLE)
 			else:
-				var home_direction := home_offset.normalized()
+				var home_direction := _safe_navigation_direction(spawn_origin)
 				velocity.x = move_toward(
 					velocity.x,
 					home_direction.x * move_speed,
@@ -1078,7 +1261,11 @@ func _chase_target(target_position: Vector3, delta: float) -> void:
 ## G-03：远程伏击追击——到位开火，过近后撤
 func _update_ranged_ambush_chase(target_position: Vector3, distance_to_target: float, delta: float) -> void:
 	var preferred := RangedAmbushBehavior.preferred_distance(chapter_content)
-	var retreat_at := RangedAmbushBehavior.retreat_trigger(chapter_content)
+	var retreat_at := minf(RangedAmbushBehavior.retreat_trigger(chapter_content), attack_range * .65)
+	# The preferred band must not stop short of this creature's real range.
+	if distance_to_target > attack_range or not _has_clear_healing_target():
+		_chase_target(target_position, delta)
+		return
 	if (
 		RangedAmbushBehavior.should_fire(distance_to_target, attack_range, retreat_at)
 		and absf(target_position.y - global_position.y) < 3.5
@@ -1101,6 +1288,10 @@ func _update_skirmish_chase(target_position: Vector3, distance_to_target: float,
 	if distance_to_target <= attack_range and absf(target_position.y - global_position.y) < 2.5:
 		_start_attack()
 		return
+	# Melee skirmishers must close into their hit range before circling/retreating.
+	if distance_to_target > attack_range or not _has_clear_healing_target():
+		_chase_target(target_position, delta)
+		return
 	var desired: Vector3 = _behavior_module.desired_chase_velocity(global_position, target_position, move_speed)
 	velocity.x = move_toward(velocity.x, desired.x, acceleration * delta)
 	velocity.z = move_toward(velocity.z, desired.z, acceleration * delta)
@@ -1114,16 +1305,14 @@ func _update_skirmish_chase(target_position: Vector3, distance_to_target: float,
 func _spawn_enemy_projectile() -> void:
 	if not is_inside_tree():
 		return
-	var aim := _cached_target_position - global_position
-	aim.y = 0.0
+	var projectile_origin := global_position + Vector3.UP * 1.15
+	var aim := _cached_target_position - projectile_origin
 	if aim.length_squared() < 0.001:
 		aim = -global_transform.basis.z
 	else:
 		aim = aim.normalized()
-	# 略抬仰角，避免贴地扫掠漏检
-	aim = (aim + Vector3.UP * 0.08).normalized()
 	var projectile = EnemyProjectileScene.instantiate()
-	var spawn_pos := global_position + Vector3(0.0, 1.15, 0.0) + aim * 0.55
+	var spawn_pos := projectile_origin + aim * 0.55
 	var parent_node: Node = world_node if world_node != null else get_tree().current_scene
 	if parent_node == null:
 		parent_node = self
@@ -1154,14 +1343,21 @@ func _refresh_decision_cache() -> void:
 		return
 	_cached_target_position = _get_target_position()
 	_cached_distance_to_target = _horizontal_distance(global_position, _cached_target_position)
-	navigation_agent.target_position = _cached_target_position
-	_cached_chase_direction = _safe_navigation_direction(_cached_target_position)
+	var navigation_target := _cached_target_position
+	var patrol_points: Array = encounter_assignment.get("patrol_points", [])
+	if state == State.RETURN:
+		navigation_target = spawn_origin
+	elif not engaged and not guardian and not patrol_points.is_empty():
+		navigation_target = patrol_points[_authored_patrol_index % patrol_points.size()]
+	_cached_chase_direction = _safe_navigation_direction(navigation_target)
 	# G-01：Boss 宏观决策 tick（意图写黑板；FSM 继续微执行）
 	if guardian:
 		_tick_macro_decision()
 
 
 func _safe_navigation_direction(target_position: Vector3) -> Vector3:
+	if navigation_agent != null and navigation_agent.target_position.distance_squared_to(target_position) > .01:
+		navigation_agent.target_position = target_position
 	var direct := target_position - global_position
 	direct.y = 0.0
 	if direct.length_squared() > 0.001:
@@ -1184,6 +1380,8 @@ func _safe_navigation_direction(target_position: Vector3) -> Vector3:
 
 
 func _start_attack() -> void:
+	_active_heal_punish_variant = &""
+	_heal_punish_aoe_radius = 0.0
 	# L-14：Boss 与可抓投人型敌均可概率进入独立抓投前摇（不走 CombatArea）
 	if (
 		can_grab
@@ -1287,6 +1485,8 @@ func _end_grab() -> void:
 
 func enter_story_resolution() -> void:
 	# 命运选择：冻结 AI，保持存活
+	if _story_resolution:
+		return
 	_story_resolution = true
 	_release_execution_claim()
 	if _grab_director != null and _grab_director.active:
@@ -1322,6 +1522,51 @@ func conclude_story_fate() -> void:
 
 func is_in_story_resolution() -> bool:
 	return _story_resolution
+
+
+## Every mandatory chapter decision survives ordinary, status and execution damage.
+## Optional/sub-boss profiles remain lethal; the fox mirror route is conditional.
+func _final_choice_floor() -> float:
+	if has_meta("story_nonlethal_floor"):
+		return clampf(float(get_meta("story_nonlethal_floor")) / maxf(max_health, 1.0), 0.0, 1.0)
+	if not guardian:
+		return 0.0
+	if boss_break_profile == null or String(boss_break_profile.story_flag).is_empty():
+		return 0.0
+	if String(boss_break_profile.story_flag) == "ch3_nine_tails_fate":
+		# Owning the mirror does not automatically use it. At <=30% the player
+		# must approach the scene mirror; ordinary combat stops only for sealing.
+		return 1.0 / maxf(max_health, 1.0)
+	var phases: Dictionary = chapter_content.get("phases", {})
+	var ending_phase: Dictionary = phases.get("4", {})
+	if (ending_phase.get("ending_triggers", []) as Array).is_empty():
+		return clampf(float(boss_break_profile.story_floor_ratio), 0.0, 1.0)
+	return clampf(float(ending_phase.get("threshold", 0.0)), 0.0, 1.0)
+
+
+func _try_begin_final_choice() -> bool:
+	var floor_ratio := _final_choice_floor()
+	if floor_ratio <= 0.0 or _final_choice_emitted or get_health_ratio() > floor_ratio + .00001:
+		return false
+	health = maxf(health, max_health * floor_ratio)
+	if has_meta("story_nonlethal_floor"):
+		enter_story_resolution()
+		return true
+	# A large hit still emits intermediate phases before the final non-combat phase.
+	if not _phase_transition_played or not _phase_two_played:
+		_trigger_phase_transition()
+	_final_choice_emitted = true
+	var phases: Dictionary = chapter_content.get("phases", {})
+	var ending_phase: Dictionary = phases.get("4", {})
+	if not (ending_phase.get("ending_triggers", []) as Array).is_empty():
+		_phase = 4
+		phase_changed.emit(self, 4)
+	story_threshold_reached.emit(boss_break_profile.story_flag if boss_break_profile != null else &"ending_state", get_health_ratio())
+	# Standalone enemies still freeze without a world; campaign world may defer
+	# judgement for an authored final salute before explicitly freezing combat.
+	if not is_instance_valid(world_node) or not world_node.has_method("_on_boss_story_threshold"):
+		enter_story_resolution()
+	return true
 
 
 func _select_attack_profile() -> void:
@@ -1432,8 +1677,6 @@ func _ensure_boss_attack_executor() -> void:
 func _run_boss_attack_hook(phase_name: String) -> void:
 	if _active_attack_profile.is_empty():
 		return
-	if String(_active_attack_profile.get("type", "")).is_empty():
-		return
 	_ensure_boss_attack_executor()
 	if phase_name == "active":
 		_boss_attack_executor.execute_active(self, target_node, _active_attack_profile)
@@ -1474,11 +1717,7 @@ func _trigger_phase_transition() -> void:
 		weapon_material.emission_energy_multiplier = 2.5
 		_play_audio("heavy", -3.0, 0.55)
 		# Ground slam AoE — burst of damage on phase transition
-		if world_node != null and world_node.has_method("get_target_candidates"):
-			for candidate in world_node.get_target_candidates():
-				if candidate is Node3D and _horizontal_distance(global_position, candidate.global_position) <= 4.5:
-					var dir: Vector3 = (candidate.global_position - global_position).normalized()
-					candidate.receive_hit(22.0, 28.0, dir, self)
+		_apply_phase_slam(4.5, 22.0, 28.0)
 	if new_phase >= 3 and not _phase_two_played:
 		_phase_two_played = true
 		_phase = 3
@@ -1492,11 +1731,7 @@ func _trigger_phase_transition() -> void:
 		body_material.emission_energy_multiplier = 1.5
 		_play_audio("death", -2.0, 0.45)
 		# Larger ground slam AoE in phase 3 transition
-		if world_node != null and world_node.has_method("get_target_candidates"):
-			for candidate in world_node.get_target_candidates():
-				if candidate is Node3D and _horizontal_distance(global_position, candidate.global_position) <= 6.0:
-					var dir: Vector3 = (candidate.global_position - global_position).normalized()
-					candidate.receive_hit(30.0, 38.0, dir, self)
+		_apply_phase_slam(6.0, 30.0, 38.0)
 	velocity = Vector3.ZERO
 	knockback_velocity = Vector3.ZERO
 	if state in [State.CHASE, State.WINDUP, State.ACTIVE, State.RECOVERY]:
@@ -1505,6 +1740,17 @@ func _trigger_phase_transition() -> void:
 	# G-04：通知抛光层（镜头 / 场地 VFX / 姿态混合）
 	for fired_phase in phases_fired:
 		phase_changed.emit(self, fired_phase)
+
+
+func _apply_phase_slam(radius: float, damage: float, stagger: float) -> void:
+	# get_target_candidates() belongs to player lock-on and contains allied enemies.
+	var player = world_node.get("player") if is_instance_valid(world_node) and "player" in world_node else target_node
+	if not is_instance_valid(player) or player == self or not player is Node3D:
+		return
+	if player.is_in_group("enemies") or not player.has_method("receive_hit"):
+		return
+	if _horizontal_distance(global_position, player.global_position) <= radius:
+		player.receive_hit(damage, stagger, (player.global_position - global_position).normalized(), self)
 
 
 ## I-06：FSM 转移合法性；同态允许刷新时长
@@ -1571,7 +1817,10 @@ func _change_state(new_state: State, duration: float = 0.0, force: bool = false)
 			_play_audio("heavy" if attack_heavy else "swing", -6.0, 0.82 if guardian else 1.0)
 		State.ACTIVE:
 			_run_boss_attack_hook("active")
-			if enemy_type == EnemyType.EMBER_SKIRMISHER:
+			if guardian and BossAttackExecutorScript.owns_active_hit(_active_attack_profile):
+				# AoE and projectile attacks already dispatched their primary damage.
+				combat_area.end_swing()
+			elif enemy_type == EnemyType.EMBER_SKIRMISHER or _active_heal_punish_variant == &"ranged_snipe":
 				# G-03：释放投射物，不走近战 CombatArea
 				_spawn_enemy_projectile()
 			elif _heal_punish_aoe_radius > 0.0 and _active_heal_punish_variant == &"aoe_burst":
@@ -1656,6 +1905,9 @@ func _update_embedded_movement() -> void:
 
 
 func _die() -> void:
+	# Status damage delivered by a normal attack cannot bypass the same final floor.
+	if _try_begin_final_choice():
+		return
 	if state == State.DEAD:
 		return
 	_change_state(State.DEAD)
@@ -2018,7 +2270,7 @@ func _apply_content_tuning() -> void:
 		float(profile.get("nav_height", 1.9))
 	)
 	if navigation_agent != null:
-		navigation_agent.path_desired_distance = float(profile.get("path_desired_distance", 0.35))
+		navigation_agent.path_desired_distance = float(profile.get("path_desired_distance", 0.7))
 		navigation_agent.target_desired_distance = float(profile.get("target_desired_distance", 1.5))
 	# G-05：挂接 behavior 模块并应用修饰
 	_behavior_id = String(profile.get("behavior", ""))
@@ -2053,7 +2305,8 @@ func _ensure_nodes() -> void:
 
 	navigation_agent = NavigationAgent3D.new()
 	navigation_agent.name = "NavigationAgent3D"
-	navigation_agent.path_desired_distance = 0.35
+	# Baked floor waypoints sit up to 0.5 m above the character's foot origin.
+	navigation_agent.path_desired_distance = 0.7
 	navigation_agent.target_desired_distance = 1.5
 	navigation_agent.path_height_offset = 0.0
 	navigation_agent.avoidance_enabled = false

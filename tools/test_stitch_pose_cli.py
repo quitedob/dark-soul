@@ -20,6 +20,8 @@ def main():
         raise RuntimeError('Scratch path escapes the workspace')
     scratch.mkdir(parents=True, exist_ok=True)
     cases = [('valid', base, None)]
+    embedded = json.loads((ROOT / 'tools/stitch_pose_embedded.example.json').read_text(encoding='utf8'))
+    cases.append(('embedded-class', embedded, None))
     for name, role, key, value, error in [
         ('missing-clip', 'prefix', 'clip', 'does_not_exist', 'is missing'),
         ('static-rig', 'prefix', 'scene', str(ROOT / 'build/glb-models/out/characters/player-classes/01-Divine-Marksman.glb'), 'no motion to sample'),
@@ -63,6 +65,10 @@ def main():
                 for role in ('prefix', 'suffix'):
                     if len(output['sampling'][role]['samples']) != 3:
                         raise AssertionError('Expected three real time samples')
+                if label == 'embedded-class':
+                    poses = output['poses']['prefix']
+                    if poses['at_zero_time']['pelvis_world_pos'] == poses['at_upper_trim_time']['pelvis_world_pos']:
+                        raise AssertionError('Newly animated class must supply temporal pelvis poses')
             print('PASS', label)
     print('STITCH_POSE_CLI_CONTRACTS_OK', len(cases))
 

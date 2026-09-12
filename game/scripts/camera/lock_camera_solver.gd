@@ -26,14 +26,14 @@ static func desired_yaw(player_pos: Vector3, target_point: Vector3, current_yaw:
 	return atan2(-fwd.x, -fwd.z)
 
 
-## 期望俯仰：瞄准玩家头顶与目标胸口的加权中点；负值 = 抬镜头（沿用既有 rig
-## 约定 rotation.x = -atan2(dy, h)），内部夹紧到 (PITCH_MIN, PITCH_MAX)。
+## 期望俯仰：瞄准玩家头顶与目标胸口的加权中点。
+## Camera3D 朝 -Z；绕 X 的正角度抬高视线，负角度俯视。
 static func desired_pitch(player_pos: Vector3, target_point: Vector3, rig_pos: Vector3) -> float:
 	var player_head: Vector3 = player_pos + Vector3.UP * 1.45
 	var mid: Vector3 = player_head.lerp(target_point, MIDPOINT_BIAS)
 	var offset: Vector3 = mid - rig_pos
 	var horizontal: float = Vector2(offset.x, offset.z).length()
-	var pitch: float = -atan2(offset.y, maxf(horizontal, 0.01))
+	var pitch: float = atan2(offset.y, maxf(horizontal, 0.01))
 	return clampf(pitch, PITCH_MIN, PITCH_MAX)
 
 

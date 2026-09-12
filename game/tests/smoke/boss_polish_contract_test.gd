@@ -15,7 +15,12 @@ const Chapter1Content = preload("res://scripts/data/chapter_1_content.gd")
 var _failures: Array[String] = []
 
 
-func _init() -> void:
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	await process_frame
 	_test_grab_director()
 	_test_camera_shots()
 	_test_fate_catalog_and_run_state()

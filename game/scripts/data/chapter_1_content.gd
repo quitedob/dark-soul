@@ -102,7 +102,7 @@ static func elites() -> Array[Dictionary]:
 
 static func boss() -> Dictionary:
 	return {
-		"id": "boss_giant_gate",
+		"id": "boss_giant_gate", "story_arena": true,
 		"display_name": "守炉灵·巨阙 / Furnace-Keeper · Giant Gate",
 		"max_health": 360.0, "reward": 350,
 		"arena": "circular_sanctum_open_sky",
@@ -122,12 +122,13 @@ static func boss() -> Dictionary:
 			# L-26：phase2 相变触发竞技场环带坍塌（arena_director 读取 arena_event）
 			"2": {
 				"threshold": 0.6,
+				"arena_effects": [{"kind": "fire", "color": "cf562d", "warning": 1.2, "radius": 1.2, "lifetime": 18.0, "interval": 1.0, "layout": "ring", "count": 4, "damage": 6.0}],
 				"description": "Furnace overload — faster, fiery attacks, ember trails",
 				"arena_event": "ring_collapse",
 				"attacks": [
 					{"name": "flame_sweep", "windup": 0.62, "active": 0.22, "recovery": 0.58, "damage": 28.0, "stagger": 32.0, "lunge": 1.8, "heavy": false},
 					{"name": "ember_slam", "windup": 0.88, "active": 0.28, "recovery": 0.78, "damage": 42.0, "stagger": 50.0, "lunge": 2.4, "heavy": true},
-					{"name": "furnace_burst", "windup": 1.05, "active": 0.35, "recovery": 0.9, "damage": 32.0, "stagger": 36.0, "lunge": 0.0, "heavy": true, "type": "radial_aoe", "range": 4.0, "spawn_hazard": true, "hazard_radius": 2.2, "hazard_lifetime": 5.0, "hazard_telegraph": 0.8},
+					{"name": "furnace_burst", "windup": 1.05, "active": 0.35, "recovery": 0.9, "damage": 32.0, "stagger": 36.0, "lunge": 0.0, "heavy": true, "type": "radial_aoe", "range": 4.0, "spawn_hazard": true, "hazard_radius": 2.2, "hazard_lifetime": 5.0, "hazard_telegraph": 0.8, "arena_effect": {"kind": "fire", "color": "cf562d", "warning": 0.8, "radius": 2.4, "lifetime": 6.0, "interval": 1.0, "damage": 8.0, "break_props": true}},
 					{"name": "charge_rush", "windup": 0.78, "active": 0.30, "recovery": 0.72, "damage": 26.0, "stagger": 30.0, "lunge": 5.5, "heavy": false},
 				],
 				"vfx": "orange_ember_trails",

@@ -7,6 +7,7 @@ signal destination_selected(level_id: String)
 signal travel_cancelled
 
 const LocalizationScript = preload("res://scripts/core/localization.gd")
+const HudThemeScript = preload("res://scripts/ui/hud_theme.gd")
 
 var _dim: ColorRect
 var _panel: PanelContainer
@@ -74,6 +75,7 @@ func _build() -> void:
 	add_child(center)
 
 	_panel = PanelContainer.new()
+	_panel.theme = HudThemeScript.new().build_theme()
 	_panel.custom_minimum_size = Vector2(460, 300)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.07, 0.06, 0.09, 0.96)

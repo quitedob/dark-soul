@@ -130,10 +130,11 @@ func _connect_web_host() -> void:
 		return
 	# 独立浏览器构建未注入 AshenHollowHost 宿主时静默跳过，
 	# 避免对不存在的接口调用 get_interface 触发引擎报错。
-	var has_host_text := String(
+	var has_host = (
 		_js_bridge.call("eval", "typeof window.AshenHollowHost !== 'undefined'", true)
-	).strip_edges().to_lower()
-	if has_host_text != "true":
+	)
+	# Web variants may marshal a JavaScript boolean as integer 0/1.
+	if not bool(has_host):
 		return
 	_host = _js_bridge.call("get_interface", "AshenHollowHost")
 	_receive_callback = _js_bridge.call("create_callback", _on_js_message)
