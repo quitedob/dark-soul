@@ -65,6 +65,7 @@ static func add_environment(geometry: Node3D, layout: Dictionary) -> bool:
 	# covered galleries above. Chapter-specific omissions frame distant goals.
 	var architecture: Array = _boundary_architecture(layout)
 	architecture.append_array(layout.get("expansion", {}).get("architecture", []))
+	architecture.append_array(layout.get("expansion", {}).get("interior", {}).get("architecture", []))
 	for feature: Dictionary in architecture:
 		var transform := Transform3D(Basis(Vector3.UP, float(feature.get("yaw", 0.0))).scaled_local(feature.get("scale", Vector3.ONE)), feature["position"])
 		var part := String(feature["part"])
@@ -192,7 +193,11 @@ static func _feature_collision(parent: Node3D, kit: String, part: String, transf
 				size = Vector3(2.12, 6.3, 2.18)
 			for side in [-1, 1]:
 				_box(parent, "GatePillarSolid", transform, Vector3(side * 4.8, size.y * 0.5, 0), size)
-		"Column", "ArenaCover":
+		"Column":
+			_triangle_collision(parent, kit, part, transform)
+			var bounds := _part_bounds(kit, part)
+			_box(parent, "ColumnNav", transform, bounds.get_center(), bounds.size)
+		"ArenaCover":
 			_triangle_collision(parent, kit, part, transform)
 		"Landmark":
 			# Actual arches, columns and masonry block actors/cameras, including
@@ -237,7 +242,7 @@ static func _triangle_collision(parent: Node3D, kit: String, part: String, trans
 	body.collision_layer = 1
 	# Distant rock triangles remain physical camera blockers, but are not walkable
 	# terrain. Tiny decorative facets otherwise create spurious nav edge islands.
-	if part not in ["Rock", "Landmark", "Watchtower", "Roof", "Wall", "Arcade"]:
+	if part not in ["Rock", "Landmark", "Watchtower", "Roof", "Wall", "Arcade", "Column"]:
 		body.add_to_group("campaign_navigation_source")
 		body.add_to_group("campaign_terrain_navigation_source")
 	for descriptor: Dictionary in _kits[kit][part]:
@@ -255,6 +260,9 @@ static func _boundary_architecture(layout: Dictionary) -> Array[Dictionary]:
 	var cells: Dictionary = layout["cell_set"]
 	var chapter := int(String(layout["id"]).substr(6, 2))
 	for cell: Vector3i in layout["cells"]:
+		# Storeys own their facades and atrium. Outdoor ten-metre retaining
+		# walls here would fill the lower rooms and seal the internal stairs.
+		if layout.get("interior_cells", {}).has(cell): continue
 		var at := Layout.floor_position(cell)
 		for direction: Vector3i in [Vector3i.LEFT, Vector3i.RIGHT, Vector3i.FORWARD, Vector3i.BACK]:
 			if cells.has(cell + direction) or layout["open_edges"].has(Layout.edge_key(cell, direction)):

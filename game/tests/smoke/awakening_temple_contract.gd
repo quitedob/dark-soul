@@ -356,10 +356,35 @@ func _check_anchors(current: Node3D, manifest: Dictionary) -> void:
 	_expect(spawn_to_terminal(current) >= 125.0, "The playable processional route was not enlarged")
 	var district: Dictionary = current.get_meta("expansion", {})
 	var additions: Array = district.get("encounters", [])
+	var interior: Dictionary = district.get("interior", {})
+	var pressure: Array = interior.get("interior_pressure", [])
 	_expect(manifest["encounters"].size() == 6 and additions.size() == 2,
 		"Opening keeps six story encounters and adds the district patrol and record guard")
-	_expect(_world.enemies.size() == 6 + additions.size(),
-		"Actual opening roster must contain the six original enemies plus exactly its planned district guards")
+	_expect(pressure.size() == 3, "Opening interior adds exactly its ground ambush, middle patrol and top shield guard")
+	_expect(_world.enemies.size() == 6 + additions.size() + pressure.size(),
+		"Actual opening roster must contain exactly six original, two district and three interior-pressure enemies")
+	var original_ids := {"level_01_01/lost_soul_soldier/0": "lost_soul_soldier", "level_01_01/lost_soul_soldier/1": "lost_soul_soldier",
+		"level_01_01/lost_soul_soldier/2": "lost_soul_soldier", "level_01_01/ember_shade_skirmisher/0": "ember_shade_skirmisher",
+		"level_01_01/ember_shade_skirmisher/1": "ember_shade_skirmisher", "level_01_01/temple_guardian_warrior/0": "temple_guardian_warrior"}
+	var original_seen: Dictionary = {}
+	var extra_seen: Dictionary = {}
+	var guard_ids := {"level_01_01/district/threshold_patrol": "lost_soul_soldier",
+		"level_01_01/district/record_guard": "temple_guardian_warrior"}
+	var pressure_ids := {"level_01_01/interior/ground_ambush": "lost_soul_soldier",
+		"level_01_01/interior/middle_patrol": "lost_soul_soldier", "level_01_01/interior/top_shield": "temple_guardian_warrior"}
+	for enemy: Node3D in _world.enemies:
+		var assignment: Dictionary = enemy.encounter_assignment
+		if enemy.has_meta("expansion_placement_id"):
+			var placement_id := String(enemy.get_meta("expansion_placement_id"))
+			_expect((guard_ids.has(placement_id) or pressure_ids.has(placement_id)) and not extra_seen.has(placement_id),
+				"Opening extra actors must use distinct IDs from the two exact authored addition rosters: " + placement_id)
+			extra_seen[placement_id] = true
+		else:
+			var encounter_id := String(assignment.get("encounter_id", ""))
+			_expect(original_ids.has(encounter_id) and original_ids.get(encounter_id) == String(enemy.content_id) and not original_seen.has(encounter_id),
+				"Original opening actor retains its distinct authored ID and content: " + encounter_id)
+			original_seen[encounter_id] = true
+	_expect(original_seen.size() == 6 and extra_seen.size() == 5, "Opening keeps all six original identities and exactly five separately planned additions")
 	for index in manifest["encounters"].size():
 		var authored := Layout.vector(manifest["encounters"][index])
 		_check_floor(authored, "encounter_%d" % index)
@@ -371,12 +396,12 @@ func _check_anchors(current: Node3D, manifest: Dictionary) -> void:
 			if Vector2(origin.x, origin.z).distance_to(Vector2(authored.x, authored.z)) < 0.2:
 				occupied = true
 		_expect(occupied, "No actual enemy occupies authored encounter_%d" % index)
-	var guard_ids := {"level_01_01/district/threshold_patrol": "lost_soul_soldier",
-		"level_01_01/district/record_guard": "temple_guardian_warrior"}
+	var district_seen: Dictionary = {}
 	for plan: Dictionary in additions:
 		var placement_id := String(plan["placement_id"])
-		_expect(guard_ids.has(placement_id) and guard_ids.get(placement_id) == plan["content_id"],
+		_expect(guard_ids.has(placement_id) and guard_ids.get(placement_id) == plan["content_id"] and not district_seen.has(placement_id),
 			"Opening district must use its authored soldier patrol and temple record guard")
+		district_seen[placement_id] = true
 		var matching := 0
 		for enemy: Node3D in _world.enemies:
 			if String(enemy.get_meta("expansion_placement_id", "")) != placement_id:
@@ -385,11 +410,35 @@ func _check_anchors(current: Node3D, manifest: Dictionary) -> void:
 			var origin: Vector3 = enemy.get("spawn_origin")
 			var expected: Vector3 = current.to_global(plan["position"])
 			_expect(String(enemy.get("content_id")) == String(plan["content_id"])
+				and String(enemy.encounter_assignment.get("encounter_id", "")) == placement_id and enemy.get_meta("expansion_level", null) == current
 				and Vector2(origin.x, origin.z).distance_to(Vector2(expected.x, expected.z)) < .05
 				and origin.y >= expected.y and origin.y - expected.y < .3,
 				"District enemy has wrong content or spatial home: " + placement_id)
 			_check_floor(expected, placement_id, expected.y)
 		_expect(matching == 1, "Exactly one actual enemy required for " + placement_id)
+	_expect(district_seen.size() == guard_ids.size(), "The opening district roster is complete independently of its interior")
+	var pressure_seen: Dictionary = {}
+	for plan: Dictionary in pressure:
+		var placement_id := String(plan["placement_id"])
+		_expect(pressure_ids.has(placement_id) and pressure_ids.get(placement_id) == plan["content_id"] and not pressure_seen.has(placement_id),
+			"Opening interior must use exactly its independent ambush, patrol and shield identities")
+		pressure_seen[placement_id] = true
+		var matching := 0
+		for enemy: Node3D in _world.enemies:
+			if String(enemy.get_meta("expansion_placement_id", "")) != placement_id:
+				continue
+			matching += 1
+			var origin: Vector3 = enemy.spawn_origin
+			var expected: Vector3 = current.to_global(plan["position"])
+			var assignment: Dictionary = enemy.encounter_assignment
+			_expect(String(enemy.content_id) == String(plan["content_id"]) and String(assignment.get("encounter_id", "")) == placement_id
+				and String(assignment.get("role", "")) == String(plan["role"]) and enemy.get_meta("expansion_level", null) == current
+				and Vector2(origin.x, origin.z).distance_to(Vector2(expected.x, expected.z)) < .05
+				and origin.y >= expected.y and origin.y - expected.y < .3,
+				"Interior pressure actor has its own content, assignment, level and spatial reset home: " + placement_id)
+			_check_floor(expected, placement_id, expected.y)
+		_expect(matching == 1, "Exactly one actual interior actor required for " + placement_id)
+	_expect(pressure_seen.size() == pressure_ids.size(), "The opening interior-pressure roster is complete independently of its district")
 	for key: String in manifest["landmarks"]:
 		_check_floor(Layout.vector(manifest["landmarks"][key]), "landmark_" + key)
 	for path: String in ["ShortcutFold/OneWayDoor", "ShortcutFold/OneWayDoor/FarSideMarker"]:
@@ -512,6 +561,7 @@ func _await_navigation(navigation: NavigationRegion3D, at: Vector3) -> bool:
 	while Time.get_ticks_msec() < deadline:
 		var map := navigation.get_navigation_map()
 		if bool(navigation.get_meta("bake_complete", false)) and navigation.navigation_mesh.get_polygon_count() > 0 \
+				and NavigationServer3D.map_get_iteration_id(map) > 0 \
 				and NavigationServer3D.map_get_closest_point_owner(map, at) == navigation.get_rid():
 			return true
 		await create_timer(0.025, true, true).timeout

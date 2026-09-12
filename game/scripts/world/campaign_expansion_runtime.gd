@@ -41,6 +41,10 @@ func setup(owner_world: Node3D, owner_level: Node3D, expansion: Dictionary) -> v
 		_spawn_encounter(plan)
 	for reward: Dictionary in expansion.get("rewards", []):
 		_build_reward(reward)
+	var investigation := level_root.get_node_or_null("CampaignInteriorRuntime")
+	if investigation != null and investigation.has_signal("progress_changed"):
+		investigation.progress_changed.connect(_on_interior_progress)
+	_refresh_reward_prompts()
 
 
 func _spawn_encounter(plan: Dictionary) -> void:
@@ -57,6 +61,17 @@ func _spawn_encounter(plan: Dictionary) -> void:
 	if content.is_empty():
 		push_error("Expansion encounter content is unavailable: " + String(plan.get("content_id", "")))
 		return
+	# Interior jobs retain the canonical actor/model/reward, with a concrete
+	# combat posture rather than a label. Never mutate the shared catalog entry.
+	var combat_role := String(plan.get("combat_role", ""))
+	if combat_role in ["front_shield", "door_ambush"]:
+		content = content.duplicate(true)
+		if combat_role == "front_shield":
+			content["behavior"] = "shield_wall"
+		else:
+			var attack: Dictionary = content.get("attack", {}).duplicate(true)
+			attack["windup"] = maxf(float(attack.get("windup", .7)), .7)
+			content["attack"] = attack
 	var clearance := maxf(.05, float(content.get("body_height", 1.9)) * .5 - float(content.get("body_y", .95)) + .05)
 	var local_position: Vector3 = plan.get("position", Vector3.ZERO)
 	var spawn_world := level_root.to_global(local_position + Vector3.UP * clearance)
@@ -140,6 +155,8 @@ func _add_reward_visual(area: Area3D) -> void:
 	if Renderer.PARTS.has("Lantern") and ResourceLoader.exists(kit_path):
 		visual = Renderer.instantiate_part(theme, "Lantern")
 	if visual != null:
+		var reward: Dictionary = _rewards.get(String(area.get_meta("expansion_reward_id", "")), {})
+		visual.scale = reward.get("visual_scale", Vector3.ONE)
 		area.add_child(visual)
 		area.set_meta("visual_source", "threejs_lantern")
 	else:
@@ -158,7 +175,7 @@ func _add_reward_visual(area: Area3D) -> void:
 		area.add_child(ember)
 		area.set_meta("visual_source", "ember_wisp_bootstrap")
 	var light := OmniLight3D.new()
-	light.position.y = .8
+	light.position.y = 1.7 if String((_rewards.get(String(area.get_meta("expansion_reward_id", "")), {}) as Dictionary).get("required_flag", "")).begins_with("interior_complete:") else .8
 	light.light_color = Color("ffc57d")
 	light.light_energy = .7
 	light.omni_range = 3.0
@@ -187,6 +204,12 @@ func _claim_reward(area: Node3D, actor: Node) -> void:
 	if not area.get_world_3d().direct_space_state.intersect_ray(query).is_empty():
 		return
 	var reward: Dictionary = _rewards[id]
+	var required_flag := String(reward.get("required_flag", ""))
+	if not required_flag.is_empty() and not bool(world.run_state.get_choice_flag(required_flag, false)):
+		_refresh_reward_prompts()
+		if is_instance_valid(world.hud):
+			world.hud.show_message(_required_reward_hint(), 5.0)
+		return
 	var amount := int(reward["embers"])
 	# Write the durable guard before granting currency/signalling. No item or
 	# loot-catalog IDs are invented for environmental caches.
@@ -206,6 +229,27 @@ func _claim_reward(area: Node3D, actor: Node) -> void:
 	if is_instance_valid(world.audio):
 		world.audio.play_cue("rest", -7.0, .9)
 	area.queue_free()
+
+
+func _on_interior_progress(_interior_id: String, _completed_stages: int, _total_stages: int) -> void:
+	_refresh_reward_prompts()
+
+
+func _refresh_reward_prompts() -> void:
+	for id: String in reward_areas:
+		var area: Area3D = reward_areas[id]
+		if not is_instance_valid(area):
+			continue
+		var required_flag := String((_rewards[id] as Dictionary).get("required_flag", ""))
+		var unlocked := required_flag.is_empty() or bool(world.run_state.get_choice_flag(required_flag, false))
+		area.prompt_text = Copy.copy("拾取遗留余烬", "Gather the abandoned embers") if unlocked else _required_reward_hint()
+
+
+func _required_reward_hint() -> String:
+	var investigation := level_root.get_node_or_null("CampaignInteriorRuntime")
+	if investigation != null and investigation.has_method("progress_hint"):
+		return String(investigation.progress_hint())
+	return Copy.copy("先完成楼内遗事，才能领取余烬。", "Complete the interior investigation before claiming these embers.")
 
 
 func _exit_tree() -> void:

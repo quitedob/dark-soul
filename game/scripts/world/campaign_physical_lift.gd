@@ -9,12 +9,15 @@ var destination_y := -0.175
 var unlocked := false
 var moving := false
 var _unlock: Callable
+var _prerequisite: Callable
+var _last_ready := false
 var _lift: Node3D
 var _controls: Array[Area3D] = []
 
-func setup(lift: Node3D, already_unlocked: bool, on_unlock: Callable) -> void:
+func setup(lift: Node3D, already_unlocked: bool, on_unlock: Callable, prerequisite: Callable = Callable()) -> void:
 	_lift = lift
 	_unlock = on_unlock
+	_prerequisite = prerequisite
 	unlocked = already_unlocked
 	platform = lift.get_node("LiftPlatform") as AnimatableBody3D
 	platform.sync_to_physics = false
@@ -29,7 +32,7 @@ func setup(lift: Node3D, already_unlocked: bool, on_unlock: Callable) -> void:
 	onboard.position = Vector3(0, 1.1, 0)
 	_configure_area(onboard)
 	onboard.world_callback = func(_a: Node, player: Node) -> void:
-		if not _nearby(onboard, player) or moving: return
+		if not _nearby(onboard, player) or moving or not _ready_to_unlock(): return
 		_discover()
 		_start(lower_y if absf(platform.position.y - upper_y) < .1 else upper_y)
 	platform.add_child(onboard)
@@ -37,8 +40,12 @@ func setup(lift: Node3D, already_unlocked: bool, on_unlock: Callable) -> void:
 	_refresh_prompts()
 
 func _physics_process(delta: float) -> void:
+	var ready := _ready_to_unlock()
+	if ready != _last_ready:
+		_last_ready = ready
+		_refresh_prompts()
 	if not moving or not is_instance_valid(platform): return
-	platform.position.y = move_toward(platform.position.y, destination_y, delta * 2.6)
+	platform.position.y = move_toward(platform.position.y, destination_y, delta * float(_lift.get_meta("lift_speed", 2.6)))
 	if is_equal_approx(platform.position.y, destination_y):
 		moving = false
 		_refresh_prompts()
@@ -46,10 +53,11 @@ func _physics_process(delta: float) -> void:
 func _add_control(label: String, at: Vector3, upper: bool) -> void:
 	var area := Interact.new()
 	area.name = label
+	area.set_meta("upper_landing", upper)
 	area.position = at
 	_configure_area(area)
 	area.world_callback = func(_a: Node, player: Node) -> void:
-		if not _nearby(area, player) or moving: return
+		if not _nearby(area, player) or moving or not _ready_to_unlock(): return
 		if upper: _discover()
 		if not unlocked: return
 		var landing_y := upper_y if upper else lower_y
@@ -76,7 +84,12 @@ func _configure_area(area: Area3D) -> void:
 	area.add_child(collision)
 
 func _nearby(area: Area3D, player: Node) -> bool:
-	return player is Node3D and area.global_position.distance_to(player.global_position + Vector3.UP) < 3.2
+	return player is Node3D and is_instance_valid(player) \
+		and (not "health" in player or float(player.get("health")) > 0.0) \
+		and area.global_position.distance_to(player.global_position + Vector3.UP) < 3.2
+
+func _ready_to_unlock() -> bool:
+	return not _prerequisite.is_valid() or bool(_prerequisite.call())
 
 func _discover() -> void:
 	if unlocked: return
@@ -95,8 +108,10 @@ func _refresh_prompts() -> void:
 		if not moving and String(area.name) == "LiftRideInteract":
 			area.prompt_text = "乘坐升降台 / Ride lift"
 		elif not moving:
-			var landing := upper_y if String(area.name) == "UpperLiftCall" else lower_y
+			var landing := upper_y if bool(area.get_meta("upper_landing", false)) else lower_y
 			if absf(platform.position.y - landing) < .1:
 				area.prompt_text = "升降台已停靠 · 走上平台 / Step onto the lift"
 		if String(area.name) == "LowerLiftCall" and not unlocked:
 			area.prompt_text = "需要从上层解锁 / Unlock from above"
+		if not _ready_to_unlock():
+			area.prompt_text = String(_lift.get_meta("locked_prompt", "完成楼内三层记录后解锁 / Complete the three storeys"))

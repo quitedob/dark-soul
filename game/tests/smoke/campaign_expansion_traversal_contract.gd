@@ -126,22 +126,59 @@ func _check_level() -> bool:
 		level_id + " production capsule reaches the elevated overlook through physical ramps")
 	var spur: Array = expansion["reward_spur"]
 	for point: Vector3 in spur:
-		if not await _walk_to(point, "reward_spur"):
+		if not await _walk_to(point, "interior_approach"):
 			return false
+	var rooms_plan: Dictionary = expansion.get("interior", {})
+	var rooms := level.get_node_or_null("CampaignInteriorRuntime")
+	if not _expect(rooms != null and rooms_plan.get("stages", []).size() == 3,
+		level_id + " route enters an actual three-floor investigation"):
+		return false
+	var stages: Array = rooms_plan["stages"]
+	for stage_index in stages.size():
+		var stage: Dictionary = stages[stage_index]
+		if not await _walk_to(stage["clue_position"], "floor_%d_clue_approach" % (stage_index + 1)):
+			return false
+		if not await _interact(rooms.clue_areas[stage_index], "read_floor_%d_evidence" % (stage_index + 1)):
+			return false
+		_expect(bool(world.run_state.get_choice_flag(rooms.stage_flag(stage_index, "clue"), false)),
+			level_id + " actual input reads floor %d evidence before choosing its mechanism" % (stage_index + 1))
+		var choice := int(stage["correct_index"])
+		if stage_index == 2:
+			# This suite measures movement with frozen AI. Establish the authored
+			# guardian prerequisite by labelled damage injection, not a fake win.
+			var loop := level.get_node_or_null("CampaignInteriorLoopRuntime")
+			var guard: Node3D = loop.threats.get(level_id + "/interior/top_shield") if loop != null else null
+			if is_instance_valid(guard) and float(guard.health) > 0:
+				guard.receive_hit_payload({"damage": 100000.0, "stagger": 0.0, "poise": 0.0,
+					"direction": Vector3.ZERO, "source": world.player, "blockable": false, "parryable": false})
+				print("INTERIOR_TRAVERSAL_GUARD_FIXTURE level=%s method=production_damage_injection ai=frozen" % level_id)
+		if not await _walk_to(stage["controls_positions"][choice], "floor_%d_choice_approach" % (stage_index + 1)):
+			return false
+		if not await _interact(rooms.control_areas[stage_index][choice], "choose_floor_%d_control" % (stage_index + 1)):
+			return false
+		await _frames(50)
+		if not _expect(rooms.completed_stage_count() == stage_index + 1,
+			level_id + " evidence-based input opens floor %d in forward order" % (stage_index + 1)):
+			return false
+		for point: Vector3 in stage["to_next_route"]:
+			if not await _walk_to(point, "floor_%d_internal_stair_or_final_gallery" % (stage_index + 1)):
+				return false
+		print("INTERIOR_TRAVERSAL_FLOOR_OK level=%s floor=%d position=%s" % [level_id, stage_index + 1, str(world.player.global_position)])
+	_expect(bool(world.run_state.get_choice_flag(String(rooms_plan["completion_flag"]), false)),
+		level_id + " physical three-floor forward traversal completes its side investigation")
 	var district := level.get_node("CampaignExpansionRuntime")
 	var reward: Dictionary = expansion["rewards"][0]
 	var reward_id := String(reward["id"])
 	var cache := district.reward_areas.get(reward_id) as Area3D
-	if not _expect(cache != null, level_id + " unused cache exists at the risk/reward spur"):
+	if not _expect(cache != null, level_id + " unused cache exists beyond the third-floor gate"):
+		return false
+	if not await _walk_to(reward["position"], "top_floor_reward"):
 		return false
 	var before_embers := int(world.player.embers)
 	if not await _interact(cache, "reward_cache"):
 		return false
 	_expect(int(world.player.embers) == before_embers + int(reward["embers"]), level_id + " actual input acquires its finite branch reward")
-	for index in range(spur.size() - 2, -1, -1):
-		if not await _walk_to(spur[index], "reward_spur_return"):
-			return false
-	print("EXPANSION_TRAVERSAL_OVERLOOK level=%s position=%s reward=%d" % [level_id, str(world.player.global_position), int(reward["embers"])])
+	print("EXPANSION_TRAVERSAL_INTERIOR_COMPLETE level=%s position=%s reward=%d" % [level_id, str(world.player.global_position), int(reward["embers"])])
 	var lift_route: Array = expansion["lift_route"]
 	for point: Vector3 in lift_route:
 		if not await _walk_to(point, "upper_lift_approach"):
@@ -158,34 +195,9 @@ func _check_level() -> bool:
 	if not await _walk_to(lift_plan["lower_landing"], "walk_off_lower_deck"):
 		return false
 	_expect(world.player.is_on_floor(), level_id + " rider walks onto the lower fixed landing")
-	# Leave the platform upstairs by riding it back, then take the long stair
-	# route down. This sets up a genuinely absent-platform lower-call case.
-	if not await _walk_to(lift_plan["lower_dock"], "board_lower_deck"):
-		return false
-	if not await _interact(platform.get_node("LiftRideInteract"), "ride_up"):
-		return false
-	if not await _wait_for_lift(lift, float(lift.upper_y), true, "return_ascent"):
-		return false
-	if not await _walk_to(lift_plan["upper_landing"], "walk_off_upper_deck"):
-		return false
-	for index in range(lift_route.size() - 2, -1, -1):
-		if not await _walk_to(lift_route[index], "return_from_upper_lift"):
-			return false
+	# This route exercises the original final-lift return. Optional B2, roof
+	# revisits and the atrium descent have a separate Souls-loop traversal case.
 	var lower_branch_index := _nearest_index(route, lift_plan["lower_exit"])
-	for index in range(overlook_index + 1, lower_branch_index + 1):
-		if not await _walk_to(route[index], "outer_descent_stair"):
-			return false
-	if not await _walk_to(lift_plan["lower_landing"], "lower_call_approach"):
-		return false
-	var waiting_position: Vector3 = world.player.global_position
-	if not _expect(absf(platform.position.y - float(lift.upper_y)) < .05, level_id + " empty platform remains upstairs while player takes the side stair"):
-		return false
-	if not await _interact(elevator.get_node("LowerLiftCall"), "call_from_lower_landing"):
-		return false
-	if not await _wait_for_lift(lift, float(lift.lower_y), false, "lower_landing_call"):
-		return false
-	_expect(world.player.global_position.distance_to(waiting_position) < .4 and world.player.is_on_floor(),
-		level_id + " calling from fixed lower landing moves only the empty platform")
 	if not await _walk_to(lift_plan["lower_exit"], "lower_lift_exit"):
 		return false
 	for index in range(lower_branch_index + 1, gate_index):
@@ -226,6 +238,23 @@ func _check_level() -> bool:
 			return false
 	if not await _walk_to(far_gate, "cross_saved_open_gate"):
 		return false
+	# Saved lifts start at their upper dock. After the complete forward quest
+	# loop, walk to the unlocked lower landing and call the empty platform down.
+	for index in range(gate_index - 1, lower_branch_index - 1, -1):
+		if not await _walk_to(route[index], "reload_return_corridor_to_lift"):
+			return false
+	if not await _walk_to(lift_plan["lower_landing"], "reload_lower_call_approach"):
+		return false
+	var waiting_position: Vector3 = world.player.global_position
+	if not _expect(absf((lift.platform as AnimatableBody3D).position.y - float(lift.upper_y)) < .05,
+		level_id + " saved platform begins at the upper dock while the player is at the lower landing"):
+		return false
+	if not await _interact(level.get_node("ShortcutFold/ElevatorLift/LowerLiftCall"), "call_saved_lift_from_lower"):
+		return false
+	if not await _wait_for_lift(lift, float(lift.lower_y), false, "saved_lower_landing_call"):
+		return false
+	_expect(world.player.global_position.distance_to(waiting_position) < .4 and world.player.is_on_floor(),
+		level_id + " lower call moves the saved empty platform without relocating the player")
 	print("EXPANSION_TRAVERSAL_LEVEL_OK level=%s waypoints=%d physics_frames=%d" % [level_id, walked_waypoints, physics_steps])
 	return failures.is_empty()
 

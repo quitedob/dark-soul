@@ -9,6 +9,7 @@ const ModeledLayout = preload("res://scripts/world/campaign_modeled_layout.gd")
 const EnvironmentRenderer = preload("res://scripts/world/campaign_environment_renderer.gd")
 const StoryDressing = preload("res://scripts/data/campaign_scene_dressing.gd")
 const StoryRenderer = preload("res://scripts/world/campaign_story_prop_renderer.gd")
+const InteriorClueArt = preload("res://scripts/world/campaign_interior_clue_art.gd")
 
 const TILE_SIZE := 6.0
 const FLOOR_HEIGHT := 0.6
@@ -67,7 +68,16 @@ static func build(level_data: Dictionary) -> Node3D:
 			root.free()
 			return null
 	_add_modules(root, level_data, cells, theme)
-	_add_shortcut_fold(root, level_data, cells, theme)
+	var fold_level := level_data.duplicate(true)
+	if not authored_layout.get("expansion", {}).get("interior", {}).is_empty():
+		# Peaceful narrative rooms also need a forward exit after their upper
+		# gallery; this adds travel only and never adds combat to the quiet shore.
+		var fold_data: Dictionary = fold_level.get("shortcut_fold", {})
+		fold_data["enabled"] = true
+		fold_data["one_way_door"] = true
+		fold_data["elevator"] = true
+		fold_level["shortcut_fold"] = fold_data
+	_add_shortcut_fold(root, fold_level, cells, theme)
 	_add_markers(root, cells)
 	if is_temple:
 		TempleLayout.place_gameplay_nodes(root, temple_manifest)
@@ -86,6 +96,9 @@ static func build(level_data: Dictionary) -> Node3D:
 	root.set_meta("expansion", authored_layout.get("expansion", {}))
 	root.set_meta("story_anchors", story_layout.get("story_anchors", {}))
 	if not StoryRenderer.attach_to(root, story_layout.get("story_props", [])):
+		root.free()
+		return null
+	if not _add_interior_rooms(root, authored_layout):
 		root.free()
 		return null
 	_add_navigation(root, cells)
@@ -166,10 +179,14 @@ static func _place_modeled_gameplay(root: Node3D, layout: Dictionary) -> void:
 static func _place_expansion_fold(root: Node3D, layout: Dictionary) -> void:
 	var expansion: Dictionary = layout.get("expansion", {})
 	if expansion.is_empty(): return
+	var completion := String(expansion.get("interior", {}).get("completion_flag", ""))
+	var fold := root.get_node_or_null("ShortcutFold") as Node3D
 	var gate: Dictionary = expansion.get("return_gate", {})
 	var door := root.get_node_or_null("ShortcutFold/OneWayDoor") as Node3D
 	if door != null and not gate.is_empty():
 		door.set_meta("physical_return_gate", true)
+		door.set_meta("required_flag", completion)
+		fold.set_meta("one_way_id", gate["id"])
 		door.position = gate["position"]
 		door.rotation.y = float(gate["yaw"])
 		(door.get_node("FarSideMarker") as Marker3D).position = door.transform.affine_inverse() * gate["far_side"]
@@ -192,6 +209,8 @@ static func _place_expansion_fold(root: Node3D, layout: Dictionary) -> void:
 	var lift: Dictionary = expansion.get("lift", {})
 	var elevator := root.get_node_or_null("ShortcutFold/ElevatorLift") as Node3D
 	if elevator != null and not lift.is_empty():
+		elevator.set_meta("required_flag", completion)
+		fold.set_meta("elevator_id", lift["id"])
 		elevator.position = lift["upper_dock"]
 		# Six-metre shaft: the deck meets both fixed landing edges with a 5cm
 		# seam. The legacy 3.6m plate left a 1.2m jump over empty space.
@@ -212,6 +231,84 @@ static func _place_expansion_fold(root: Node3D, layout: Dictionary) -> void:
 		elevator.set_meta("shrine_dock_local", dock)
 		elevator.set_meta("physical_lift", true)
 		(elevator.get_node("ShrineDock") as Marker3D).position = dock
+
+
+static func _add_interior_rooms(root: Node3D, layout: Dictionary) -> bool:
+	var interior: Dictionary = layout.get("expansion", {}).get("interior", {})
+	if interior.is_empty(): return true
+	var room_root := Node3D.new()
+	room_root.name = "InteriorRooms"
+	room_root.set_meta("interior_id", interior["id"])
+	root.add_child(room_root)
+	for wall: Dictionary in interior.get("solid_boxes", []):
+		var body := StaticBody3D.new()
+		body.name = "InteriorMasonry"
+		body.position = wall["position"]
+		body.rotation.y = float(wall.get("yaw", 0.0))
+		body.collision_layer = 1
+		body.collision_mask = 0
+		body.add_to_group(NAVIGATION_SOURCE_GROUP)
+		body.add_to_group(TERRAIN_NAVIGATION_SOURCE_GROUP)
+		var collision := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = wall["size"]
+		collision.shape = box
+		body.add_child(collision)
+		room_root.add_child(body)
+		if bool(wall.get("visual", true)):
+			var masonry := EnvironmentRenderer.instantiate_part(StringName(layout["theme"]), "Wall")
+			if masonry == null: return false
+			# Imported masonry fills the same dimensions as its solid. Generic
+			# mechanism decoration is deliberately not used for structural walls.
+			if box.size.z > box.size.x:
+				masonry.rotation.y = PI * .5
+				masonry.scale = Vector3(box.size.z / 6.0, box.size.y / 10.0, box.size.x / 1.5)
+			else:
+				masonry.scale = Vector3(box.size.x / 6.0, box.size.y / 10.0, box.size.z / 1.5)
+			masonry.position.y = -box.size.y * .5
+			body.add_child(masonry)
+	var tint := Color(.72, .82, 1.0) if String(layout["theme"]) == "theme_jade_veil" else Color(1.0, .72, .43)
+	var origin: Vector3 = interior["origin"]
+	for floor_y: float in interior["floor_heights"]:
+		for side in [-1, 1]:
+			for end in [-1, 1]:
+				var light := OmniLight3D.new()
+				light.name = "GalleryLamplight"
+				light.position = Vector3(origin.x + side * 10.0, floor_y + 3.5, origin.z + end * 14.0)
+				light.light_color = tint
+				light.light_energy = 1.7
+				light.omni_range = 14.0
+				light.shadow_enabled = false
+				room_root.add_child(light)
+	var souls: Dictionary = interior.get("souls", {})
+	if not souls.get("b2_lift", {}).is_empty():
+		_add_interior_return_lift(room_root, souls["b2_lift"], String(layout["theme"]))
+	room_root.add_child(InteriorClueArt.build(interior, StringName(layout["theme"])))
+	return StoryRenderer.attach_to(room_root, interior.get("props", []))
+
+
+static func _add_interior_return_lift(parent: Node3D, plan: Dictionary, theme: String) -> void:
+	var lift := Node3D.new()
+	lift.name = "InteriorReturnLift"
+	lift.position = plan["upper_dock"]
+	lift.set_meta("physical_lift", true)
+	lift.set_meta("lift_speed", 2.0)
+	lift.set_meta("locked_prompt", "二层门闩仍锁着归台 / Release the second-floor latch")
+	var platform := AnimatableBody3D.new()
+	platform.name = "LiftPlatform"
+	platform.collision_layer = 1
+	var collision := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(5.9, .35, 5.9)
+	collision.shape = box
+	platform.add_child(collision)
+	LevelModules.add_solid_visual(platform, box.size, theme)
+	lift.add_child(platform)
+	var dock := Marker3D.new()
+	dock.name = "ShrineDock"
+	dock.position = plan["lower_dock"] - lift.position
+	lift.add_child(dock)
+	parent.add_child(lift)
 
 
 static func _seed_for(level_data: Dictionary) -> int:

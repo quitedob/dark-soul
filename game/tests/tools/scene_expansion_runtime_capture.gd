@@ -14,7 +14,7 @@ func _run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--levels="): selected = Array(arg.trim_prefix("--levels=").split(","))
 	root.size = Vector2i(1280, 720)
-	var folder := ProjectSettings.globalize_path("res://../build/scene-expansion/runtime")
+	var folder := ProjectSettings.globalize_path("res://../build/scene-expansion/interior-runtime")
 	DirAccess.make_dir_recursive_absolute(folder)
 	world = AuditWorld.new()
 	var scene := WorldScene.instantiate()
@@ -49,6 +49,45 @@ func _run() -> void:
 		world.player.camera_rig.rotation.y = atan2(-direction.x, -direction.z)
 		await _frames(36)
 		await _capture(folder.path_join(id + "-overlook-inspection.png"))
+		var interior: Dictionary = plan.get("interior", {})
+		if not interior.is_empty():
+			for index in 3:
+				var at: Vector3 = interior["stages"][index]["clue_position"]
+				world.player.respawn_at(current.to_global(at + Vector3(0, .1, 4)))
+				world.player.camera_rig.rotation.y = 0
+				await _frames(24)
+				await _capture(folder.path_join(id + "-storey-%d-inspection.png" % (index + 1)))
+			var inspection_camera := Camera3D.new()
+			world.add_child(inspection_camera)
+			inspection_camera.global_position = current.to_global(interior["origin"] + Vector3(45, 35, 55))
+			inspection_camera.look_at(current.to_global(interior["origin"] + Vector3.UP * 7))
+			inspection_camera.current = true
+			await _frames(3)
+			await _capture(folder.path_join(id + "-building-inspection.png"))
+			var souls: Dictionary = interior["souls"]
+			inspection_camera.global_position = current.to_global(souls["vista"]["position"])
+			inspection_camera.look_at(current.to_global(souls["vista"]["look_at"]))
+			await _frames(3)
+			await _capture(folder.path_join(id + "-atrium-inspection.png"))
+			for index in 3:
+				var at: Vector3 = interior["stages"][index]["clue_position"]
+				var front := -1.0 if index == 1 else 1.0
+				inspection_camera.global_position = current.to_global(at + Vector3(4, 3.6, front * 6))
+				inspection_camera.look_at(current.to_global(at + Vector3(0, 1, 0)))
+				await _frames(3)
+				await _capture(folder.path_join(id + "-evidence-%d-inspection.png" % (index + 1)))
+			inspection_camera.global_position = current.to_global(interior["origin"] + Vector3(3, 4, 17))
+			inspection_camera.look_at(current.to_global(souls["refuge"]["position"]))
+			await _frames(3)
+			await _capture(folder.path_join(id + "-refuge-inspection.png"))
+			if souls.has("annex"):
+				var at: Vector3 = souls["annex"]["origin"]
+				inspection_camera.global_position = current.to_global(at + Vector3(6, 4, 7))
+				inspection_camera.look_at(current.to_global(at + Vector3(0, 1.2, 0)))
+				await _frames(3)
+				await _capture(folder.path_join(id + "-annex-inspection.png"))
+			inspection_camera.queue_free()
+			world.player.camera.current = true
 		frame_ms.sort()
 		var record := {"id": id, "frame_p50_ms": frame_ms[45], "frame_p95_ms": frame_ms[85],
 			"forward_displacement_m": displacement, "input_frames": 90, "time_scale": Engine.time_scale,

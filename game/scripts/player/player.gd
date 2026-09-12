@@ -793,7 +793,10 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 
 
 func receive_hit_payload(payload: Dictionary) -> void:
-	if state == State.DEAD or _is_invulnerable():
+	# A landing's cost belongs to the physical descent, including a roll at
+	# contact. Ordinary combat payloads retain their dodge invulnerability.
+	var environmental_fall := _payload_has_tag(payload, &"environmental_fall")
+	if state == State.DEAD or (_is_invulnerable() and not environmental_fall):
 		return
 	if is_instance_valid(world_node) and world_node.has_method("filter_boss_player_hit"):
 		payload = world_node.filter_boss_player_hit(payload)

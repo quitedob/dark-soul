@@ -1092,6 +1092,9 @@ func _wire_one_way_door(fold: Node3D, door_root: Node3D) -> void:
 	interact.world_callback = func(_a: Node, _p: Node) -> void:
 		if bool(door_root.get_meta("is_open", false)):
 			return
+		if not _shortcut_prerequisite(door_root):
+			_notify("先完成楼内的守望记录 / Complete the records upstairs", 2.0)
+			return
 		if bool(door_root.get_meta("physical_return_gate", false)):
 			if not _p is Node3D:
 				return
@@ -1135,7 +1138,7 @@ func _wire_elevator(fold: Node3D, elevator: Node3D) -> void:
 		controller.setup(elevator, shortcut_id in _read_activated_shortcuts(), func() -> void:
 			_persist_shortcut(shortcut_id)
 			shortcut_fold_opened.emit(shortcut_id)
-		)
+		, func() -> bool: return _shortcut_prerequisite(elevator))
 		return
 	# 激活后平台可往返；交互可立刻送回 Ember Shrine 停靠点
 	var tip := elevator.get_node_or_null("ActivateMarker") as Marker3D
@@ -1224,6 +1227,15 @@ func _restore_shortcut_folds(fold: Node3D) -> void:
 		var interact := elevator.get_node_or_null("ElevatorActivateInteract")
 		if interact != null and "prompt_text" in interact:
 			interact.prompt_text = LocalizationScript.text("Ride to Ember Shrine")
+
+
+func _shortcut_prerequisite(source: Node) -> bool:
+	var required := String(source.get_meta("required_flag", ""))
+	if required.is_empty(): return true
+	var world := get_parent()
+	if world == null or not "run_state" in world: return false
+	var state = world.get("run_state")
+	return state != null and bool(state.choice_flags.get(required, false))
 
 
 func _read_activated_shortcuts() -> Array:

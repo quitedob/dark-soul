@@ -47,7 +47,17 @@ func _on_body_entered(body: Node3D) -> void:
 
 
 func _recover(player: Node) -> void:
-	if _claimed or player == null:
+	if _claimed or not is_instance_valid(player):
+		return
+	# The echo appears where the corpse still overlaps it. Recovery belongs to
+	# the later living return, not that initial body_entered event.
+	if "health" in player and float(player.get("health")) <= 0.0:
+		return
+	if player is Node3D and player.global_position.distance_to(global_position) > 3.0:
+		return
+	if is_instance_valid(world) and "player" in world and player != world.get("player"):
+		return
+	if is_instance_valid(world) and "lost_echo" in world and world.get("lost_echo") != self:
 		return
 	_claimed = true
 	set_deferred("monitoring", false)

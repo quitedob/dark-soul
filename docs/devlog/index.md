@@ -6,6 +6,10 @@
 
 ## 日期索引
 
+### 2026-09-12
+
+- [多层关卡：回路、威胁与遗事](2026-09-12/01-multistorey-investigation-levels.md)
+
 ### 2026-09-10
 
 - [Blender MCP、后台资产管线与全场景问题排查方法复盘](2026-09-10/02-blender-mcp-workflow-and-debugging-retrospective.md)

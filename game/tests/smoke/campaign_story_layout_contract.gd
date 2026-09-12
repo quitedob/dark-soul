@@ -100,28 +100,56 @@ func _run() -> void:
 		_check_memorials_and_bells(id, props)
 		var rows: Array[Dictionary] = []
 		var actors: Array[Node3D] = []
+		var expansion: Dictionary = current.get_meta("expansion", {})
+		var interior: Dictionary = expansion.get("interior", {})
 		var district_plans: Dictionary = {}
-		for plan: Dictionary in current.get_meta("expansion", {}).get("encounters", []):
-			district_plans[String(plan["placement_id"])] = plan
+		for plan: Dictionary in expansion.get("encounters", []):
+			var placement_id := String(plan["placement_id"])
+			_check(placement_id.begins_with(id + "/district/") and not district_plans.has(placement_id), id + ": unique level-scoped district plan")
+			district_plans[placement_id] = plan
+		var interior_plans: Dictionary = {}
+		var expected_interior_ids: Array[String] = []
+		if not interior.is_empty() and id != "level_05_01":
+			for suffix: String in ["ground_ambush", "middle_patrol", "top_shield"]:
+				expected_interior_ids.append(id + "/interior/" + suffix)
+		for plan: Dictionary in interior.get("interior_pressure", []):
+			var placement_id := String(plan["placement_id"])
+			_check(expected_interior_ids.has(placement_id) and not interior_plans.has(placement_id) and not district_plans.has(placement_id), id + ": exact independent interior-pressure plan identity " + placement_id)
+			interior_plans[placement_id] = plan
+		_check(interior_plans.size() == expected_interior_ids.size(), id + ": interior requires exactly its three pressure roles, or no peaceful/boss additions")
 		var district_seen: Dictionary = {}
+		var interior_seen: Dictionary = {}
 		for enemy: Node3D in _world.enemies:
 			if enemy == _world.guardian:
 				continue
 			if enemy.has_meta("expansion_placement_id"):
 				var placement_id := String(enemy.get_meta("expansion_placement_id"))
-				_check(district_plans.has(placement_id) and not district_seen.has(placement_id), id + ": district actor has unique authored identity")
-				district_seen[placement_id] = true
 				if district_plans.has(placement_id):
+					_check(not district_seen.has(placement_id), id + ": district actor has unique authored identity")
+					district_seen[placement_id] = true
 					var plan: Dictionary = district_plans[placement_id]
 					var expected: Vector3 = current.to_global(plan["position"])
 					_check(String(enemy.content_id) == String(plan["content_id"]), id + ": district content matches its story plan")
 					_check(Vector2(enemy.global_position.x - expected.x, enemy.global_position.z - expected.z).length() < .2,
 						id + ": district actor remains at its own guarded route")
 					_check(Encounters.is_supported(layout, plan["position"], enemy.body_shape.radius), id + ": district guard has genuine supporting terrain")
+					_check_added_identity(current, enemy, plan, "district")
+				elif interior_plans.has(placement_id):
+					_check(not interior_seen.has(placement_id), id + ": interior actor has unique authored identity")
+					interior_seen[placement_id] = true
+					var plan: Dictionary = interior_plans[placement_id]
+					_check_added_identity(current, enemy, plan, "interior_pressure")
+					var expected: Vector3 = current.to_global(plan["position"])
+					var hit := current.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(expected + Vector3.UP * .12, expected + Vector3.DOWN * .2, 1))
+					_check(not hit.is_empty() and absf((hit["position"] as Vector3).y - expected.y) < .08, id + ": interior pressure actor has its own physical storey or ramp support " + placement_id)
+				else:
+					_check(false, id + ": unplanned extra actor is forbidden: " + placement_id)
 				continue
 			rows.append({"content_id": String(enemy.content_id), "body_radius": enemy.body_shape.radius})
 			actors.append(enemy)
 		_check(district_seen.size() == district_plans.size(), id + ": complete added district roster")
+		_check(interior_seen.size() == interior_plans.size(), id + ": complete independent interior-pressure roster")
+		_check(_world.enemies.size() == actors.size() + district_plans.size() + interior_plans.size() + (1 if _world.guardian in _world.enemies else 0), id + ": exact original plus district plus interior roster count")
 		if id == "level_03_04":
 			_check_lake_roster(current, actors)
 		var input_snapshot: Dictionary = layout.duplicate(true)
@@ -141,6 +169,7 @@ func _run() -> void:
 			id + ": unknown content must fail instead of random fallback")
 		print("CAMPAIGN_STORY_LAYOUT_LEVEL %s props=%d encounters=%d" % [id, props.size(), assigned.size()])
 	_world.free()
+	_check(_props == 211 and _enemies == 86, "The original campaign retains all211 story props and86 authored encounters independently of added rosters")
 	print("CAMPAIGN_STORY_LAYOUT_COUNTS props=%d encounters=%d checks=%d" % [_props,_enemies,_checks])
 	if _failures.is_empty():
 		print("ASHEN_CAMPAIGN_STORY_PLANS_OK" if _plans_only else "ASHEN_CAMPAIGN_STORY_LAYOUT_CONTRACT_OK")
@@ -149,6 +178,19 @@ func _run() -> void:
 		for failure: String in _failures:
 			push_error(failure)
 		quit(1)
+
+
+func _check_added_identity(current: Node3D, enemy: Node3D, plan: Dictionary, roster: String) -> void:
+	var placement_id := String(plan["placement_id"])
+	var assignment: Dictionary = enemy.encounter_assignment
+	var expected: Vector3 = current.to_global(plan["position"])
+	var home: Vector3 = enemy.spawn_origin
+	_check(String(enemy.content_id) == String(plan["content_id"]) and String(assignment.get("encounter_id", "")) == placement_id
+		and String(assignment.get("role", "")) == String(plan["role"]) and enemy.get_meta("expansion_level", null) == current,
+		roster + ": content, role, production assignment and level ownership match " + placement_id)
+	_check(Vector2(home.x - expected.x, home.z - expected.z).length() < .05 and home.y >= expected.y and home.y - expected.y < .3
+		and Vector2(enemy.global_position.x - expected.x, enemy.global_position.z - expected.z).length() < .2,
+		roster + ": actor and reset home consume their own authored placement " + placement_id)
 
 
 func _check_imported_props(current: Node3D, props: Array[Dictionary], id: String) -> void:
@@ -304,6 +346,7 @@ func _check_lake_roster(current: Node3D, actors: Array[Node3D]) -> void:
 
 func _check_encounter(current: Node3D, layout: Dictionary, enemy: Node3D, entry: Dictionary, id: String) -> void:
 	var point: Vector3 = entry["position"]
+	_check(String(enemy.encounter_assignment.get("encounter_id", "")) == String(entry["encounter_id"]), id + ": original actor retains its own authored encounter identity")
 	if not _plans_only:
 		var actual := current.to_local(enemy.global_position)
 		_check(Vector2(actual.x-point.x,actual.z-point.z).length()<.06,

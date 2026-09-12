@@ -342,6 +342,11 @@ func _update_scene_objective() -> void:
 				objective = HudThemeScript.copy("试炼进行中 · 第 %d 波 · %d 秒", "Trial in progress · Wave %d · %d s") % [maxi(1, int(state.get("trial_wave", 1))), remaining_seconds]
 			else:
 				objective = HudThemeScript.copy("试炼进行中 · %d 秒", "Trial in progress · %d s") % remaining_seconds
+	if campaign_runtime != null and is_instance_valid(campaign_runtime.current_level):
+		var rooms := campaign_runtime.current_level.get_node_or_null("CampaignInteriorRuntime")
+		if rooms != null:
+			var room_objective := String(rooms.objective_for_player())
+			if not room_objective.is_empty(): objective = room_objective
 	hud.set_scene_objective(objective)
 
 
@@ -646,10 +651,107 @@ func _spawn_chapter_encounters() -> void:
 	clues.setup(self, String(campaign_runtime.current_level_id))
 	var expansion: Dictionary = level_root.get_meta("expansion", {})
 	if not expansion.is_empty():
+		var interior: Dictionary = expansion.get("interior", {})
+		if not interior.is_empty():
+			var rooms = load("res://scripts/world/campaign_interior_runtime.gd").new()
+			rooms.name = "CampaignInteriorRuntime"
+			level_root.add_child(rooms)
+			rooms.setup(self, level_root, interior)
+			_setup_interior_loop(level_root, interior, rooms)
 		var district = load("res://scripts/world/campaign_expansion_runtime.gd").new()
 		district.name = "CampaignExpansionRuntime"
 		level_root.add_child(district)
 		district.setup(self, level_root, expansion)
+
+
+func _setup_interior_loop(level_root: Node3D, interior: Dictionary, rooms: Node3D) -> void:
+	if interior.get("souls", {}).is_empty(): return
+	var telemetry = load("res://scripts/world/campaign_interior_playtest.gd").new()
+	telemetry.name = "CampaignInteriorPlaytest"
+	level_root.add_child(telemetry)
+	telemetry.setup(self, level_root, interior, rooms)
+	var loop = load("res://scripts/world/campaign_interior_loop_runtime.gd").new()
+	loop.name = "CampaignInteriorLoopRuntime"
+	level_root.add_child(loop)
+	loop.refuge_activated.connect(_activate_interior_refuge)
+	loop.threat_state_changed.connect(func(id: String, state: String, at: Vector3) -> void:
+		telemetry.record_loop_event("threat", {"placement_id": id, "state": state, "position": [at.x, at.y, at.z]})
+	)
+	loop.drop_landed.connect(func(at: Vector3, height: float, cushioned: bool, health_lost: float) -> void:
+		telemetry.record_loop_event("drop_landed", {"position": [at.x, at.y, at.z], "fall_height": height,
+			"cushioned": cushioned, "health_lost": health_lost})
+	)
+	loop.roof_reached.connect(func(at: Vector3) -> void:
+		telemetry.record_loop_event("roof_reached", {"position": [at.x, at.y, at.z]})
+	)
+	loop.setup(self, level_root, interior)
+	var revisit = load("res://scripts/world/campaign_interior_revisit_runtime.gd").new()
+	revisit.name = "CampaignInteriorRevisitRuntime"
+	level_root.add_child(revisit)
+	revisit.scout_window_changed.connect(func(visible: bool) -> void:
+		telemetry.record_loop_event("scout_window", {"visible": visible})
+	)
+	revisit.revisit_recorded.connect(func(kind: String, id: String, at: Vector3) -> void:
+		telemetry.record_loop_event("revisit", {"revisit_kind": kind, "interaction_id": id, "position": [at.x, at.y, at.z]})
+	)
+	revisit.setup(self, level_root, interior, rooms)
+	var lift := level_root.get_node_or_null("InteriorRooms/InteriorReturnLift") as Node3D
+	if lift != null:
+		var control = load("res://scripts/world/campaign_physical_lift.gd").new()
+		control.name = "PhysicalLiftRuntime"
+		lift.add_child(control)
+		var ready := func() -> bool:
+			return bool(run_state.get_choice_flag(String(interior["souls"]["b2_latch"]["flag"]), false)) \
+				or bool(run_state.get_choice_flag(String(interior["completion_flag"]), false))
+		control.setup(lift, ready.call(), Callable(), ready)
+		control._add_control("UpperRoofCall", Vector3(0, 1, 4.2), true)
+		# Either earned connection also enables the lower call switch. The final
+		# chapter-return lift keeps its separate, completed-investigation lock.
+		rooms.progress_changed.connect(func(_id: String, _count: int, _total: int) -> void:
+			if ready.call(): control._discover()
+		)
+		loop.refuge_activated.connect(func(_id: String, _at: Vector3) -> void:
+			if ready.call(): control._discover()
+		)
+	_restore_interior_refuge()
+
+
+func _activate_interior_refuge(refuge_id: String, spawn_world: Vector3) -> void:
+	var level_root: Node3D = campaign_runtime.current_level
+	var interior: Dictionary = level_root.get_meta("expansion", {}).get("interior", {})
+	var refuge: Dictionary = interior.get("souls", {}).get("refuge", {})
+	if String(refuge.get("id", "")) != refuge_id or not bool(run_state.get_choice_flag(String(refuge.get("unlock_flag", "")), false)):
+		return
+	var expected: Vector3 = level_root.to_global(refuge["spawn_position"])
+	if expected.distance_to(spawn_world) > .1: return
+	var previous: Variant = run_state.get_choice_flag("active_interior_refuge", "")
+	var old_spawn := respawn_position
+	run_state.set_choice_flag("active_interior_refuge", refuge_id)
+	respawn_position = _resolve_respawn_position(expected + Vector3.UP * 1.1)
+	if not _save_run("interior_refuge"):
+		run_state.set_choice_flag("active_interior_refuge", previous)
+		respawn_position = old_spawn
+		return
+	# Opening the latch earns the respawn; healing requires reaching the fire.
+	if player.global_position.distance_to(level_root.to_global(refuge["position"])) <= 3.5:
+		player.heal_full()
+		for enemy in enemies:
+			if _can_reset_enemy(enemy): enemy.reset_enemy()
+		audio.play_cue("rest", -4.0)
+		hud.show_message(HudThemeScript.copy("余灰歇脚处已点亮 · 倒下后在此醒来", "Ash refuge kindled · Return here after death"), 2.5)
+	var telemetry := level_root.get_node_or_null("CampaignInteriorPlaytest")
+	if telemetry != null:
+		telemetry.record_loop_event("refuge_activated", {"refuge_id": refuge_id})
+
+
+func _restore_interior_refuge() -> void:
+	if campaign_runtime == null or campaign_runtime.current_level == null: return
+	var level_root: Node3D = campaign_runtime.current_level
+	var refuge: Dictionary = level_root.get_meta("expansion", {}).get("interior", {}).get("souls", {}).get("refuge", {})
+	if refuge.is_empty(): return
+	if String(run_state.get_choice_flag("active_interior_refuge", "")) != String(refuge["id"]): return
+	if not bool(run_state.get_choice_flag(String(refuge["unlock_flag"]), false)): return
+	respawn_position = _resolve_respawn_position(level_root.to_global(refuge["spawn_position"]) + Vector3.UP * 1.1)
 
 
 func _distribute_modeled_encounters() -> void:
@@ -1355,6 +1457,7 @@ func rest_at_checkpoint(shrine: Node3D, _interacting_player: Node = null) -> voi
 		hud.show_message(HudThemeScript.copy("试炼仍在进行", "The trial is still in progress"), 2.0)
 		return
 	respawn_position = _resolve_respawn_position(shrine.global_position + Vector3(0.0, 1.1, 2.0))
+	run_state.choice_flags.erase("active_interior_refuge")
 	var level_data := campaign_runtime.get_level_data() if campaign_runtime != null else {}
 	run_state.checkpoint_id = String(level_data.get("checkpoint_id", "ember_shrine"))
 	player.heal_full()
@@ -2799,6 +2902,13 @@ func _apply_run_state(state) -> void:
 	if state == null:
 		return
 	_restoring_run_state = true
+	# A continued save owns its own echo, including the absence of one. Disable
+	# the old instance before rebuilding the level so queued overlap callbacks
+	# cannot recover currency from the previous run into the restored snapshot.
+	if is_instance_valid(lost_echo):
+		lost_echo.set("_claimed", true)
+		lost_echo.queue_free()
+		lost_echo = null
 	run_state = state
 	if not _load_campaign_level(StringName(run_state.level_id)):
 		_load_campaign_level(&"level_01_01")
@@ -2831,6 +2941,7 @@ func _apply_run_state(state) -> void:
 	# 有已激活祠堂时，重生点回到 checkpoint marker 而非出生点
 	if not String(run_state.checkpoint_id).is_empty():
 		respawn_position = _resolve_respawn_position(_checkpoint_position() + Vector3(0.0, 1.1, 2.0))
+	_restore_interior_refuge()
 	if _boss_aftermath_pending and is_instance_valid(_arena_director):
 		# Full save/host restore applies identity and upgrades after loading the
 		# level. Its final spawn must return to the unfinished course, not the shrine.

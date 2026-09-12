@@ -575,6 +575,10 @@ func receive_hit(damage, stagger, hit_direction, source) -> void:
 func receive_hit_payload(payload: Dictionary) -> void:
 	if state == State.DEAD or _story_resolution or _final_choice_emitted:
 		return
+	var local_filter: Callable = get_meta("campaign_hit_filter", Callable())
+	if local_filter.is_valid():
+		payload = local_filter.call(payload)
+		if payload.is_empty(): return
 	if not _encounter_allows_damage(payload.get("source")):
 		return
 	if guardian and is_instance_valid(world_node) and world_node.has_method("filter_boss_incoming_hit"):

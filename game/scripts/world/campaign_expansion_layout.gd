@@ -4,6 +4,7 @@ extends RefCounted
 ## Pure geometry/data only. Production actors, rewards and doors have other owners.
 
 const Dressing = preload("res://scripts/data/campaign_scene_dressing.gd")
+const Interior = preload("res://scripts/world/campaign_interior_layout.gd")
 const CELL := 6.0
 const HEIGHT := 2.0
 const CHAPTER_NAMES := ["守炉旧院", "血铁军道", "借忆园林", "坠城外廓", "天炉余脉"]
@@ -99,9 +100,8 @@ static func extend(state: Dictionary, level: Dictionary) -> void:
 	var lift_walk: Array[Vector3i] = []
 	var extra_edges: Dictionary = {}
 	if not boss:
-		_line(state, upper_court, Vector3i(lift_x, high_y, upper_court.z), lift_walk)
-		_line(state, lift_walk.back(), upper_shaft + Vector3i(0, 0, 1), lift_walk)
-		extra_edges[_edge(upper_shaft + Vector3i(0, 0, 1), Vector3i(0, 0, -1))] = true
+		# The lift's upper approach is authored after the third interior room.
+		# Do not retain a lower gallery that would bypass the room sequence.
 		extra_edges[_edge(Vector3i(lift_x, 0, return_z), Vector3i(0, 0, -1))] = true
 	var new_cells: Array[Vector3i] = []
 	for cell: Vector3i in state["cell_set"]:
@@ -149,6 +149,13 @@ static func extend(state: Dictionary, level: Dictionary) -> void:
 			"look_at": state.get("boss_arena_center", Vector3(0, 2, -6))},
 		"architecture": architecture, "boss_approach": boss,
 	}
+	if not boss:
+		Interior.extend(state, level)
+		new_cells = []
+		for cell: Vector3i in state["cell_set"]:
+			if not original.has(cell):
+				new_cells.append(cell)
+		state["expansion"]["new_cells"] = new_cells
 
 
 static func _choose_entry(state: Dictionary, cells: Dictionary, preferred_side: int, boss: bool) -> Dictionary:
@@ -272,11 +279,12 @@ static func _architecture(lower: Vector3i, upper: Vector3i, reward: Vector3i, si
 		var tower_offset := 6.0 if boss else 10.5
 		result.append({"part": "Watchtower", "position": position + Vector3(side * tower_offset, 0, tower_offset), "yaw": 0.0,
 			"scale": Vector3(.45, .65 + chapter * .05, .45)})
-	result.append({"part": "Roof", "position": _floor(reward), "yaw": 0.0, "scale": Vector3.ONE})
-	for x_side in [-1, 1]:
-		for z_side in [-1, 1]:
-			result.append({"part": "Column", "position": _floor(reward) + Vector3(x_side * 2.5, 0, z_side * 2.5),
-				"yaw": 0.0, "scale": Vector3(.25, 5.0 / 6.0, .25)})
+	if boss:
+		result.append({"part": "Roof", "position": _floor(reward), "yaw": 0.0, "scale": Vector3.ONE})
+		for x_side in [-1, 1]:
+			for z_side in [-1, 1]:
+				result.append({"part": "Column", "position": _floor(reward) + Vector3(x_side * 2.5, 0, z_side * 2.5),
+					"yaw": 0.0, "scale": Vector3(.25, 5.0 / 6.0, .25)})
 	for index in range(4, walk.size() - 4, 7):
 		var cell: Vector3i = walk[index]
 		if original.has(cell):
