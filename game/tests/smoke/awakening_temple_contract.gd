@@ -16,6 +16,9 @@ class AuditWorld extends "res://scripts/game_world.gd":
 var _failures: Array[String] = []
 var _world: AuditWorld
 var _routes_checked := 0
+var _seams_checked := 0
+var _tiles_checked := 0
+var _collisions_checked := 0
 
 
 func _initialize() -> void:
@@ -55,6 +58,7 @@ func _run() -> void:
 	_freeze_actors()
 	_check_architecture(current, manifest)
 	_check_anchors(current, manifest)
+	_check_connection_seams(current, manifest)
 	if ready:
 		_check_routes(current, navigation)
 		await _check_pavilion_ramps(current, navigation)
@@ -105,8 +109,8 @@ func _run() -> void:
 	var next_navigation := next.get_node("NavigationSurface") as NavigationRegion3D
 	var next_spawn: Vector3 = next.get_node("Markers/Spawn").global_position
 	_expect(await _await_navigation(next_navigation, next_spawn), "Next level must publish its own navigation after temple exit")
-	print("AWAKENING_TEMPLE_EVIDENCE cells=%d routes=%d collision_boxes=%d" %
-		[manifest["walkable_cells"].size(), _routes_checked, manifest["collision_boxes"].size()])
+	print("AWAKENING_TEMPLE_EVIDENCE original_cells=%d physical_cells=%d routes=%d retained_collision_boxes=%d open_seams=%d" %
+		[manifest["walkable_cells"].size(), _tiles_checked, _routes_checked, _collisions_checked, _seams_checked])
 	_world.free()
 	await process_frame
 	_finish()
@@ -139,37 +143,202 @@ func _check_architecture(current: Node3D, manifest: Dictionary) -> void:
 	_expect(model.find_children("*", "CollisionObject3D", true, false).is_empty(),
 		"Imported roof/ornament must not acquire automatic whole-mesh colliders")
 	var tiles := 0
+	var physical_cells: Dictionary = {}
 	for child in current.get_node("Geometry").get_children():
 		if String(child.name).begins_with("Tile_"):
 			tiles += 1
 			_expect(child is StaticBody3D and child.collision_layer == 1, "A walkable tile lost its physical floor")
+			var cell := Vector3i(roundi(child.position.x / 6.0), roundi((child.position.y + .3) / 2.0), roundi(-child.position.z / 6.0))
+			_expect(not physical_cells.has(cell), "Duplicate physical terrain cell " + str(cell))
+			physical_cells[cell] = true
+			var tile_shape := child.get_child(0) as CollisionShape3D
+			_expect(tile_shape != null and tile_shape.shape is BoxShape3D
+				and (tile_shape.shape as BoxShape3D).size.is_equal_approx(Vector3(6, .6, 6)),
+				"Physical floor must retain the production six-metre cell dimensions")
 			_expect(child.find_children("*", "MeshInstance3D", true, false).is_empty(),
 				"Visible procedural tiles must not cover the authored paving")
 		_expect(not String(child.name).contains("KitPillar"), "Random kit cylinders must not appear in the authored temple")
-	_expect(tiles == manifest["walkable_cells"].size() and tiles >= 200, "Manifest terrain was not fully instantiated")
+	for original: Array in manifest["walkable_cells"]:
+		var cell := Vector3i(int(original[0]), int(original[1]), int(original[2]))
+		_expect(physical_cells.has(cell), "Original temple floor must survive district expansion: " + str(cell))
+	_expect(tiles > manifest["walkable_cells"].size() + 100,
+		"The playable district must add substantial physical terrain beyond the original temple")
+	_tiles_checked = tiles
 	var cells: Array = current.get_node("NavigationSurface").get_meta("walkable_cells")
 	_expect(cells.size() == tiles and int(current.get_meta("walkable_cell_count")) == tiles,
 		"Navigation and supported-placement metadata must use the expanded terrain")
 	var min_cell := Vector3i.ZERO
 	var max_cell := Vector3i.ZERO
 	for cell: Vector3i in cells:
+		_expect(physical_cells.has(cell), "Navigation metadata must refer to actual terrain bodies: " + str(cell))
 		min_cell = min_cell.min(cell)
 		max_cell = max_cell.max(cell)
 	_expect((max_cell.x - min_cell.x + 1) * 6 >= 96 and (max_cell.z - min_cell.z + 1) * 6 >= 140,
 		"The physical playable footprint, not just distant scenery, must span the enlarged temple")
+	_expect(max_cell.y >= 3, "The new temple district must contain a real upper floor at least six metres high")
+	var district: Dictionary = current.get_meta("expansion", {})
+	_expect(not district.is_empty() and district.has("new_cells"), "Opening temple requires the integrated district plan")
+	for cell: Vector3i in district.get("new_cells", []):
+		_expect(physical_cells.has(cell), "Planned district floor is not physically instantiated: " + str(cell))
+	_check_threejs_architecture(current, tiles - manifest["walkable_cells"].size())
 	var collision_root := current.get_node("Geometry/ArchitectureCollision")
-	_expect(collision_root.get_child_count() == manifest["collision_boxes"].size(), "Architecture collision inventory mismatch")
-	for index in collision_root.get_child_count():
-		var body := collision_root.get_child(index) as StaticBody3D
-		var entry: Dictionary = manifest["collision_boxes"][index]
+	var openings: Array = current.get_meta("temple_connection_openings", [])
+	var retained := 0
+	var matched: Dictionary = {}
+	for entry: Dictionary in manifest["collision_boxes"]:
+		var removed_for_connection := String(entry["name"]) == "Retaining_wall" and _inside_openings(Layout.vector(entry["position"]), openings)
+		var body := _find_authored_collision(collision_root, entry)
+		if removed_for_connection:
+			_expect(body == null, "Connection retaining wall still blocks its original position: " + _collision_label(entry))
+			continue
+		retained += 1
+		if not _expect(body != null, "Original architecture collision was removed outside a connection: " + _collision_label(entry)):
+			continue
+		_expect(not matched.has(body.get_instance_id()), "Two original solids resolved to the same body: " + _collision_label(entry))
+		matched[body.get_instance_id()] = true
 		var shape := body.get_child(0) as CollisionShape3D
-		_expect(body.position.is_equal_approx(Layout.vector(entry["position"]))
+		_expect(shape != null and shape.shape is BoxShape3D and body.collision_layer == 1
 			and (shape.shape as BoxShape3D).size.is_equal_approx(Layout.vector(entry["size"]))
 			and is_equal_approx(body.rotation.x, float(entry.get("rotation_x", 0.0)))
 			and is_equal_approx(body.rotation.y, float(entry.get("rotation_y", 0.0))),
-			"Architecture collision differs from authored geometry: " + String(entry["name"]))
+			"Architecture collision differs from authored geometry: " + _collision_label(entry))
 		_expect(not body.is_in_group("camera_passthrough"), "Visible architecture must continue to block the camera")
+	_expect(collision_root.get_child_count() == retained and matched.size() == retained,
+		"Collision inventory must retain every original solid except explicitly opened perimeter railings")
+	_collisions_checked = retained
 	print("AWAKENING_TEMPLE_MODEL meshes=%d materials=%d bounds=%s" % [meshes.size(), material_ids.size(), bounds])
+
+
+func _check_threejs_architecture(current: Node3D, additional_cells: int) -> void:
+	var modeled := current.get_node_or_null("Geometry/ModeledEnvironment") as Node3D
+	if not _expect(modeled != null, "The original temple must be joined by the actual Three.js district"):
+		return
+	const EXPECTED_KIT := "res://assets/environment/threejs_campaign/spirit_ruins.glb"
+	_expect(String(modeled.get_meta("kit_path", "")) == EXPECTED_KIT and ResourceLoader.exists(EXPECTED_KIT),
+		"District provenance must identify its imported Three.js spirit-ruins GLB")
+	var batches := modeled.find_children("*", "MultiMeshInstance3D", true, false)
+	_expect(not batches.is_empty(), "Three.js district must submit imported mesh batches")
+	var floor_seen := false
+	var bridge_seen := false
+	var architecture_seen := false
+	for instance: MultiMeshInstance3D in batches:
+		_expect(instance.multimesh != null and instance.multimesh.mesh is ArrayMesh
+			and instance.multimesh.instance_count > 0, "District batch requires real imported ArrayMesh geometry")
+		_expect(String(instance.get_meta("kit_path", "")) == EXPECTED_KIT,
+			"District mesh batch lost its actual Three.js asset provenance")
+		var part := String(instance.get_meta("kit_part", ""))
+		if part == "Floor":
+			floor_seen = true
+			_expect(instance.multimesh.instance_count == additional_cells,
+				"Three.js floors must cover every added cell without replacing or duplicating the original temple paving")
+		bridge_seen = bridge_seen or part == "Bridge"
+		architecture_seen = architecture_seen or part in ["Arcade", "Watchtower", "Roof"]
+	_expect(floor_seen and bridge_seen and architecture_seen,
+		"District must contain imported floors, elevation bridges and built architecture")
+
+
+func _find_authored_collision(collision_root: Node, entry: Dictionary) -> StaticBody3D:
+	# Runtime-created duplicate node names may be generated @StaticBody3D@ names.
+	# Use the manifest's semantic name and exact spatial identity, never child order.
+	var expected_position := Layout.vector(entry["position"])
+	var expected_name := String(entry["name"])
+	for child: Node in collision_root.get_children():
+		if not child is StaticBody3D:
+			continue
+		var body := child as StaticBody3D
+		var body_name := String(body.name)
+		if not (body_name.begins_with(expected_name) or body_name.begins_with("@StaticBody3D@")):
+			continue
+		if body.position.is_equal_approx(expected_position) \
+				and is_equal_approx(body.rotation.x, float(entry.get("rotation_x", 0.0))) \
+				and is_equal_approx(body.rotation.y, float(entry.get("rotation_y", 0.0))):
+			return body
+	return null
+
+
+func _collision_label(entry: Dictionary) -> String:
+	return String(entry["name"]) + " at " + str(Layout.vector(entry["position"]))
+
+
+func _inside_openings(point: Vector3, openings: Array) -> bool:
+	for opening: AABB in openings:
+		if opening.has_point(point):
+			return true
+	return false
+
+
+func _check_connection_seams(current: Node3D, manifest: Dictionary) -> void:
+	var original: Dictionary = {}
+	for entry: Array in manifest["walkable_cells"]:
+		original[Vector3i(int(entry[0]), int(entry[1]), int(entry[2]))] = true
+	var all_cells: Dictionary = {}
+	for cell: Vector3i in current.get_node("NavigationSurface").get_meta("walkable_cells", []):
+		all_cells[cell] = true
+	var openings: Array = current.get_meta("temple_connection_openings", [])
+	# Derive the required seams from original/new physical adjacency independently
+	# of the adapter's reported openings. A metadata opening alone cannot pass.
+	for cell: Vector3i in original:
+		for direction: Vector3i in [Vector3i.LEFT, Vector3i.RIGHT, Vector3i.FORWARD, Vector3i.BACK]:
+			var outside := cell + direction
+			if original.has(outside) or not all_cells.has(outside):
+				continue
+			var inside_floor := Vector3(cell.x * 6.0, cell.y * 2.0, -cell.z * 6.0)
+			var outside_floor := Vector3(outside.x * 6.0, outside.y * 2.0, -outside.z * 6.0)
+			var midpoint := inside_floor.lerp(outside_floor, .5) + Vector3.UP * .7
+			_expect(_inside_openings(midpoint, openings), "New physical district connection lacks an authored masonry opening: " + str(midpoint))
+			var across := Vector3(0, 0, 1) if direction.x != 0 else Vector3(1, 0, 0)
+			for offset: float in [-1.5, 0.0, 1.5]:
+				for height: float in [.25, .7, .95]:
+					var from := current.to_global(inside_floor + across * offset + Vector3.UP * height)
+					var to := current.to_global(outside_floor + across * offset + Vector3.UP * height)
+					var query := PhysicsRayQueryParameters3D.create(from, to, 1)
+					query.hit_from_inside = true
+					var hit := _world.get_world_3d().direct_space_state.intersect_ray(query)
+					_expect(hit.is_empty(), "Old railing or new architecture still obstructs the actual temple connection: " + str(midpoint)
+						+ " height=" + str(height) + " offset=" + str(offset))
+			_seams_checked += 1
+	_expect(_seams_checked >= 2 and openings.size() == _seams_checked,
+		"Temple district requires both its earned entrance and shrine return to be physically stitched")
+
+
+func _check_vertical_lift(current: Node3D, lift: Dictionary) -> void:
+	if not _expect(not lift.is_empty(), "Opening district requires its physical two-level lift"):
+		return
+	var elevator := current.get_node("ShortcutFold/ElevatorLift") as Node3D
+	var platform := elevator.get_node("LiftPlatform") as AnimatableBody3D
+	var upper: Vector3 = elevator.global_position
+	var lower: Vector3 = (elevator.get_node("ShrineDock") as Marker3D).global_position
+	_expect(bool(elevator.get_meta("physical_lift", false)) and upper.is_equal_approx(current.to_global(lift["upper_dock"]))
+		and lower.is_equal_approx(current.to_global(lift["lower_dock"])), "Physical lift must use its actual district shaft docks")
+	_expect(absf(upper.x - lower.x) < .01 and absf(upper.z - lower.z) < .01 and upper.y - lower.y >= 6.0,
+		"Opening lift must connect vertically aligned docks on distinct floors")
+	var deck: BoxShape3D = null
+	for child in platform.get_children():
+		if child is CollisionShape3D and child.shape is BoxShape3D:
+			deck = child.shape
+	_expect(deck != null and deck.size.is_equal_approx(Vector3(5.9, .35, 5.9)),
+		"Lift requires a real 5.9m deck meeting the fixed six-metre landings")
+	for key: String in ["upper_landing", "lower_landing", "upper_exit", "lower_exit"]:
+		var floor_position: Vector3 = current.to_global(lift[key])
+		_check_floor(floor_position, "physical_lift_" + key, floor_position.y)
+	for pair: Array in [["upper_landing", upper], ["lower_landing", lower]]:
+		var landing: Vector3 = current.to_global(lift[pair[0]])
+		var dock: Vector3 = pair[1]
+		_expect(absf(landing.y - dock.y) < .01 and is_equal_approx(landing.distance_to(dock), 6.0),
+			"Fixed lift landing must adjoin its dock across the five-centimetre deck seam")
+	# Initially the platform is at the upper dock. The lower shaft is intentionally
+	# empty: a ground-at-shaft assertion would incorrectly demand an obstructing tile.
+	var top_query := PhysicsRayQueryParameters3D.create(upper + Vector3.UP * .5, upper + Vector3.DOWN * .5, 1)
+	var top_hit := _world.get_world_3d().direct_space_state.intersect_ray(top_query)
+	_expect(not top_hit.is_empty() and top_hit["collider"] == platform
+		and absf((top_hit["position"] as Vector3).y - upper.y) < .025, "Actual lift deck must initially meet the upper landing height")
+	var shaft_query := PhysicsRayQueryParameters3D.create(lower + Vector3.UP * .2, upper - Vector3.UP * .2, 1)
+	shaft_query.exclude = [platform.get_rid()]
+	_expect(_world.get_world_3d().direct_space_state.intersect_ray(shaft_query).is_empty(),
+		"The full physical lift shaft must remain clear of fixed floors and architecture")
+	var lower_query := PhysicsRayQueryParameters3D.create(lower + Vector3.UP * .04, lower + Vector3.DOWN * .12, 1)
+	_expect(_world.get_world_3d().direct_space_state.intersect_ray(lower_query).is_empty(),
+		"The absent lower platform must not be replaced by a fixed tile in the lift shaft")
 
 
 func _check_anchors(current: Node3D, manifest: Dictionary) -> void:
@@ -185,26 +354,47 @@ func _check_anchors(current: Node3D, manifest: Dictionary) -> void:
 	_expect(terminal.is_equal_approx(current.get_node("Markers/Exit").global_position),
 		"Campaign marker and actual exit must identify the same terminal gate")
 	_expect(spawn_to_terminal(current) >= 125.0, "The playable processional route was not enlarged")
-	_expect(_world.enemies.size() == manifest["encounters"].size(),
-		"Opening encounters must occupy the authored route instead of the old three-enemy cluster")
+	var district: Dictionary = current.get_meta("expansion", {})
+	var additions: Array = district.get("encounters", [])
+	_expect(manifest["encounters"].size() == 6 and additions.size() == 2,
+		"Opening keeps six story encounters and adds the district patrol and record guard")
+	_expect(_world.enemies.size() == 6 + additions.size(),
+		"Actual opening roster must contain the six original enemies plus exactly its planned district guards")
 	for index in manifest["encounters"].size():
 		var authored := Layout.vector(manifest["encounters"][index])
 		_check_floor(authored, "encounter_%d" % index)
 		var occupied := false
 		for enemy: Node3D in _world.enemies:
+			if enemy.has_meta("expansion_placement_id"):
+				continue
 			var origin: Vector3 = enemy.get("spawn_origin")
 			if Vector2(origin.x, origin.z).distance_to(Vector2(authored.x, authored.z)) < 0.2:
 				occupied = true
 		_expect(occupied, "No actual enemy occupies authored encounter_%d" % index)
+	var guard_ids := {"level_01_01/district/threshold_patrol": "lost_soul_soldier",
+		"level_01_01/district/record_guard": "temple_guardian_warrior"}
+	for plan: Dictionary in additions:
+		var placement_id := String(plan["placement_id"])
+		_expect(guard_ids.has(placement_id) and guard_ids.get(placement_id) == plan["content_id"],
+			"Opening district must use its authored soldier patrol and temple record guard")
+		var matching := 0
+		for enemy: Node3D in _world.enemies:
+			if String(enemy.get_meta("expansion_placement_id", "")) != placement_id:
+				continue
+			matching += 1
+			var origin: Vector3 = enemy.get("spawn_origin")
+			var expected: Vector3 = current.to_global(plan["position"])
+			_expect(String(enemy.get("content_id")) == String(plan["content_id"])
+				and Vector2(origin.x, origin.z).distance_to(Vector2(expected.x, expected.z)) < .05
+				and origin.y >= expected.y and origin.y - expected.y < .3,
+				"District enemy has wrong content or spatial home: " + placement_id)
+			_check_floor(expected, placement_id, expected.y)
+		_expect(matching == 1, "Exactly one actual enemy required for " + placement_id)
 	for key: String in manifest["landmarks"]:
 		_check_floor(Layout.vector(manifest["landmarks"][key]), "landmark_" + key)
-	for path: String in ["ShortcutFold/OneWayDoor", "ShortcutFold/OneWayDoor/FarSideMarker",
-			"ShortcutFold/ElevatorLift", "ShortcutFold/ElevatorLift/ShrineDock"]:
+	for path: String in ["ShortcutFold/OneWayDoor", "ShortcutFold/OneWayDoor/FarSideMarker"]:
 		_check_floor((current.get_node(path) as Node3D).global_position, path)
-	var elevator: Vector3 = current.get_node("ShortcutFold/ElevatorLift").global_position
-	var dock: Vector3 = current.get_node("ShortcutFold/ElevatorLift/ShrineDock").global_position
-	_expect(elevator.x < -30.0 and elevator.z < -70.0 and dock.z > -30.0 and elevator.distance_to(dock) > 60.0,
-		"Opening shortcut must connect the west cloister back to the entry courtyard")
+	_check_vertical_lift(current, district.get("lift", {}))
 
 
 func spawn_to_terminal(current: Node3D) -> float:
@@ -212,13 +402,13 @@ func spawn_to_terminal(current: Node3D) -> float:
 		(current.get_node("Markers/Exit") as Marker3D).position)
 
 
-func _check_floor(at: Vector3, label: String) -> void:
+func _check_floor(at: Vector3, label: String, expected_y := 0.0) -> void:
 	# Query near the authored ground, not from above roofs, statues or actors.
-	var point := Vector3(at.x, 0.04, at.z)
+	var point := Vector3(at.x, expected_y + 0.04, at.z)
 	var query := PhysicsRayQueryParameters3D.create(point, point + Vector3.DOWN * 0.12, 1)
 	var hit := _world.get_world_3d().direct_space_state.intersect_ray(query)
-	_expect(not hit.is_empty() and absf((hit["position"] as Vector3).y) < 0.025,
-		"Opening anchor lacks ground-level collision: " + label + " at " + str(at))
+	_expect(not hit.is_empty() and absf((hit["position"] as Vector3).y - expected_y) < 0.025,
+		"Opening anchor lacks collision at the authored floor height: " + label + " at " + str(at))
 
 
 func _check_routes(current: Node3D, navigation: NavigationRegion3D) -> void:
@@ -251,9 +441,10 @@ func _check_pavilion_ramps(current: Node3D, navigation: NavigationRegion3D) -> v
 	var collision_root := current.get_node("Geometry/ArchitectureCollision")
 	var bases: Array[StaticBody3D] = []
 	var inclines: Array[StaticBody3D] = []
-	for index in manifest["collision_boxes"].size():
-		var entry: Dictionary = manifest["collision_boxes"][index]
-		var body := collision_root.get_child(index) as StaticBody3D
+	for entry: Dictionary in manifest["collision_boxes"]:
+		var body := _find_authored_collision(collision_root, entry)
+		if body == null:
+			continue
 		if String(entry["name"]) == "Pavilion_base":
 			bases.append(body)
 		if absf(body.rotation.x) > 0.01:

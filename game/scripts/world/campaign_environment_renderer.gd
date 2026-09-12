@@ -158,7 +158,7 @@ static func _box(parent: Node3D, label: String, transform: Transform3D, center: 
 	body.set_meta("architecture_kind", label)
 	# Approximate landmark solids guide navigation only. Their imported triangle
 	# shapes handle actual contact, preserving open arches and tapering spires.
-	body.collision_layer = NAVIGATION_PROXY_LAYER if label.begins_with("Landmark") else 1
+	body.collision_layer = NAVIGATION_PROXY_LAYER if label.begins_with("Landmark") or label.ends_with("Nav") else 1
 	body.collision_mask = 0
 	body.add_to_group("campaign_navigation_source")
 	body.add_to_group("campaign_terrain_navigation_source")
@@ -176,8 +176,12 @@ static func _feature_collision(parent: Node3D, kit: String, part: String, transf
 	match part:
 		"Wall":
 			_triangle_collision(parent, kit, part, transform)
+			_box(parent, "WallNav", transform, Vector3(0, 5, 0), Vector3(6, 10, 1.5))
 		"Arcade":
 			_triangle_collision(parent, kit, part, transform)
+			for side in [-1, 1]:
+				_box(parent, "ArcadeJambNav", transform, Vector3(side * 2.5, 2, 0), Vector3(1, 4, 1))
+			_box(parent, "ArcadeLintelNav", transform, Vector3(0, 5.5, 0), Vector3(6, 3, 1))
 		"Roof", "Watchtower":
 			_triangle_collision(parent, kit, part, transform)
 		"Gate":
@@ -233,7 +237,7 @@ static func _triangle_collision(parent: Node3D, kit: String, part: String, trans
 	body.collision_layer = 1
 	# Distant rock triangles remain physical camera blockers, but are not walkable
 	# terrain. Tiny decorative facets otherwise create spurious nav edge islands.
-	if part not in ["Rock", "Landmark", "Watchtower", "Roof"]:
+	if part not in ["Rock", "Landmark", "Watchtower", "Roof", "Wall", "Arcade"]:
 		body.add_to_group("campaign_navigation_source")
 		body.add_to_group("campaign_terrain_navigation_source")
 	for descriptor: Dictionary in _kits[kit][part]:
