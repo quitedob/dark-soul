@@ -4,7 +4,7 @@
   "manifest_sha256": "111a8806becfe38641705a68797115c0650a8b59f446eac52d08cad2093f71f3",
   "generator_source_sha256": "0adf9a119fbe35e16af29c07c9106057376f98e99a41e76c55fa20f20d1cf2df",
   "verifier_sources": {
-    "tools/threejs/verify_environment.mjs": "67e670b6d20cd2938a060c37eab28bb75bf851f4a26412e703352ae159ec3b6a",
+    "tools/threejs/verify_environment.mjs": "0317ac5d7ef2f846523df96bfef1c16658e8494ef07e7d2499d3e041941dc7ce",
     "tools/threejs/glb_reader.mjs": "1f38380b42a81b8b1baa447ad8c14630ce81d3862cffddf5270c10f5e2a43a7b"
   },
   "themes": {
@@ -107,7 +107,11 @@
             5
           ],
           "triangles": 912,
-          "surfaces": 4
+          "surfaces": 4,
+          "upper_30_percent_span": [
+            7.784266710281372,
+            7.3656604290008545
+          ]
         },
         "ArenaCover": {
           "min": [
@@ -298,7 +302,11 @@
             5
           ],
           "triangles": 624,
-          "surfaces": 3
+          "surfaces": 3,
+          "upper_30_percent_span": [
+            7.784266710281372,
+            7.3656604290008545
+          ]
         },
         "ArenaCover": {
           "min": [
@@ -489,7 +497,11 @@
             5
           ],
           "triangles": 1056,
-          "surfaces": 4
+          "surfaces": 4,
+          "upper_30_percent_span": [
+            7.784266710281372,
+            7.3656604290008545
+          ]
         },
         "ArenaCover": {
           "min": [
@@ -680,7 +692,11 @@
             5
           ],
           "triangles": 624,
-          "surfaces": 3
+          "surfaces": 3,
+          "upper_30_percent_span": [
+            7.784266710281372,
+            7.3656604290008545
+          ]
         },
         "ArenaCover": {
           "min": [
@@ -871,7 +887,11 @@
             5
           ],
           "triangles": 696,
-          "surfaces": 4
+          "surfaces": 4,
+          "upper_30_percent_span": [
+            7.784266710281372,
+            7.3656604290008545
+          ]
         },
         "ArenaCover": {
           "min": [

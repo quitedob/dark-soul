@@ -83,6 +83,10 @@ for (const theme of themes) {
   const entry = manifest.themes[theme], glb = readGlb(path.join(directory, entry.file));
   assert.equal(sha(glb.bytes), entry.sha256); assert.equal(glb.bytes.length, entry.bytes);
   assert.equal(glb.json.scenes.length, 1); assert.ok(!(glb.json.animations?.length), 'Static kit');
+  if (theme === 'celestial_fall') for (const name of ['celestial_fall_stone', 'celestial_fall_pale']) {
+    const material = glb.json.materials.find(m => m.name === name);
+    assert.ok(material?.pbrMetallicRoughness.baseColorFactor.slice(0, 3).every(v => v <= .35), 'Celestial broad surfaces retain medium stone values under production light');
+  }
   const nodes = glb.json.scenes[glb.json.scene ?? 0].nodes;
   assert.deepEqual(nodes.map(i => glb.json.nodes[i].name), required, 'Direct named root children');
   const measured = {};
@@ -108,7 +112,14 @@ for (const theme of themes) {
       for (const side of [-1, 1]) assert.ok(s.triangles.some(t => t.some(v => Math.abs(v[0] - side * 4.8) < .8 && v[1] > 5.7)), 'Gate pillar at ±4.8');
     }
     if (name === 'ArenaCover') [2, 3, 2].forEach((v, a) => close(s.size[a], v, 'Cover dimensions'));
-    if (name === 'Rock') [10, 20, 10].forEach((v, a) => close(s.size[a], v, 'Rock dimensions'));
+    if (name === 'Rock') {
+      [10, 20, 10].forEach((v, a) => close(s.size[a], v, 'Rock dimensions'));
+      assert.ok(s.triangles.length <= 2028, 'Geological mass stays within original rock triangle budget');
+      const summit = s.triangles.flat().filter(v => v[1] >= 14);
+      const summitSpan = [0, 2].map(axis => Math.max(...summit.map(v => v[axis])) - Math.min(...summit.map(v => v[axis])));
+      assert.ok(summitSpan.every(v => v >= 4.5), 'Upper geological silhouette retains substantial width and depth instead of a narrow cone');
+      measured[name].upper_30_percent_span = summitSpan;
+    }
     if (name === 'Wall') { close(s.size[0], 6, 'Wall width'); close(s.min[1], 0, 'Wall base'); close(s.max[1], 10, 'Wall height'); assert.ok(s.size[2] <= 1.501, 'Wall buttress depth'); }
     if (name === 'Arcade') {
       [6, 7, 1].forEach((v, a) => close(s.size[a], v, 'Arcade dimensions'));

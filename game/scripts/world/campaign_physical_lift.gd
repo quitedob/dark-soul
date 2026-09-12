@@ -22,8 +22,8 @@ func setup(lift: Node3D, already_unlocked: bool, on_unlock: Callable) -> void:
 	destination_y = upper_y
 	platform.position = Vector3(0, upper_y, 0)
 	lift.set_meta("is_active", unlocked)
-	_add_control("UpperLiftCall", Vector3(0, 1.0, 0), true)
-	_add_control("LowerLiftCall", Vector3(0, lower_y + 1.175, 0), false)
+	_add_control("UpperLiftCall", Vector3(0, 1.0, -4.2), true)
+	_add_control("LowerLiftCall", Vector3(0, lower_y + 1.175, -4.2), false)
 	var onboard := Interact.new()
 	onboard.name = "LiftRideInteract"
 	onboard.position = Vector3(0, 1.1, 0)
@@ -91,6 +91,12 @@ func _start(target: float) -> void:
 
 func _refresh_prompts() -> void:
 	for area in _controls:
-		area.prompt_text = "升降台运行中 / Lift moving" if moving else "呼叫 / 乘坐升降台 · Call / ride lift"
+		area.prompt_text = "升降台运行中 / Lift moving" if moving else "呼叫升降台 / Call lift"
+		if not moving and String(area.name) == "LiftRideInteract":
+			area.prompt_text = "乘坐升降台 / Ride lift"
+		elif not moving:
+			var landing := upper_y if String(area.name) == "UpperLiftCall" else lower_y
+			if absf(platform.position.y - landing) < .1:
+				area.prompt_text = "升降台已停靠 · 走上平台 / Step onto the lift"
 		if String(area.name) == "LowerLiftCall" and not unlocked:
 			area.prompt_text = "需要从上层解锁 / Unlock from above"

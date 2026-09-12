@@ -39,7 +39,7 @@ Runtime batchers can share one mesh per material per part.
 | Column | Approximately 1.8–1.9 wide × 6 tall; actual triangles serve collision |
 | Gate | Pillars centered X=±4.8 at Y=0, 6m tall, clear central passage; 12m lintel and curved canopy |
 | Landmark | Exact established source-kit triangle geometry; see preservation below |
-| Rock | 10 × 20 × 10, base Y=0; jagged distant formations |
+| Rock | 10 × 20 × 10, base Y=0; broad fractured cliff masses, stepped strata and angular talus |
 | ArenaCover | 2 × 3 × 2, base Y=0; actual triangles serve collision |
 | Wall | 6 × 10, base Y=0, 0.8m masonry core with total articulated depth ≤1.5m |
 | Arcade | 6 × 7 × 1, base Y=0, verified clear central 4 × 4m aperture |
@@ -68,7 +68,7 @@ Art references: `docs/story/main-story.md`, plus each chapter's
   recessed firing slits, twin furnace chimneys, crenellations and torn red standards.
 - **Jade Veil:** moon-ring balustrades and garden arches, twisting exposed roots,
   jade tile eaves, amber metalwork and overgrown pagoda silhouettes.
-- **Celestial Fall:** pale and gold masonry, engraved orbital instruments,
+- **Celestial Fall:** weathered medium grey-green masonry and worn gold, engraved orbital instruments,
   interrupted astral rings and detached spire fragments suspended around the tower.
 - **Ember Abyss:** faceted black basalt, forged copper ribs, open skeletal canopies,
   actual alternating chain links and restrained ember fissures.
@@ -82,7 +82,7 @@ GLB files remain required when rebuilding, and their checksums are recorded.
 
 ## Static cost
 
-The five kits together occupy approximately 16.9MB. Common parts use 2–6 merged
+The five GLBs together occupy **17,082,340 bytes** (approximately 17.1MB). Common parts use 2–6 merged
 surfaces, within the contract of fewer than 8; no part exceeds 6. Repeated floor
 tiles use 796–1,108 triangles, bridge decks 1,148, rails 1,068–2,504. Larger towers
 use 24,630–37,226 triangles. The largest retained landmark has 39,116 triangles.
@@ -93,3 +93,12 @@ measure the assembled scene with its actual instance distribution and renderer.
 New masonry uses 44-triangle chamfered solids instead of 108-triangle rounded boxes.
 Indexed merging preserves separate flat/bevel normals and reduces duplicate
 vertices; tiny chain links use fewer radial segments than large architectural rings.
+
+The horizon formation uses four unequal broad cliff/talus masses with stepped
+strata and flat fractured facets, replacing the original continuously tapering
+spikes. Rock uses 624–1,056 triangles depending on theme. Its upper 30% retains
+a 7.78 × 7.37m projected span; the independent verifier checks that it does not
+collapse to a thin cone. Celestial broad stone colors are `#788276` and `#959c87`,
+roughly half the former linear albedo; the verifier caps those exported PBR
+channels at 0.35. These changes respond to the initial target-renderer captures;
+the final target-renderer appearance still requires independent observation.

@@ -100,11 +100,28 @@ func _run() -> void:
 		_check_memorials_and_bells(id, props)
 		var rows: Array[Dictionary] = []
 		var actors: Array[Node3D] = []
+		var district_plans: Dictionary = {}
+		for plan: Dictionary in current.get_meta("expansion", {}).get("encounters", []):
+			district_plans[String(plan["placement_id"])] = plan
+		var district_seen: Dictionary = {}
 		for enemy: Node3D in _world.enemies:
 			if enemy == _world.guardian:
 				continue
+			if enemy.has_meta("expansion_placement_id"):
+				var placement_id := String(enemy.get_meta("expansion_placement_id"))
+				_check(district_plans.has(placement_id) and not district_seen.has(placement_id), id + ": district actor has unique authored identity")
+				district_seen[placement_id] = true
+				if district_plans.has(placement_id):
+					var plan: Dictionary = district_plans[placement_id]
+					var expected: Vector3 = current.to_global(plan["position"])
+					_check(String(enemy.content_id) == String(plan["content_id"]), id + ": district content matches its story plan")
+					_check(Vector2(enemy.global_position.x - expected.x, enemy.global_position.z - expected.z).length() < .2,
+						id + ": district actor remains at its own guarded route")
+					_check(Encounters.is_supported(layout, plan["position"], enemy.body_shape.radius), id + ": district guard has genuine supporting terrain")
+				continue
 			rows.append({"content_id": String(enemy.content_id), "body_radius": enemy.body_shape.radius})
 			actors.append(enemy)
+		_check(district_seen.size() == district_plans.size(), id + ": complete added district roster")
 		if id == "level_03_04":
 			_check_lake_roster(current, actors)
 		var input_snapshot: Dictionary = layout.duplicate(true)
